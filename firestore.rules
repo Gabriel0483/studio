@@ -1,0 +1,197 @@
+/**
+ * @title Firebase Security Rules for TransitFlow (Prototyping Mode)
+ * @author Firebase Security Rules Architect
+ * @version 1.0
+ *
+ * @description
+ * This ruleset is designed for the TransitFlow application during its prototyping phase.
+ * It prioritizes strict authorization (who can access what) while maintaining
+ * flexibility in data schemas to allow for rapid development and iteration.
+ *
+ * @philosophy
+ * The core security philosophy is a hybrid model:
+ * 1. User-Ownership: Passengers have direct control over their own data, such as their
+ *    personal information and bookings. Access is strictly limited to the data owner.
+ * 2. Role-Based Access Control (RBAC): System-level data, such as ships, routes,
+ *    schedules, and maintenance records, is managed by authorized personnel (modeled
+ *    as 'Admins'). This prevents unauthorized modification of critical operational data.
+ * 3. Public Read: Non-sensitive, publicly relevant information like routes and schedules
+ *    is readable by anyone, including unauthenticated users, to support the application's
+ *    core user experience.
+ *
+ * @structure
+ * The data structure consists of several top-level collections. There are no nested
+ * user subcollections. This design choice ensures that security rules for each
+ * collection are straightforward and that list operations are performant and secure.
+ * - /passengers/{passengerId}: Stores private user profile data.
+ * - /bookings/{bookingId}: Stores user-specific booking records.
+ * - /routes/{routeId}, /schedules/{scheduleId}: Publicly readable operational data.
+ * - /ships/{shipId}, /maintenanceRecords/{maintenanceRecordId}: Private operational data.
+ *
+ * @decisions
+ * - Default Deny: All paths are closed by default. Access is granted explicitly.
+ * - No User Listing: Listing documents in the `/passengers` collection is disabled to
+ *   protect user privacy and prevent data scraping.
+ * - Denormalization for Authorization: Booking documents contain a `passengerId` field.
+ *   This avoids costly and slow `get()` calls in security rules, allowing for fast,
+ *   direct ownership checks.
+ * - Admin Placeholder: A placeholder `isAdmin()` function is used to represent
+ *   authorized personnel. In a production environment, this should be implemented using
+ *   Firebase Auth custom claims for robust and secure role management.
+ * - Schema Flexibility: In line with the prototyping goal, these rules do NOT enforce
+ *   the specific shape or data types of documents beyond fields critical for
+ *   authorization (e.g., ownership IDs).
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ----------------------------------------------------------------------
+    // Helper Functions
+    // ----------------------------------------------------------------------
+
+    /**
+     * @description Checks if a user is authenticated.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * @description Checks if the currently authenticated user's UID matches the provided userId.
+     * This is the foundation of the user-ownership security model.
+     * @param userId The UID to check against the authenticated user.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /**
+     * @description A combination check for update/delete operations to ensure the user is the
+     * owner AND the document they are trying to modify actually exists.
+     * @param userId The UID of the document owner.
+     */
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+
+    /**
+     * @description Placeholder for role-based access control.
+     * In production, this should be replaced with a check against custom claims.
+     * For example: `return request.auth.token.admin == true;`
+     */
+    function isAdmin() {
+      // TODO: Implement role-based access control, e.g., using custom claims.
+      // For prototyping, this is locked down and returns false.
+      // To test admin functionality, temporarily set this to `return isSignedIn();`
+      return false;
+    }
+
+    // ----------------------------------------------------------------------
+    // Collection Rules
+    // ----------------------------------------------------------------------
+
+    /**
+     * @description Secures passenger profiles. Each passenger can create their own profile
+     *   and has full control over it. No other user can read or write to it.
+     * @path /passengers/{passengerId}
+     * @allow (create) An authenticated user creating their own profile document, where the
+     *   document ID matches their auth UID. `auth.uid: 'user123'`, `path: /passengers/user123`.
+     * @deny (get) An authenticated user trying to read another user's profile.
+     *   `auth.uid: 'user456'`, `path: /passengers/user123`.
+     * @principle Restricts access to a user's own data tree (Self-Creation & Ownership).
+     */
+    match /passengers/{passengerId} {
+      allow get: if isOwner(passengerId);
+      allow list: if false; // Protects user privacy by preventing enumeration of all passengers.
+      allow create: if isOwner(passengerId) && request.resource.data.id == passengerId;
+      allow update: if isExistingOwner(passengerId) && request.resource.data.id == resource.data.id;
+      allow delete: if isExistingOwner(passengerId);
+    }
+
+    /**
+     * @description Secures ship information. This is considered sensitive operational data.
+     *   Only authorized administrators can read or modify this data.
+     * @path /ships/{shipId}
+     * @allow (get) An admin reading a ship's document. `auth.token.admin: true`.
+     * @deny (list) A regular authenticated user trying to list all ships. `auth.uid: 'user123'`.
+     * @principle Enforces strict Role-Based Access Control (RBAC) for sensitive data.
+     */
+    match /ships/{shipId} {
+      allow get: if isAdmin();
+      allow list: if isAdmin();
+      allow create: if isAdmin();
+      allow update: if isAdmin() && resource != null;
+      allow delete: if isAdmin() && resource != null;
+    }
+
+    /**
+     * @description Manages public route information. This data is safe for anyone to read,
+     *   allowing the app to display available routes to all users. Writes are
+     *   restricted to administrators to prevent tampering.
+     * @path /routes/{routeId}
+     * @allow (list) Any user (authenticated or not) listing all available routes.
+     * @deny (create) A regular authenticated user trying to create a new route. `auth.uid: 'user123'`.
+     * @principle Implements a "Public Read with Admin-Only Writes" pattern.
+     */
+    match /routes/{routeId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAdmin();
+      allow update: if isAdmin() && resource != null;
+      allow delete: if isAdmin() && resource != null;
+    }
+
+    /**
+     * @description Manages public schedule information. Like routes, schedules are readable by
+     *   everyone. Modifications are restricted to administrators.
+     * @path /schedules/{scheduleId}
+     * @allow (get) Any user (authenticated or not) viewing a specific trip schedule.
+     * @deny (update) A regular authenticated user trying to change a departure time. `auth.uid: 'user123'`.
+     * @principle Implements a "Public Read with Admin-Only Writes" pattern.
+     */
+    match /schedules/{scheduleId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAdmin();
+      allow update: if isAdmin() && resource != null;
+      allow delete: if isAdmin() && resource != null;
+    }
+
+    /**
+     * @description Secures individual booking records. A passenger can only access their
+     *   own bookings. This rule relies on the denormalized `passengerId` field
+     *   within each booking document for efficient and secure authorization.
+     * @path /bookings/{bookingId}
+     * @allow (create) An authenticated user creating a booking for themselves.
+     *   `auth.uid: 'user123'`, `request.resource.data.passengerId: 'user123'`.
+     * @deny (get) An authenticated user trying to read another passenger's booking.
+     *   `auth.uid: 'user456'`, `resource.data.passengerId: 'user123'`.
+     * @principle Enforces document ownership for writes and reads via a denormalized field.
+     */
+    match /bookings/{bookingId} {
+      allow get: if isOwner(resource.data.passengerId) || isAdmin();
+      allow list: if false; // Prevents any user from listing all bookings. Client must query by passengerId.
+      allow create: if isSignedIn() && request.resource.data.passengerId == request.auth.uid;
+      allow update: if (isExistingOwner(resource.data.passengerId) && request.resource.data.passengerId == resource.data.passengerId) || (isAdmin() && resource != null);
+      allow delete: if isExistingOwner(resource.data.passengerId) || (isAdmin() && resource != null);
+    }
+
+    /**
+     * @description Secures ship maintenance records. This is sensitive operational data
+     *   that should only be accessible to authorized administrators.
+     * @path /maintenanceRecords/{maintenanceRecordId}
+     * @allow (create) An admin creating a new maintenance record. `auth.token.admin: true`.
+     * @deny (get) A regular authenticated user trying to read a maintenance log. `auth.uid: 'user123'`.
+     * @principle Enforces strict Role-Based Access Control (RBAC) for sensitive data.
+     */
+    match /maintenanceRecords/{maintenanceRecordId} {
+      allow get: if isAdmin();
+      allow list: if isAdmin();
+      allow create: if isAdmin();
+      allow update: if isAdmin() && resource != null;
+      allow delete: if isAdmin() && resource != null;
+    }
+
+  }
+}

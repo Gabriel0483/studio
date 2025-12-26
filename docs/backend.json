@@ -1,0 +1,334 @@
+{
+  "entities": {
+    "Passenger": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Passenger",
+      "type": "object",
+      "description": "Represents a passenger using the TransitFlow system.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Passenger entity."
+        },
+        "firstName": {
+          "type": "string",
+          "description": "The first name of the passenger."
+        },
+        "lastName": {
+          "type": "string",
+          "description": "The last name of the passenger."
+        },
+        "email": {
+          "type": "string",
+          "description": "The email address of the passenger.",
+          "format": "email"
+        },
+        "phone": {
+          "type": "string",
+          "description": "The phone number of the passenger."
+        },
+        "address": {
+          "type": "string",
+          "description": "The address of the passenger."
+        }
+      },
+      "required": [
+        "id",
+        "firstName",
+        "lastName",
+        "email"
+      ]
+    },
+    "Ship": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Ship",
+      "type": "object",
+      "description": "Represents a ship in the TransitFlow system.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Ship entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the ship."
+        },
+        "capacity": {
+          "type": "number",
+          "description": "The maximum passenger capacity of the ship."
+        },
+        "status": {
+          "type": "string",
+          "description": "The current status of the ship (e.g., 'In Service', 'Under Maintenance')."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "capacity",
+        "status"
+      ]
+    },
+    "Route": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Route",
+      "type": "object",
+      "description": "Represents a route in the TransitFlow system.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Route entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the route."
+        },
+        "departure": {
+          "type": "string",
+          "description": "Departure location"
+        },
+        "destination": {
+          "type": "string",
+          "description": "Destination location."
+        },
+        "distance": {
+          "type": "number",
+          "description": "The distance of the route (e.g. in miles or kilometers)."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "departure",
+        "destination",
+        "distance"
+      ]
+    },
+    "Schedule": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Schedule",
+      "type": "object",
+      "description": "Represents a scheduled trip in the TransitFlow system.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Schedule entity."
+        },
+        "shipId": {
+          "type": "string",
+          "description": "Reference to Ship. (Relationship: Ship 1:N Schedule)"
+        },
+        "routeId": {
+          "type": "string",
+          "description": "Reference to Route. (Relationship: Route 1:N Schedule)"
+        },
+        "departureTime": {
+          "type": "string",
+          "description": "The scheduled departure time.",
+          "format": "date-time"
+        },
+        "arrivalTime": {
+          "type": "string",
+          "description": "The estimated arrival time.",
+          "format": "date-time"
+        },
+        "availableSeats": {
+          "type": "number",
+          "description": "The number of seats available on this scheduled trip."
+        }
+      },
+      "required": [
+        "id",
+        "shipId",
+        "routeId",
+        "departureTime",
+        "arrivalTime",
+        "availableSeats"
+      ]
+    },
+    "Booking": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Booking",
+      "type": "object",
+      "description": "Represents a passenger booking in the TransitFlow system.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Booking entity."
+        },
+        "passengerId": {
+          "type": "string",
+          "description": "Reference to Passenger. (Relationship: Passenger 1:N Booking)"
+        },
+        "scheduleId": {
+          "type": "string",
+          "description": "Reference to Schedule. (Relationship: Schedule 1:N Booking)"
+        },
+        "bookingDate": {
+          "type": "string",
+          "description": "The date the booking was made.",
+          "format": "date-time"
+        },
+        "numberOfSeats": {
+          "type": "number",
+          "description": "The number of seats booked."
+        },
+        "totalPrice": {
+          "type": "number",
+          "description": "The total price of the booking."
+        }
+      },
+      "required": [
+        "id",
+        "passengerId",
+        "scheduleId",
+        "bookingDate",
+        "numberOfSeats"
+      ]
+    },
+    "MaintenanceRecord": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "MaintenanceRecord",
+      "type": "object",
+      "description": "Represents a maintenance record for a ship.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the MaintenanceRecord entity."
+        },
+        "shipId": {
+          "type": "string",
+          "description": "Reference to Ship. (Relationship: Ship 1:N MaintenanceRecord)"
+        },
+        "startDate": {
+          "type": "string",
+          "description": "The start date of the maintenance period.",
+          "format": "date-time"
+        },
+        "endDate": {
+          "type": "string",
+          "description": "The end date of the maintenance period.",
+          "format": "date-time"
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the maintenance performed."
+        }
+      },
+      "required": [
+        "id",
+        "shipId",
+        "startDate",
+        "endDate",
+        "description"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/passengers/{passengerId}",
+        "definition": {
+          "entityName": "Passenger",
+          "schema": {
+            "$ref": "#/backend/entities/Passenger"
+          },
+          "description": "Stores passenger information. Path-based ownership: Only the passenger (or an admin) can access their own document.",
+          "params": [
+            {
+              "name": "passengerId",
+              "description": "The unique identifier of the passenger."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/ships/{shipId}",
+        "definition": {
+          "entityName": "Ship",
+          "schema": {
+            "$ref": "#/backend/entities/Ship"
+          },
+          "description": "Stores ship information. Access control: restricted to authorized personnel (e.g., admins, maintenance staff).",
+          "params": [
+            {
+              "name": "shipId",
+              "description": "The unique identifier of the ship."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/routes/{routeId}",
+        "definition": {
+          "entityName": "Route",
+          "schema": {
+            "$ref": "#/backend/entities/Route"
+          },
+          "description": "Stores route information. Access control: read access potentially open to all users, write access restricted to authorized personnel.",
+          "params": [
+            {
+              "name": "routeId",
+              "description": "The unique identifier of the route."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/schedules/{scheduleId}",
+        "definition": {
+          "entityName": "Schedule",
+          "schema": {
+            "$ref": "#/backend/entities/Schedule"
+          },
+          "description": "Stores schedule information. Access control: read access potentially open to all users, write access restricted to authorized personnel.",
+          "params": [
+            {
+              "name": "scheduleId",
+              "description": "The unique identifier of the schedule."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/bookings/{bookingId}",
+        "definition": {
+          "entityName": "Booking",
+          "schema": {
+            "$ref": "#/backend/entities/Booking"
+          },
+          "description": "Stores booking information. Access control: restricted to the passenger who made the booking or authorized personnel. Includes denormalized `passengerId` for authorization independence.",
+          "params": [
+            {
+              "name": "bookingId",
+              "description": "The unique identifier of the booking."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/maintenanceRecords/{maintenanceRecordId}",
+        "definition": {
+          "entityName": "MaintenanceRecord",
+          "schema": {
+            "$ref": "#/backend/entities/MaintenanceRecord"
+          },
+          "description": "Stores maintenance records for ships. Access control: restricted to authorized maintenance personnel.",
+          "params": [
+            {
+              "name": "maintenanceRecordId",
+              "description": "The unique identifier of the maintenance record."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore data structure is designed to support the TransitFlow application's requirements for managing passengers, ships, routes, schedules, bookings, and maintenance records. The structure prioritizes authorization independence to ensure secure and scalable operations. Path-based ownership is used for user-specific data (passengers), while collaborative data (if any in future) will leverage membership maps. Structural segregation is employed to maintain a homogeneous security posture within collections.\n\nAuthorization Independence: Denormalization is applied where necessary to avoid `get()` calls in security rules. For instance, if access to Bookings needed to be restricted to passengers who made them, the `passengerId` is used in the Booking document, avoiding the need to `get` the Passenger document in rules.\n\nQAPs Support:  Segregation ensures that list operations are secure. For example, listing ships does not require filtering based on complex rules; all documents in the `/ships` collection have the same basic access control requirements."
+  }
+}
