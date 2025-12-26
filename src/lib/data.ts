@@ -1,4 +1,4 @@
-import { Ship, Users, Wrench, Calendar, LineChart, Route as RouteIcon, DollarSign, Anchor } from 'lucide-react';
+import { Ship, Users, Wrench, Calendar, LineChart, Route as RouteIcon, DollarSign, Anchor, BarChart } from 'lucide-react';
 
 export const navLinks = [
   { href: '/dashboard', label: 'Dashboard', icon: LineChart },
