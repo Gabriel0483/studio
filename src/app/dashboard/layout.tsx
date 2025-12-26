@@ -1,0 +1,75 @@
+'use client';
+
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import {
+  SidebarProvider,
+  Sidebar,
+  SidebarHeader,
+  SidebarContent,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
+  SidebarInset,
+  SidebarTrigger,
+} from '@/components/ui/sidebar';
+import { Logo } from '@/components/logo';
+import { UserNav } from '@/components/dashboard/user-nav';
+import { navLinks } from '@/lib/data';
+import { Button } from '@/components/ui/button';
+import { Home } from 'lucide-react';
+
+
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const pathname = usePathname();
+
+  return (
+    <SidebarProvider>
+      <Sidebar>
+        <SidebarHeader>
+          <Logo />
+        </SidebarHeader>
+        <SidebarContent>
+          <SidebarMenu>
+            {navLinks.map((link) => (
+              <SidebarMenuItem key={link.href}>
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname === link.href}
+                  tooltip={{ children: link.label }}
+                >
+                  <Link href={link.href}>
+                    <link.icon className="h-4 w-4" />
+                    <span>{link.label}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            ))}
+          </SidebarMenu>
+        </SidebarContent>
+      </Sidebar>
+      <SidebarInset className="flex flex-col">
+        <header className="flex h-14 items-center gap-4 border-b bg-card px-4 lg:h-[60px] lg:px-6">
+            <SidebarTrigger className="md:hidden" />
+            <div className='hidden md:block'>
+                <Button asChild variant="outline" size="icon">
+                    <Link href="/">
+                        <Home className="h-4 w-4"/>
+                        <span className="sr-only">Back to Homepage</span>
+                    </Link>
+                </Button>
+            </div>
+          <div className="w-full flex-1">
+            {/* Can add a search bar here later */}
+          </div>
+          <UserNav />
+        </header>
+        <main className="flex-1 overflow-auto p-4 lg:p-6">{children}</main>
+      </SidebarInset>
+    </SidebarProvider>
+  );
+}
