@@ -4,8 +4,8 @@ import './globals.css';
 import { FirebaseClientProvider } from '@/firebase';
 
 export const metadata: Metadata = {
-  title: 'TransitFlow',
-  description: 'The all-in-one solution for modern shipping companies.',
+  title: 'Isla Konek',
+  description: 'Connecting islands, one trip at a time.',
 };
 
 export default function RootLayout({

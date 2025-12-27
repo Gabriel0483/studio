@@ -42,7 +42,7 @@ export default function Home() {
             <div className="grid gap-10 lg:grid-cols-2 lg:gap-16">
               <div className="flex flex-col justify-center space-y-6">
                 <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl md:text-6xl">
-                  Streamline Your Shipping Operations with TransitFlow
+                  Streamline Your Shipping Operations with Isla Konek
                 </h1>
                 <p className="max-w-xl text-lg text-muted-foreground md:text-xl">
                   From passenger reservations to daily operations, our all-in-one web application automates the entire process, saving you time, money, and headaches.
