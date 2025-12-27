@@ -135,11 +135,9 @@ service cloud.firestore {
      * @principle Enforces strict Role-Based Access Control (RBAC) for sensitive data.
      */
     match /ships/{shipId} {
-      allow get: if isAdmin();
-      allow list: if isAdmin();
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow write: if isSignedIn();
     }
 
     /**
