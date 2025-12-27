@@ -1,12 +1,13 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, Timestamp } from 'firebase/firestore';
-import { BookCopy } from 'lucide-react';
+import { BookCopy, Search } from 'lucide-react';
 import { format } from 'date-fns';
+import { Input } from '@/components/ui/input';
 
 interface Booking {
   id: string;
@@ -21,6 +22,7 @@ interface Booking {
 
 export default function BookingsPage() {
   const firestore = useFirestore();
+  const [search, setSearch] = useState('');
   
   const bookingsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -28,6 +30,24 @@ export default function BookingsPage() {
   }, [firestore]);
 
   const { data: bookings, isLoading } = useCollection<Omit<Booking, 'id'>>(bookingsQuery);
+
+  const filteredBookings = useMemo(() => {
+    if (!bookings) return [];
+    if (!search) return bookings;
+
+    return bookings.filter((booking) => {
+      const searchTerm = search.toLowerCase();
+      const passengerNames = Array.isArray(booking.passengerInfo)
+        ? booking.passengerInfo.map(p => p.fullName.toLowerCase()).join(' ')
+        : '';
+      
+      return (
+        passengerNames.includes(searchTerm) ||
+        booking.passengerEmail.toLowerCase().includes(searchTerm) ||
+        booking.routeName.toLowerCase().includes(searchTerm)
+      );
+    });
+  }, [bookings, search]);
 
   const formatDate = (timestamp: Timestamp | undefined) => {
     if (!timestamp) return "N/A";
@@ -45,6 +65,15 @@ export default function BookingsPage() {
         <CardHeader>
           <CardTitle>All Bookings</CardTitle>
           <CardDescription>A real-time list of all passenger bookings.</CardDescription>
+           <div className="relative pt-2">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input 
+              placeholder="Search by passenger name, email, or route..." 
+              className="pl-10"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
         </CardHeader>
         <CardContent>
           <Table>
@@ -65,8 +94,8 @@ export default function BookingsPage() {
                     Loading bookings...
                   </TableCell>
                 </TableRow>
-              ) : bookings && bookings.length > 0 ? (
-                bookings.map((booking) => (
+              ) : filteredBookings && filteredBookings.length > 0 ? (
+                filteredBookings.map((booking) => (
                   <TableRow key={booking.id}>
                     <TableCell className="font-medium">
                       {Array.isArray(booking.passengerInfo) ? booking.passengerInfo.map(p => p.fullName).join(', ') : 'N/A'}
