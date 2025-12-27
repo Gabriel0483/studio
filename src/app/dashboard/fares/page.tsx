@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { collection, doc } from 'firebase/firestore';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import {
@@ -214,8 +214,15 @@ export default function FaresPage() {
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingFare, setEditingFare] = useState<Fare | undefined>(undefined);
+  const [filterRouteId, setFilterRouteId] = useState('all');
 
   const { toast } = useToast();
+
+  const filteredFares = useMemo(() => {
+    if (!fares) return [];
+    if (filterRouteId === 'all') return fares;
+    return fares.filter(fare => fare.routeId === filterRouteId);
+  }, [fares, filterRouteId]);
 
   const handleDelete = (fare: Fare) => {
     if (window.confirm(`Are you sure you want to delete this fare?`)) {
@@ -281,6 +288,22 @@ export default function FaresPage() {
         <CardHeader>
           <CardTitle>All Fares</CardTitle>
           <CardDescription>A list of all available passenger fares.</CardDescription>
+            <div className="pt-4">
+                <Label htmlFor="filter-route">Filter by Route</Label>
+                <Select value={filterRouteId} onValueChange={setFilterRouteId}>
+                    <SelectTrigger id="filter-route" className="w-full sm:w-[300px]">
+                        <SelectValue placeholder="Select a route to filter" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All Routes</SelectItem>
+                        {routes?.map((route) => (
+                            <SelectItem key={route.id} value={route.id}>
+                                {route.name}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
         </CardHeader>
         <CardContent>
           <Table>
@@ -299,8 +322,8 @@ export default function FaresPage() {
                     Loading fares...
                   </TableCell>
                 </TableRow>
-              ) : fares && fares.length > 0 ? (
-                fares.map((fare) => (
+              ) : filteredFares && filteredFares.length > 0 ? (
+                filteredFares.map((fare) => (
                   <TableRow key={fare.id}>
                     <TableCell className="font-medium">{fare.routeName}</TableCell>
                     <TableCell>{fare.passengerType}</TableCell>
