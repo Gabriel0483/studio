@@ -1,5 +1,30 @@
 {
   "entities": {
+    "Port": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Port",
+      "type": "object",
+      "description": "Represents a port in the TransitFlow system.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Port entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the port."
+        },
+        "location": {
+          "type": "string",
+          "description": "The location of the port (e.g., city, country)."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "location"
+      ]
+    },
     "Passenger": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Passenger",
@@ -232,6 +257,22 @@
   },
   "firestore": {
     "structure": [
+      {
+        "path": "/ports/{portId}",
+        "definition": {
+          "entityName": "Port",
+          "schema": {
+            "$ref": "#/backend/entities/Port"
+          },
+          "description": "Stores port information. Access control: read access open to all users, write access restricted to authorized personnel.",
+          "params": [
+            {
+              "name": "portId",
+              "description": "The unique identifier of the port."
+            }
+          ]
+        }
+      },
       {
         "path": "/passengers/{passengerId}",
         "definition": {

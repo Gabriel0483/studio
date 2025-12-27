@@ -1,7 +1,7 @@
 /**
  * @title Firebase Security Rules for TransitFlow (Prototyping Mode)
  * @author Firebase Security Rules Architect
- * @version 1.0
+ * @version 1.1
  *
  * @description
  * This ruleset is designed for the TransitFlow application during its prototyping phase.
@@ -27,6 +27,7 @@
  * - /bookings/{bookingId}: Stores user-specific booking records.
  * - /routes/{routeId}, /schedules/{scheduleId}: Publicly readable operational data.
  * - /ships/{shipId}, /maintenanceRecords/{maintenanceRecordId}: Private operational data.
+ * - /ports/{portId}: Publicly readable operational data.
  *
  * @decisions
  * - Default Deny: All paths are closed by default. Access is granted explicitly.
@@ -90,6 +91,23 @@ service cloud.firestore {
     // ----------------------------------------------------------------------
     // Collection Rules
     // ----------------------------------------------------------------------
+    
+    /**
+     * @description Manages public port information. This data is safe for anyone to read,
+     *   allowing the app to display available ports to all users. Writes are
+     *   restricted to administrators to prevent tampering.
+     * @path /ports/{portId}
+     * @allow (list) Any user (authenticated or not) listing all available ports.
+     * @deny (create) A regular authenticated user trying to create a new port. `auth.uid: 'user123'`.
+     * @principle Implements a "Public Read with Admin-Only Writes" pattern.
+     */
+    match /ports/{portId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAdmin();
+      allow update: if isAdmin() && resource != null;
+      allow delete: if isAdmin() && resource != null;
+    }
 
     /**
      * @description Secures passenger profiles. Each passenger can create their own profile
