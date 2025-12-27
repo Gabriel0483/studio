@@ -1,13 +1,13 @@
 'use client';
 
-import { useFormState, useFormStatus } from 'react-dom';
+import { useActionState, useEffect } from 'react';
+import { useFormStatus } from 'react-dom';
 import { getOptimizedSchedules, type FormState } from '@/app/actions';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2, Ship, Route, BarChart } from 'lucide-react';
-import { useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 
 function SubmitButton() {
@@ -22,7 +22,7 @@ function SubmitButton() {
 
 export default function SchedulingPage() {
   const initialState: FormState = { message: '' };
-  const [state, formAction] = useFormState(getOptimizedSchedules, initialState);
+  const [state, formAction] = useActionState(getOptimizedSchedules, initialState);
   const { toast } = useToast();
 
   useEffect(() => {
