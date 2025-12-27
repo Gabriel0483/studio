@@ -274,21 +274,41 @@
           "type": "string",
           "description": "Reference to Passenger (user.uid). (Relationship: Passenger 1:N Booking)"
         },
-        "passengerName": {
-          "type": "string",
-          "description": "Denormalized name of the passenger for display."
+        "passengerInfo": {
+          "type": "array",
+          "description": "Array of passenger details for the booking.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "fullName": { "type": "string" },
+              "birthDate": { "type": "string", "format": "date" }
+            }
+          }
         },
         "passengerEmail": {
           "type": "string",
-          "description": "Denormalized email of the passenger for display."
+          "description": "Primary contact email for the booking."
+        },
+        "passengerPhone": {
+            "type": "string",
+            "description": "Primary contact phone number for the booking."
         },
         "scheduleId": {
           "type": "string",
           "description": "Reference to Schedule. (Relationship: Schedule 1:N Booking)"
         },
-        "fareId": {
-          "type": "string",
-          "description": "Reference to the Fare used for this booking."
+        "fareDetails": {
+          "type": "array",
+          "description": "Breakdown of fares used in the booking.",
+          "items": {
+            "type": "object",
+            "properties": {
+                "fareId": { "type": "string" },
+                "passengerType": { "type": "string" },
+                "count": { "type": "number" },
+                "pricePerTicket": { "type": "number" }
+            }
+          }
         },
         "routeName": {
           "type": "string",
@@ -299,9 +319,14 @@
           "description": "The date the booking was made.",
           "format": "date-time"
         },
+        "travelDate": {
+            "type": "string",
+            "description": "The date of travel.",
+            "format": "date"
+        },
         "numberOfSeats": {
           "type": "number",
-          "description": "The number of seats booked."
+          "description": "The total number of seats booked."
         },
         "totalPrice": {
           "type": "number",
@@ -311,9 +336,12 @@
       "required": [
         "id",
         "passengerId",
+        "passengerInfo",
+        "passengerEmail",
         "scheduleId",
-        "fareId",
+        "fareDetails",
         "bookingDate",
+        "travelDate",
         "numberOfSeats",
         "totalPrice"
       ]

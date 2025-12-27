@@ -3,10 +3,8 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useFieldArray, useForm } from "react-hook-form"
 import * as z from "zod"
-import { CalendarIcon, User, PlusCircle, Trash2 } from "lucide-react"
-import { format } from "date-fns"
+import { PlusCircle, Trash2 } from "lucide-react"
 
-import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
   Form,
@@ -31,9 +29,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useFirestore, useCollection, useMemoFirebase, useUser, errorEmitter, FirestorePermissionError } from "@/firebase"
 import { collection, doc, serverTimestamp, runTransaction } from "firebase/firestore"
 import React, { useMemo, useState, useEffect } from "react"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Calendar } from "@/components/ui/calendar"
-import { Label } from "@/components/ui/label"
 
 const passengerSchema = z.object({
   fullName: z.string().min(2, { message: "Full name must be at least 2 characters." }),
@@ -46,11 +41,13 @@ const fareBreakdownSchema = z.object({
 });
 
 const bookingFormSchema = z.object({
-  primaryEmail: z.string().email({ message: "Please enter a valid email address." }),
+  routeId: z.string({ required_error: "Please select a route." }),
   travelDate: z.string().refine((val) => !isNaN(Date.parse(val)), { message: "A date of travel is required."}),
   scheduleId: z.string({ required_error: "Please select a schedule." }),
   passengers: z.array(passengerSchema).min(1, "At least one passenger is required."),
   fareBreakdown: z.array(fareBreakdownSchema),
+  primaryEmail: z.string().email({ message: "Please enter a valid email address." }),
+  primaryPhone: z.string().min(1, { message: "Please enter a contact number." }),
 });
 
 export default function BookingPage() {
@@ -61,19 +58,23 @@ export default function BookingPage() {
   const routesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'routes') : null, [firestore]);
   const faresQuery = useMemoFirebase(() => firestore ? collection(firestore, 'fares') : null, [firestore]);
   
-  const { data: schedules, isLoading: isLoadingSchedules } = useCollection(schedulesQuery);
+  const { data: allSchedules, isLoading: isLoadingSchedules } = useCollection(schedulesQuery);
   const { data: routes, isLoading: isLoadingRoutes } = useCollection(routesQuery);
-  const { data: fares, isLoading: isLoadingFares } = useCollection(faresQuery);
+  const { data: allFares, isLoading: isLoadingFares } = useCollection(faresQuery);
 
   const [availableFares, setAvailableFares] = useState<any[]>([]);
+  const [filteredSchedules, setFilteredSchedules] = useState<any[]>([]);
 
   const form = useForm<z.infer<typeof bookingFormSchema>>({
     resolver: zodResolver(bookingFormSchema),
     defaultValues: {
-      primaryEmail: "",
+      routeId: "",
       travelDate: new Date().toISOString().split("T")[0],
+      scheduleId: "",
       passengers: [{ fullName: "", birthDate: "" }],
       fareBreakdown: [],
+      primaryEmail: "",
+      primaryPhone: "",
     },
   });
 
@@ -87,15 +88,28 @@ export default function BookingPage() {
     name: "fareBreakdown",
   });
 
+  const watchRouteId = form.watch('routeId');
+  const watchTravelDate = form.watch('travelDate');
   const watchScheduleId = form.watch('scheduleId');
   const watchPassengers = form.watch('passengers');
-  const watchTravelDate = form.watch('travelDate');
 
+  // Filter schedules based on route and date
   useEffect(() => {
-    const selectedSchedule = schedules?.find(s => s.id === watchScheduleId);
-    if (selectedSchedule && routes && fares) {
+    if (watchRouteId && allSchedules) {
+      const relatedSchedules = allSchedules.filter(s => s.routeId === watchRouteId && s.availableSeats > 0);
+      setFilteredSchedules(relatedSchedules);
+      form.resetField('scheduleId');
+    } else {
+      setFilteredSchedules([]);
+    }
+  }, [watchRouteId, watchTravelDate, allSchedules, form]);
+  
+  // Update fares when schedule changes
+  useEffect(() => {
+    const selectedSchedule = allSchedules?.find(s => s.id === watchScheduleId);
+    if (selectedSchedule && routes && allFares) {
       const route = routes.find(r => r.id === selectedSchedule.routeId);
-      const routeFares = fares.filter(f => f.routeId === route?.id);
+      const routeFares = allFares.filter(f => f.routeId === route?.id);
       
       const passengerTypes = route?.passengerTypes || [];
       const newFareBreakdown = passengerTypes.map(type => ({
@@ -109,7 +123,7 @@ export default function BookingPage() {
       replaceFareFields([]);
       setAvailableFares([]);
     }
-  }, [watchScheduleId, schedules, routes, fares, replaceFareFields]);
+  }, [watchScheduleId, allSchedules, routes, allFares, replaceFareFields]);
   
   const totalSeats = useMemo(() => {
     return form.getValues('fareBreakdown').reduce((acc, current) => acc + current.count, 0);
@@ -166,14 +180,21 @@ export default function BookingPage() {
         
         const bookingData = {
           id: newBookingRef.id,
-          passengerId: user.uid, // Associates booking with anonymous user
-          passengerInfo: data.passengers, // Array of passengers
+          passengerId: user.uid,
+          passengerInfo: data.passengers,
           passengerEmail: data.primaryEmail,
+          passengerPhone: data.primaryPhone,
           scheduleId,
-          // Storing fare details directly for historical accuracy
           fareDetails: data.fareBreakdown
             .filter(item => item.count > 0)
-            .map(item => ({...item, fareId: availableFares.find(f => f.passengerType === item.passengerType)?.id })),
+            .map(item => {
+                const fareInfo = availableFares.find(f => f.passengerType === item.passengerType);
+                return {
+                    ...item,
+                    fareId: fareInfo?.id,
+                    pricePerTicket: fareInfo?.price
+                };
+            }),
           bookingDate: serverTimestamp(),
           travelDate: new Date(data.travelDate),
           numberOfSeats: totalSeats,
@@ -229,21 +250,32 @@ export default function BookingPage() {
               ) : (
                 <Form {...form}>
                   <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-                     <FormField
-                      control={form.control}
-                      name="primaryEmail"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Contact Email Address</FormLabel>
-                          <FormControl>
-                            <Input placeholder="you@example.com" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
                     
                     <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                         <FormField
+                            control={form.control}
+                            name="routeId"
+                            render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Route</FormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                    <SelectTrigger>
+                                    <SelectValue placeholder="Select a destination" />
+                                    </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    {routes?.map(route => (
+                                        <SelectItem key={route.id} value={route.id}>
+                                            {route.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                                </Select>
+                                <FormMessage />
+                            </FormItem>
+                            )}
+                        />
                         <FormField
                             control={form.control}
                             name="travelDate"
@@ -257,31 +289,34 @@ export default function BookingPage() {
                                 </FormItem>
                             )}
                         />
-                        <FormField
-                            control={form.control}
-                            name="scheduleId"
-                            render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Route & Schedule</FormLabel>
-                                <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!watchTravelDate}>
-                                <FormControl>
-                                    <SelectTrigger>
-                                    <SelectValue placeholder="Select a destination and time" />
-                                    </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                    {schedules && schedules.filter(s => s.availableSeats > 0).map(schedule => (
-                                        <SelectItem key={schedule.id} value={schedule.id}>
-                                        {getRouteName(schedule.routeId)} @ {schedule.departureTime}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                                </Select>
-                                <FormMessage />
-                            </FormItem>
-                            )}
-                        />
                     </div>
+                     <FormField
+                        control={form.control}
+                        name="scheduleId"
+                        render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Available Trips</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!watchRouteId || !watchTravelDate}>
+                            <FormControl>
+                                <SelectTrigger>
+                                <SelectValue placeholder="Select a time" />
+                                </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                                {filteredSchedules.map(schedule => (
+                                    <SelectItem key={schedule.id} value={schedule.id}>
+                                        {schedule.departureTime} - {schedule.arrivalTime} ({schedule.availableSeats} seats left)
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                            </Select>
+                             {(!filteredSchedules || filteredSchedules.length === 0) && watchRouteId && (
+                                <p className="text-sm text-muted-foreground pt-1">No available trips for the selected route and date.</p>
+                            )}
+                            <FormMessage />
+                        </FormItem>
+                        )}
+                    />
                     
                     {watchScheduleId && availableFares.length > 0 && (
                         <div className="space-y-4 rounded-lg border p-4">
@@ -334,7 +369,7 @@ export default function BookingPage() {
                               <FormItem className="sm:col-span-2">
                                 <FormLabel>Birth Date</FormLabel>
                                 <FormControl>
-                                  <Input type="date" {...field} />
+                                  <Input type="date" placeholder="YYYY-MM-DD" {...field} />
                                 </FormControl>
                                 <FormMessage />
                               </FormItem>
@@ -364,6 +399,56 @@ export default function BookingPage() {
                         <PlusCircle className="mr-2 h-4 w-4" /> Add Another Passenger
                       </Button>
                     </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        <FormField
+                            control={form.control}
+                            name="primaryPhone"
+                            render={({ field }) => (
+                                <FormItem>
+                                <FormLabel>Contact Number</FormLabel>
+                                <FormControl>
+                                    <Input placeholder="e.g., 09171234567" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="primaryEmail"
+                            render={({ field }) => (
+                                <FormItem>
+                                <FormLabel>Contact Email Address</FormLabel>
+                                <FormControl>
+                                    <Input placeholder="you@example.com" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                    </div>
+                    
+                    {totalSeats > 0 && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Booking Summary</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="space-y-2">
+                                    <p><strong>Route:</strong> {getRouteName(watchRouteId)}</p>
+                                    <p><strong>Total Tickets:</strong> {totalSeats}</p>
+                                    <p className="text-lg font-bold"><strong>Total Price: ₱{
+                                        form.getValues('fareBreakdown').reduce((acc, item) => {
+                                            const fareInfo = availableFares.find(f => f.passengerType === item.passengerType);
+                                            return acc + (fareInfo?.price || 0) * item.count;
+                                        }, 0).toFixed(2)
+                                    }</strong></p>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
+
 
                     <Button type="submit" size="lg" className="w-full" disabled={!form.formState.isValid || totalSeats === 0 || totalSeats !== watchPassengers.length}>
                       Confirm Booking

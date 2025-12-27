@@ -10,8 +10,9 @@ import { format } from 'date-fns';
 
 interface Booking {
   id: string;
-  passengerName: string;
+  passengerInfo: { fullName: string, birthDate?: string }[];
   passengerEmail: string;
+  passengerPhone: string;
   routeName: string;
   bookingDate: Timestamp;
   numberOfSeats: number;
@@ -49,8 +50,8 @@ export default function BookingsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Passenger Name</TableHead>
-                <TableHead>Email</TableHead>
+                <TableHead>Passenger(s)</TableHead>
+                <TableHead>Contact</TableHead>
                 <TableHead>Route</TableHead>
                 <TableHead>Seats</TableHead>
                 <TableHead>Total Price</TableHead>
@@ -67,8 +68,11 @@ export default function BookingsPage() {
               ) : bookings && bookings.length > 0 ? (
                 bookings.map((booking) => (
                   <TableRow key={booking.id}>
-                    <TableCell className="font-medium">{booking.passengerName}</TableCell>
-                    <TableCell>{booking.passengerEmail}</TableCell>
+                    <TableCell className="font-medium">{booking.passengerInfo.map(p => p.fullName).join(', ')}</TableCell>
+                    <TableCell>
+                        <div>{booking.passengerEmail}</div>
+                        <div>{booking.passengerPhone}</div>
+                    </TableCell>
                     <TableCell>{booking.routeName}</TableCell>
                     <TableCell>{booking.numberOfSeats}</TableCell>
                     <TableCell>₱{booking.totalPrice?.toFixed(2) ?? '0.00'}</TableCell>
