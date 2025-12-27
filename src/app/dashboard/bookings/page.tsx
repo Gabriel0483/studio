@@ -10,7 +10,7 @@ import { format } from 'date-fns';
 
 interface Booking {
   id: string;
-  passengerInfo: { fullName: string, birthDate?: string }[];
+  passengerInfo?: { fullName: string, birthDate?: string }[];
   passengerEmail: string;
   passengerPhone: string;
   routeName: string;
@@ -68,7 +68,9 @@ export default function BookingsPage() {
               ) : bookings && bookings.length > 0 ? (
                 bookings.map((booking) => (
                   <TableRow key={booking.id}>
-                    <TableCell className="font-medium">{booking.passengerInfo.map(p => p.fullName).join(', ')}</TableCell>
+                    <TableCell className="font-medium">
+                      {Array.isArray(booking.passengerInfo) ? booking.passengerInfo.map(p => p.fullName).join(', ') : 'N/A'}
+                    </TableCell>
                     <TableCell>
                         <div>{booking.passengerEmail}</div>
                         <div>{booking.passengerPhone}</div>
