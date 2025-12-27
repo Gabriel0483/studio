@@ -1,7 +1,7 @@
 /**
  * @title Firebase Security Rules for TransitFlow (Prototyping Mode)
  * @author Firebase Security Rules Architect
- * @version 1.2
+ * @version 1.3
  *
  * @description
  * This ruleset is designed for the TransitFlow application during its prototyping phase.
@@ -29,6 +29,7 @@
  * - /ships/{shipId}, /maintenanceRecords/{maintenanceRecordId}: Private operational data.
  * - /ports/{portId}: Publicly readable operational data.
  * - /fares/{fareId}: Publicly readable operational data.
+ * - /staff/{staffId}: Private operational data for staff management.
  *
  * @decisions
  * - Default Deny: All paths are closed by default. Access is granted explicitly.
@@ -135,6 +136,17 @@ service cloud.firestore {
      * @principle Enforces strict Role-Based Access Control (RBAC) for sensitive data.
      */
     match /ships/{shipId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+    
+    /**
+     * @description Secures staff information. This is operational data that should
+     * only be accessible to authenticated users.
+     * @path /staff/{staffId}
+     */
+    match /staff/{staffId} {
       allow get: if isSignedIn();
       allow list: if isSignedIn();
       allow write: if isSignedIn();

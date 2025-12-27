@@ -99,6 +99,39 @@
         "vesselType"
       ]
     },
+    "Staff": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Staff",
+      "type": "object",
+      "description": "Represents a staff member in the TransitFlow system.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Staff entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the staff member."
+        },
+        "role": {
+          "type": "string",
+          "description": "The role of the staff member (e.g., Captain, Crew)."
+        },
+        "assignedShipId": {
+          "type": "string",
+          "description": "The ID of the ship the staff member is assigned to."
+        },
+        "assignedShipName": {
+            "type": "string",
+            "description": "The denormalized name of the assigned ship."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "role"
+      ]
+    },
     "Route": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Route",
@@ -350,6 +383,22 @@
               "description": "The unique identifier of the ship."
             }
           ]
+        }
+      },
+      {
+        "path": "/staff/{staffId}",
+        "definition": {
+            "entityName": "Staff",
+            "schema": {
+                "$ref": "#/backend/entities/Staff"
+            },
+            "description": "Stores staff information. Access is restricted to authorized personnel.",
+            "params": [
+                {
+                    "name": "staffId",
+                    "description": "The unique identifier of the staff member."
+                }
+            ]
         }
       },
       {
