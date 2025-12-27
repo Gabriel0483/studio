@@ -1,7 +1,7 @@
 /**
  * @title Firebase Security Rules for TransitFlow (Prototyping Mode)
  * @author Firebase Security Rules Architect
- * @version 1.1
+ * @version 1.2
  *
  * @description
  * This ruleset is designed for the TransitFlow application during its prototyping phase.
@@ -28,6 +28,7 @@
  * - /routes/{routeId}, /schedules/{scheduleId}: Publicly readable operational data.
  * - /ships/{shipId}, /maintenanceRecords/{maintenanceRecordId}: Private operational data.
  * - /ports/{portId}: Publicly readable operational data.
+ * - /fares/{fareId}: Publicly readable operational data.
  *
  * @decisions
  * - Default Deny: All paths are closed by default. Access is granted explicitly.
@@ -151,6 +152,17 @@ service cloud.firestore {
      * @principle Implements a "Public Read with Admin-Only Writes" pattern.
      */
     match /routes/{routeId} {
+      allow get: if true;
+      allow list: if true;
+      allow write: if isSignedIn();
+    }
+
+    /**
+     * @description Manages fare information. This data is safe for anyone to read.
+     *   Writes are restricted to signed-in users.
+     * @path /fares/{fareId}
+     */
+    match /fares/{fareId} {
       allow get: if true;
       allow list: if true;
       allow write: if isSignedIn();

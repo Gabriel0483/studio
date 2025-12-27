@@ -129,6 +129,42 @@
         "distance"
       ]
     },
+    "Fare": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Fare",
+      "type": "object",
+      "description": "Represents a fare for a specific route and passenger type.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Fare entity."
+        },
+        "routeId": {
+          "type": "string",
+          "description": "Reference to Route. (Relationship: Route 1:N Fare)"
+        },
+        "routeName": {
+          "type": "string",
+          "description": "Denormalized name of the route for display purposes."
+        },
+        "price": {
+          "type": "number",
+          "description": "The price of the fare."
+        },
+        "passengerType": {
+          "type": "string",
+          "description": "The type of passenger for this fare.",
+          "enum": ["Adult", "Child", "Senior"]
+        }
+      },
+      "required": [
+        "id",
+        "routeId",
+        "routeName",
+        "price",
+        "passengerType"
+      ]
+    },
     "Schedule": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Schedule",
@@ -317,6 +353,22 @@
             {
               "name": "routeId",
               "description": "The unique identifier of the route."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/fares/{fareId}",
+        "definition": {
+          "entityName": "Fare",
+          "schema": {
+            "$ref": "#/backend/entities/Fare"
+          },
+          "description": "Stores fare information. Access control: read access open to all users, write access restricted to authorized personnel.",
+          "params": [
+            {
+              "name": "fareId",
+              "description": "The unique identifier of the fare."
             }
           ]
         }
