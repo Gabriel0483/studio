@@ -3,12 +3,10 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
-import { format } from "date-fns"
-import { CalendarIcon, User } from "lucide-react"
+import { User } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { Calendar } from "@/components/ui/calendar"
 import {
   Form,
   FormControl,
@@ -25,18 +23,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
 import { toast } from "@/hooks/use-toast"
 import { PublicHeader } from "@/components/public-header"
 import { PublicFooter } from "@/components/public-footer"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase"
-import { collection, doc, serverTimestamp, runTransaction } from "firebase/firestore"
-import React, { useMemo, useState, useEffect } from "react"
+import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc, errorEmitter, FirestorePermissionError } from "@/firebase"
+import { collection, doc, serverTimestamp, runTransaction, DocumentReference } from "firebase/firestore"
+import React, { useMemo, useEffect } from "react"
 
 const bookingFormSchema = z.object({
   fullName: z.string().min(2, { message: "Full name must be at least 2 characters." }),
@@ -48,6 +41,9 @@ const bookingFormSchema = z.object({
 export default function BookingPage() {
   const firestore = useFirestore();
   const { user } = useUser();
+  
+  const userProfileRef = useMemoFirebase(() => (firestore && user) ? doc(firestore, 'passengers', user.uid) : null, [firestore, user]);
+  const { data: userProfile } = useDoc(userProfileRef);
 
   const schedulesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'schedules') : null, [firestore]);
   const routesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'routes') : null, [firestore]);
@@ -65,21 +61,29 @@ export default function BookingPage() {
       numberOfSeats: 1,
     },
   });
+  
+  useEffect(() => {
+    if (userProfile) {
+      form.setValue('fullName', `${userProfile.firstName} ${userProfile.lastName}`);
+      form.setValue('email', userProfile.email);
+    } else if (user) {
+        form.setValue('email', user.email || '');
+    }
+  }, [userProfile, user, form]);
 
   const getRouteName = (routeId: string) => routes?.find(r => r.id === routeId)?.name || 'Unknown Route';
 
   async function onSubmit(data: z.infer<typeof bookingFormSchema>) {
     if (!firestore || !user) {
-        toast({ variant: 'destructive', title: 'Error', description: 'Could not connect to service.' });
+        toast({ variant: 'destructive', title: 'Error', description: 'You must be signed in to book.' });
         return;
     }
   
     const { scheduleId, numberOfSeats } = data;
     const scheduleRef = doc(firestore, 'schedules', scheduleId);
-    
-    try {
-        const newBookingRef = doc(collection(firestore, 'bookings'));
+    const newBookingRef = doc(collection(firestore, 'bookings'));
 
+    try {
         await runTransaction(firestore, async (transaction) => {
             const scheduleDoc = await transaction.get(scheduleRef);
             if (!scheduleDoc.exists()) {
@@ -92,26 +96,31 @@ export default function BookingPage() {
                 throw new Error("Not enough seats available.");
             }
 
-            const relevantFare = fares?.find(f => f.routeId === scheduleData.routeId);
+            // For simplicity, we'll find the first 'Adult' fare for the route.
+            // A real app might have more complex logic for different passenger types.
+            const relevantFare = fares?.find(f => f.routeId === scheduleData.routeId && f.passengerType === 'Adult');
             if(!relevantFare){
-                throw new Error("Could not calculate total price, no fare found for this route.");
+                throw new Error("Could not calculate total price, no Adult fare found for this route.");
             }
             const totalPrice = (relevantFare.price || 0) * numberOfSeats;
 
 
             transaction.update(scheduleRef, { availableSeats: newAvailableSeats });
 
-            transaction.set(newBookingRef, {
+            const bookingData = {
                 id: newBookingRef.id,
                 passengerId: user.uid,
                 passengerName: data.fullName,
                 passengerEmail: data.email,
                 scheduleId,
+                fareId: relevantFare.id,
                 bookingDate: serverTimestamp(),
                 numberOfSeats,
                 totalPrice,
                 routeName: getRouteName(scheduleData.routeId),
-            });
+            };
+
+            transaction.set(newBookingRef, bookingData);
         });
 
         toast({
@@ -121,11 +130,20 @@ export default function BookingPage() {
         form.reset();
 
     } catch (e: any) {
-        toast({
-            variant: "destructive",
-            title: "Uh oh! Something went wrong.",
-            description: e.message || "Could not complete your booking.",
-        });
+        if (e.message.includes('permission-denied') || e.code === 'permission-denied') {
+            const permissionError = new FirestorePermissionError({
+                path: newBookingRef.path,
+                operation: 'create',
+                requestResourceData: data, 
+            });
+            errorEmitter.emit('permission-error', permissionError);
+        } else {
+             toast({
+                variant: "destructive",
+                title: "Uh oh! Something went wrong.",
+                description: e.message || "Could not complete your booking.",
+            });
+        }
     }
   }
 

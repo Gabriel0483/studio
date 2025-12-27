@@ -286,6 +286,10 @@
           "type": "string",
           "description": "Reference to Schedule. (Relationship: Schedule 1:N Booking)"
         },
+        "fareId": {
+          "type": "string",
+          "description": "Reference to the Fare used for this booking."
+        },
         "routeName": {
           "type": "string",
           "description": "Denormalized name of the route for display purposes."
@@ -308,6 +312,7 @@
         "id",
         "passengerId",
         "scheduleId",
+        "fareId",
         "bookingDate",
         "numberOfSeats",
         "totalPrice"
