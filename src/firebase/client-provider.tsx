@@ -17,7 +17,7 @@ export function FirebaseClientProvider({ children }: FirebaseClientProviderProps
 
   useEffect(() => {
     if (firebaseServices.auth) {
-      initiateAnonymousSignIn(firebaseServices.auth);
+      initiateAnonymousSignIn(firebaseServices.auth).catch(console.error);
     }
   }, [firebaseServices.auth]);
 

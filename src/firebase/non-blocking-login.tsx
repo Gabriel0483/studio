@@ -1,29 +1,34 @@
 'use client';
 import {
-  Auth, // Import Auth type for type hinting
+  Auth,
   signInAnonymously,
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  // Assume getAuth and app are initialized elsewhere
+  onAuthStateChanged,
 } from 'firebase/auth';
 
-/** Initiate anonymous sign-in (non-blocking). */
-export function initiateAnonymousSignIn(authInstance: Auth): void {
-  // CRITICAL: Call signInAnonymously directly. Do NOT use 'await signInAnonymously(...)'.
-  signInAnonymously(authInstance);
-  // Code continues immediately. Auth state change is handled by onAuthStateChanged listener.
-}
-
-/** Initiate email/password sign-up (non-blocking). */
-export function initiateEmailSignUp(authInstance: Auth, email: string, password: string): void {
-  // CRITICAL: Call createUserWithEmailAndPassword directly. Do NOT use 'await createUserWithEmailAndPassword(...)'.
-  createUserWithEmailAndPassword(authInstance, email, password);
-  // Code continues immediately. Auth state change is handled by onAuthStateChanged listener.
-}
-
-/** Initiate email/password sign-in (non-blocking). */
-export function initiateEmailSignIn(authInstance: Auth, email: string, password: string): void {
-  // CRITICAL: Call signInWithEmailAndPassword directly. Do NOT use 'await signInWithEmailAndPassword(...)'.
-  signInWithEmailAndPassword(authInstance, email, password);
-  // Code continues immediately. Auth state change is handled by onAuthStateChanged listener.
+/**
+ * Initiate anonymous sign-in (non-blocking) if no user is currently signed in.
+ * It now awaits the authentication state to confirm login before resolving.
+ */
+export function initiateAnonymousSignIn(authInstance: Auth): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const unsubscribe = onAuthStateChanged(
+      authInstance,
+      (user) => {
+        unsubscribe(); // Unsubscribe to avoid memory leaks
+        if (user) {
+          // User is already signed in (or sign-in was successful)
+          resolve();
+        } else {
+          // No user is signed in, so proceed with anonymous sign-in
+          signInAnonymously(authInstance)
+            .then(() => resolve())
+            .catch((error) => reject(error));
+        }
+      },
+      (error) => {
+        unsubscribe(); // Unsubscribe on error
+        reject(error);
+      }
+    );
+  });
 }
