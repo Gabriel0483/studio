@@ -223,6 +223,10 @@
           "type": "string",
           "description": "Reference to Ship. (Relationship: Ship 1:N Schedule)"
         },
+        "shipName": {
+          "type": "string",
+          "description": "Denormalized name of the ship for display purposes."
+        },
         "routeId": {
           "type": "string",
           "description": "Reference to Route. (Relationship: Route 1:N Schedule)"
@@ -249,7 +253,6 @@
       },
       "required": [
         "id",
-        "shipId",
         "routeId",
         "departureTime",
         "arrivalTime",

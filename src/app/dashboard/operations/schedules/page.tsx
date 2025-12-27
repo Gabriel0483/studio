@@ -62,7 +62,8 @@ interface Route {
 
 interface Schedule {
   id: string;
-  shipId: string;
+  shipId?: string;
+  shipName?: string;
   routeId: string;
   departureTime: string;
   arrivalTime: string;
@@ -93,11 +94,11 @@ const ScheduleForm = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!shipId || !routeId || !departureTime || !arrivalTime || !availableSeats || !tripType) {
+    if (!routeId || !departureTime || !arrivalTime || !availableSeats || !tripType) {
       toast({
         variant: 'destructive',
         title: 'Missing Fields',
-        description: 'Please fill out all fields.',
+        description: 'Please fill out all required fields.',
       });
       return;
     }
@@ -111,9 +112,12 @@ const ScheduleForm = ({
         });
         return;
     }
+    
+    const selectedShip = ships.find(s => s.id === shipId);
 
     const scheduleData = {
-      shipId,
+      shipId: shipId || null,
+      shipName: selectedShip ? selectedShip.name : 'Unassigned',
       routeId,
       departureTime,
       arrivalTime,
@@ -143,10 +147,11 @@ const ScheduleForm = ({
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-            <Label htmlFor="shipId">Ship</Label>
+            <Label htmlFor="shipId">Ship (Optional)</Label>
             <Select onValueChange={setShipId} defaultValue={shipId}>
                 <SelectTrigger id="shipId"><SelectValue placeholder="Select a ship" /></SelectTrigger>
                 <SelectContent>
+                    <SelectItem value="">Unassigned</SelectItem>
                     {ships.map((ship) => <SelectItem key={ship.id} value={ship.id}>{ship.name}</SelectItem>)}
                 </SelectContent>
             </Select>
@@ -241,6 +246,7 @@ export default function SchedulesPage() {
   };
   
   const formatTime = (timeString: string) => {
+    if (!timeString) return "Not set";
     try {
         const date = parse(timeString, 'HH:mm', new Date());
         return format(date, 'p');
@@ -251,7 +257,6 @@ export default function SchedulesPage() {
 
   const isLoading = isLoadingSchedules || isLoadingShips || isLoadingRoutes;
 
-  const getShipName = (shipId: string) => ships?.find(s => s.id === shipId)?.name || 'Unknown Ship';
   const getRouteName = (routeId: string) => routes?.find(r => r.id === routeId)?.name || 'Unknown Route';
   
   const getTripTypeVariant = (tripType: string) => {
@@ -330,7 +335,7 @@ export default function SchedulesPage() {
                 schedules.map((schedule) => (
                   <TableRow key={schedule.id}>
                     <TableCell className="font-medium">{getRouteName(schedule.routeId)}</TableCell>
-                    <TableCell>{getShipName(schedule.shipId)}</TableCell>
+                    <TableCell>{schedule.shipName || 'Unassigned'}</TableCell>
                     <TableCell>
                       <Badge variant={getTripTypeVariant(schedule.tripType) as any}>
                         {schedule.tripType}
