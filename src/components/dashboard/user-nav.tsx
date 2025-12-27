@@ -1,3 +1,5 @@
+'use client';
+
 import {
   Avatar,
   AvatarFallback,
@@ -14,8 +16,21 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { CreditCard, LifeBuoy, LogOut, Settings, User } from "lucide-react"
+import { useEffect, useState } from "react";
 
 export function UserNav() {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return (
+      <div className="h-8 w-8 rounded-full bg-secondary animate-pulse" />
+    );
+  }
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
