@@ -85,13 +85,18 @@
         "status": {
           "type": "string",
           "description": "The current status of the ship (e.g., 'In Service', 'Under Maintenance')."
+        },
+        "vesselType": {
+          "type": "string",
+          "description": "The type of vessel (e.g., 'Ferry', 'High-Speed Craft')."
         }
       },
       "required": [
         "id",
         "name",
         "capacity",
-        "status"
+        "status",
+        "vesselType"
       ]
     },
     "Route": {

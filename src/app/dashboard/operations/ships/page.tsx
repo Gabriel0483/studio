@@ -53,6 +53,7 @@ interface Ship {
   name: string;
   capacity: number;
   status: string;
+  vesselType: string;
 }
 
 const ShipForm = ({
@@ -67,11 +68,12 @@ const ShipForm = ({
   const [name, setName] = useState(ship?.name || '');
   const [capacity, setCapacity] = useState(ship?.capacity || '');
   const [status, setStatus] = useState(ship?.status || 'In Service');
+  const [vesselType, setVesselType] = useState(ship?.vesselType || 'Ferry');
   const { toast } = useToast();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !capacity || !status) {
+    if (!name || !capacity || !status || !vesselType) {
       toast({
         variant: 'destructive',
         title: 'Missing Fields',
@@ -90,7 +92,7 @@ const ShipForm = ({
         return;
     }
 
-    const shipData = { name, capacity: capacityNum, status };
+    const shipData = { name, capacity: capacityNum, status, vesselType };
 
     if (ship) {
       const shipRef = doc(firestore, 'ships', ship.id);
@@ -123,6 +125,20 @@ const ShipForm = ({
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
+                <Label htmlFor="vesselType">Vessel Type</Label>
+                <Select onValueChange={setVesselType} defaultValue={vesselType}>
+                    <SelectTrigger id="vesselType">
+                        <SelectValue placeholder="Select type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="Ferry">Ferry</SelectItem>
+                        <SelectItem value="High-Speed Craft">High-Speed Craft</SelectItem>
+                        <SelectItem value="Cargo Ship">Cargo Ship</SelectItem>
+                        <SelectItem value="Yacht">Yacht</SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
+            <div className="space-y-2">
                 <Label htmlFor="capacity">Passenger Capacity</Label>
                 <Input
                 id="capacity"
@@ -132,20 +148,20 @@ const ShipForm = ({
                 placeholder="e.g., 250"
                 />
             </div>
-            <div className="space-y-2">
-                <Label htmlFor="status">Status</Label>
-                <Select onValueChange={setStatus} defaultValue={status}>
-                    <SelectTrigger id="status">
-                        <SelectValue placeholder="Select status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="In Service">In Service</SelectItem>
-                        <SelectItem value="Under Maintenance">Under Maintenance</SelectItem>
-                        <SelectItem value="Dry Dock">Dry Dock</SelectItem>
-                        <SelectItem value="Out of Service">Out of Service</SelectItem>
-                    </SelectContent>
-                </Select>
-            </div>
+        </div>
+        <div className="space-y-2">
+            <Label htmlFor="status">Status</Label>
+            <Select onValueChange={setStatus} defaultValue={status}>
+                <SelectTrigger id="status">
+                    <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="In Service">In Service</SelectItem>
+                    <SelectItem value="Under Maintenance">Under Maintenance</SelectItem>
+                    <SelectItem value="Dry Dock">Dry Dock</SelectItem>
+                    <SelectItem value="Out of Service">Out of Service</SelectItem>
+                </SelectContent>
+            </Select>
         </div>
       <DialogFooter>
         <DialogClose asChild>
@@ -238,6 +254,7 @@ export default function ShipsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Ship Name</TableHead>
+                <TableHead>Vessel Type</TableHead>
                 <TableHead>Capacity</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="w-[100px] text-right">Actions</TableHead>
@@ -246,7 +263,7 @@ export default function ShipsPage() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center">
+                  <TableCell colSpan={5} className="text-center">
                     Loading ships...
                   </TableCell>
                 </TableRow>
@@ -254,6 +271,7 @@ export default function ShipsPage() {
                 ships.map((ship) => (
                   <TableRow key={ship.id}>
                     <TableCell className="font-medium">{ship.name}</TableCell>
+                    <TableCell>{ship.vesselType}</TableCell>
                     <TableCell>{ship.capacity}</TableCell>
                     <TableCell>
                       <Badge variant={getShipStatusVariant(ship.status) as any}>{ship.status}</Badge>
@@ -284,7 +302,7 @@ export default function ShipsPage() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={4} className="h-24 text-center">
+                  <TableCell colSpan={5} className="h-24 text-center">
                      <div className="flex flex-col items-center gap-2">
                         <ShipIcon className="h-8 w-8 text-muted-foreground" />
                         <p className="text-muted-foreground">No ships found.</p>
