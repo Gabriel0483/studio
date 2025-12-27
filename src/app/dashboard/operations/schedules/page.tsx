@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { collection, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc } from 'firebase/firestore';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import {
   addDocumentNonBlocking,
@@ -50,6 +50,7 @@ import { useToast } from '@/hooks/use-toast';
 import type { Firestore } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
 
 
 interface Ship {
@@ -69,6 +70,7 @@ interface Schedule {
   departureTime: string;
   arrivalTime: string;
   availableSeats: number;
+  tripType: 'Daily' | 'Special';
 }
 
 const ScheduleForm = ({
@@ -89,11 +91,12 @@ const ScheduleForm = ({
   const [departureTime, setDepartureTime] = useState<Date | undefined>(schedule ? new Date(schedule.departureTime) : undefined);
   const [arrivalTime, setArrivalTime] = useState<Date | undefined>(schedule ? new Date(schedule.arrivalTime) : undefined);
   const [availableSeats, setAvailableSeats] = useState(schedule?.availableSeats || '');
+  const [tripType, setTripType] = useState<'Daily' | 'Special'>(schedule?.tripType || 'Daily');
   const { toast } = useToast();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!shipId || !routeId || !departureTime || !arrivalTime || !availableSeats) {
+    if (!shipId || !routeId || !departureTime || !arrivalTime || !availableSeats || !tripType) {
       toast({
         variant: 'destructive',
         title: 'Missing Fields',
@@ -118,6 +121,7 @@ const ScheduleForm = ({
       departureTime: departureTime.toISOString(),
       arrivalTime: arrivalTime.toISOString(),
       availableSeats: seatsNum,
+      tripType,
     };
 
     if (schedule) {
@@ -167,7 +171,7 @@ const ScheduleForm = ({
                 <PopoverTrigger asChild>
                     <Button variant="outline" className={cn("justify-start text-left font-normal", !departureTime && "text-muted-foreground")}>
                         <CalendarIcon className="mr-2 h-4 w-4" />
-                        {departureTime ? format(departureTime, "PPP p") : <span>Pick a date</span>}
+                        {departureTime ? format(departureTime, "Pp") : <span>Pick a date</span>}
                     </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0">
@@ -181,7 +185,7 @@ const ScheduleForm = ({
                 <PopoverTrigger asChild>
                      <Button variant="outline" className={cn("justify-start text-left font-normal", !arrivalTime && "text-muted-foreground")}>
                         <CalendarIcon className="mr-2 h-4 w-4" />
-                        {arrivalTime ? format(arrivalTime, "PPP p") : <span>Pick a date</span>}
+                        {arrivalTime ? format(arrivalTime, "Pp") : <span>Pick a date</span>}
                     </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0">
@@ -190,15 +194,27 @@ const ScheduleForm = ({
             </Popover>
         </div>
       </div>
-       <div className="space-y-2">
-        <Label htmlFor="availableSeats">Available Seats</Label>
-        <Input
-          id="availableSeats"
-          type="number"
-          value={availableSeats}
-          onChange={(e) => setAvailableSeats(e.target.value)}
-          placeholder="e.g., 150"
-        />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+            <Label htmlFor="availableSeats">Available Seats</Label>
+            <Input
+            id="availableSeats"
+            type="number"
+            value={availableSeats}
+            onChange={(e) => setAvailableSeats(e.target.value)}
+            placeholder="e.g., 150"
+            />
+        </div>
+        <div className="space-y-2">
+            <Label htmlFor="tripType">Trip Type</Label>
+            <Select onValueChange={(value: 'Daily' | 'Special') => setTripType(value)} defaultValue={tripType}>
+                <SelectTrigger id="tripType"><SelectValue placeholder="Select a trip type" /></SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="Daily">Daily</SelectItem>
+                    <SelectItem value="Special">Special</SelectItem>
+                </SelectContent>
+            </Select>
+        </div>
       </div>
       <DialogFooter>
         <DialogClose asChild>
@@ -240,6 +256,17 @@ export default function SchedulesPage() {
 
   const getShipName = (shipId: string) => ships?.find(s => s.id === shipId)?.name || 'Unknown Ship';
   const getRouteName = (routeId: string) => routes?.find(r => r.id === routeId)?.name || 'Unknown Route';
+  
+  const getTripTypeVariant = (tripType: string) => {
+    switch (tripType) {
+      case 'Daily':
+        return 'secondary';
+      case 'Special':
+        return 'default';
+      default:
+        return 'outline';
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -286,6 +313,7 @@ export default function SchedulesPage() {
               <TableRow>
                 <TableHead>Route</TableHead>
                 <TableHead>Ship</TableHead>
+                <TableHead>Trip Type</TableHead>
                 <TableHead>Departure</TableHead>
                 <TableHead>Arrival</TableHead>
                 <TableHead>Seats</TableHead>
@@ -295,7 +323,7 @@ export default function SchedulesPage() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center">
+                  <TableCell colSpan={7} className="text-center">
                     Loading schedules...
                   </TableCell>
                 </TableRow>
@@ -304,6 +332,11 @@ export default function SchedulesPage() {
                   <TableRow key={schedule.id}>
                     <TableCell className="font-medium">{getRouteName(schedule.routeId)}</TableCell>
                     <TableCell>{getShipName(schedule.shipId)}</TableCell>
+                    <TableCell>
+                      <Badge variant={getTripTypeVariant(schedule.tripType) as any}>
+                        {schedule.tripType}
+                      </Badge>
+                    </TableCell>
                     <TableCell>{format(new Date(schedule.departureTime), "PPp")}</TableCell>
                     <TableCell>{format(new Date(schedule.arrivalTime), "PPp")}</TableCell>
                     <TableCell>{schedule.availableSeats}</TableCell>
@@ -333,7 +366,7 @@ export default function SchedulesPage() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-24 text-center">
+                  <TableCell colSpan={7} className="h-24 text-center">
                     <div className="flex flex-col items-center gap-2">
                         <CalendarIcon className="h-8 w-8 text-muted-foreground" />
                         <p className="text-muted-foreground">No schedules found.</p>

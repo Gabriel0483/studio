@@ -240,6 +240,11 @@
         "availableSeats": {
           "type": "number",
           "description": "The number of seats available on this scheduled trip."
+        },
+        "tripType": {
+          "type": "string",
+          "description": "The type of trip (e.g., 'Daily', 'Special').",
+          "enum": ["Daily", "Special"]
         }
       },
       "required": [
@@ -248,7 +253,8 @@
         "routeId",
         "departureTime",
         "arrivalTime",
-        "availableSeats"
+        "availableSeats",
+        "tripType"
       ]
     },
     "Booking": {
