@@ -119,6 +119,13 @@
         "distance": {
           "type": "number",
           "description": "The distance of the route (e.g. in miles or kilometers)."
+        },
+        "passengerTypes": {
+            "type": "array",
+            "description": "A list of passenger types available for this route.",
+            "items": {
+                "type": "string"
+            }
         }
       },
       "required": [
@@ -153,8 +160,7 @@
         },
         "passengerType": {
           "type": "string",
-          "description": "The type of passenger for this fare.",
-          "enum": ["Adult", "Child", "Senior"]
+          "description": "The type of passenger for this fare."
         }
       },
       "required": [

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { collection, doc } from 'firebase/firestore';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import {
@@ -53,6 +53,7 @@ interface Route {
   departure: string;
   destination: string;
   distance: number;
+  passengerTypes?: string[];
 }
 
 interface Fare {
@@ -60,7 +61,7 @@ interface Fare {
   routeId: string;
   routeName: string;
   price: number;
-  passengerType: 'Adult' | 'Child' | 'Senior';
+  passengerType: string;
 }
 
 const FareForm = ({
@@ -77,7 +78,23 @@ const FareForm = ({
   const [routeId, setRouteId] = useState(fare?.routeId || '');
   const [price, setPrice] = useState(fare?.price || '');
   const [passengerType, setPassengerType] = useState(fare?.passengerType || '');
+  const [availablePassengerTypes, setAvailablePassengerTypes] = useState<string[]>([]);
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (routeId) {
+      const selectedRoute = routes.find(r => r.id === routeId);
+      const types = selectedRoute?.passengerTypes || [];
+      setAvailablePassengerTypes(types);
+      // Reset passengerType if it's not in the new list of available types
+      if (!types.includes(passengerType)) {
+        setPassengerType('');
+      }
+    } else {
+      setAvailablePassengerTypes([]);
+      setPassengerType('');
+    }
+  }, [routeId, routes, passengerType]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -149,14 +166,14 @@ const FareForm = ({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
                 <Label htmlFor="passengerType">Passenger Type</Label>
-                <Select onValueChange={(value) => setPassengerType(value as Fare['passengerType'])} defaultValue={passengerType}>
+                <Select onValueChange={setPassengerType} value={passengerType} disabled={!routeId}>
                     <SelectTrigger id="passengerType">
                         <SelectValue placeholder="Select type" />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="Adult">Adult</SelectItem>
-                        <SelectItem value="Child">Child</SelectItem>
-                        <SelectItem value="Senior">Senior</SelectItem>
+                        {availablePassengerTypes.map(type => (
+                            <SelectItem key={type} value={type}>{type}</SelectItem>
+                        ))}
                     </SelectContent>
                 </Select>
             </div>

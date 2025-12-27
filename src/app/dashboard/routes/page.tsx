@@ -36,7 +36,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Pencil, Plus, Trash2, Route as RouteIcon } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Pencil, Plus, Trash2, Route as RouteIcon, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { Firestore } from 'firebase/firestore';
 
@@ -46,6 +47,7 @@ interface Route {
   departure: string;
   destination: string;
   distance: number;
+  passengerTypes?: string[];
 }
 
 const RouteForm = ({
@@ -61,7 +63,22 @@ const RouteForm = ({
   const [departure, setDeparture] = useState(route?.departure || '');
   const [destination, setDestination] = useState(route?.destination || '');
   const [distance, setDistance] = useState(route?.distance || '');
+  const [passengerTypes, setPassengerTypes] = useState<string[]>(route?.passengerTypes || ['Adult', 'Child', 'Senior']);
+  const [currentPassengerType, setCurrentPassengerType] = useState('');
+
   const { toast } = useToast();
+
+  const handleAddPassengerType = () => {
+    if (currentPassengerType && !passengerTypes.includes(currentPassengerType)) {
+      setPassengerTypes([...passengerTypes, currentPassengerType]);
+      setCurrentPassengerType('');
+    }
+  };
+
+  const handleRemovePassengerType = (typeToRemove: string) => {
+    setPassengerTypes(passengerTypes.filter(type => type !== typeToRemove));
+  };
+
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,7 +101,7 @@ const RouteForm = ({
       return;
     }
 
-    const routeData = { name, departure, destination, distance: distanceNum };
+    const routeData = { name, departure, destination, distance: distanceNum, passengerTypes };
 
     if (route) {
       const routeRef = doc(firestore, 'routes', route.id);
@@ -145,6 +162,37 @@ const RouteForm = ({
             onChange={(e) => setDestination(e.target.value)}
             placeholder="e.g., Island B"
             />
+        </div>
+      </div>
+       <div className="space-y-2">
+        <Label>Passenger Types</Label>
+        <div className="flex gap-2">
+          <Input
+            value={currentPassengerType}
+            onChange={(e) => setCurrentPassengerType(e.target.value)}
+            placeholder="e.g., Student"
+            onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddPassengerType();
+                }
+            }}
+          />
+          <Button type="button" onClick={handleAddPassengerType}>Add Type</Button>
+        </div>
+        <div className="flex flex-wrap gap-2 pt-2">
+          {passengerTypes.map((type) => (
+            <Badge key={type} variant="secondary" className="flex items-center gap-1">
+              {type}
+              <button
+                type="button"
+                onClick={() => handleRemovePassengerType(type)}
+                className="rounded-full hover:bg-destructive/20 p-0.5"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          ))}
         </div>
       </div>
       <DialogFooter>
