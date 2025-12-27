@@ -205,7 +205,7 @@ service cloud.firestore {
      */
     match /bookings/{bookingId} {
       allow get: if isOwner(resource.data.passengerId) || isAdmin();
-      allow list: if false; // Prevents any user from listing all bookings. Client must query by passengerId.
+      allow list: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.passengerId == request.auth.uid;
       allow update: if (isExistingOwner(resource.data.passengerId) && request.resource.data.passengerId == resource.data.passengerId) || (isAdmin() && resource != null);
       allow delete: if isExistingOwner(resource.data.passengerId) || (isAdmin() && resource != null);
