@@ -7,10 +7,8 @@ export function Logo() {
     <Link href="/" className="flex items-center gap-2" aria-label="TransitFlow Home">
       <Ship className="h-6 w-6 text-primary" />
       <span className={cn(
-          "text-xl font-bold text-primary-foreground sm:text-primary",
+          "text-xl font-bold",
           "group-data-[collapsible=icon]/sidebar-wrapper:hidden",
-          "group-data-[collapsible=offcanvas]/sidebar-wrapper:sm:text-primary",
-          "group-data-[collapsible=offcanvas]/sidebar-wrapper:text-primary-foreground",
         )}>TransitFlow</span>
     </Link>
   );

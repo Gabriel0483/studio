@@ -32,9 +32,8 @@ export default function DashboardLayout({
     <SidebarProvider>
       <Sidebar>
         <SidebarRail />
-        <SidebarHeader className='p-2 flex-row justify-between items-center'>
+        <SidebarHeader className='p-2'>
           <Logo />
-          <SidebarTrigger className="hidden md:flex" />
         </SidebarHeader>
         <SidebarContent>
           <SidebarMenu>
@@ -57,7 +56,7 @@ export default function DashboardLayout({
       </Sidebar>
       <SidebarInset className="flex flex-col">
         <header className="flex h-14 items-center gap-4 border-b bg-card px-4 lg:h-[60px] lg:px-6">
-            <SidebarTrigger className="md:hidden" />
+            <SidebarTrigger />
             <div className='hidden md:block'>
                 <Button asChild variant="outline" size="icon">
                     <Link href="/">
