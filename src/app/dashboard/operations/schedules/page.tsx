@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { collection, doc } from 'firebase/firestore';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import {
@@ -43,13 +43,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
 import { Pencil, Plus, Trash2, Calendar as CalendarIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { Firestore } from 'firebase/firestore';
-import { format, setHours, setMinutes, parse } from 'date-fns';
-import { cn } from '@/lib/utils';
+import { format, parse } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 
 
@@ -88,25 +85,11 @@ const ScheduleForm = ({
 }) => {
   const [shipId, setShipId] = useState(schedule?.shipId || '');
   const [routeId, setRouteId] = useState(schedule?.routeId || '');
-  const [departureTime, setDepartureTime] = useState<Date | undefined>(schedule ? new Date(schedule.departureTime) : undefined);
-  const [arrivalTime, setArrivalTime] = useState<Date | undefined>(schedule ? new Date(schedule.arrivalTime) : undefined);
+  const [departureTime, setDepartureTime] = useState(schedule?.departureTime || '');
+  const [arrivalTime, setArrivalTime] = useState(schedule?.arrivalTime || '');
   const [availableSeats, setAvailableSeats] = useState(schedule?.availableSeats || '');
   const [tripType, setTripType] = useState<'Daily' | 'Special'>(schedule?.tripType || 'Daily');
   const { toast } = useToast();
-
-  const handleTimeChange = (date: Date | undefined, time: string, setter: (d: Date) => void) => {
-    if (!date) return;
-    try {
-        const [hours, minutes] = time.split(':').map(Number);
-        if (!isNaN(hours) && !isNaN(minutes)) {
-            let newDate = setHours(date, hours);
-            newDate = setMinutes(newDate, minutes);
-            setter(newDate);
-        }
-    } catch (e) {
-        // ignore invalid time
-    }
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -132,8 +115,8 @@ const ScheduleForm = ({
     const scheduleData = {
       shipId,
       routeId,
-      departureTime: departureTime.toISOString(),
-      arrivalTime: arrivalTime.toISOString(),
+      departureTime,
+      arrivalTime,
       availableSeats: seatsNum,
       tripType,
     };
@@ -181,47 +164,21 @@ const ScheduleForm = ({
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="departureTime">Departure Time</Label>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !departureTime && "text-muted-foreground")}>
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {departureTime ? format(departureTime, "PPPp") : <span>Pick a date and time</span>}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0">
-              <Calendar mode="single" selected={departureTime} onSelect={setDepartureTime} initialFocus />
-              <div className="p-3 border-t border-border">
-                <Label className="text-sm">Time</Label>
-                <Input
-                    type="time"
-                    defaultValue={departureTime ? format(departureTime, 'HH:mm') : ''}
-                    onChange={(e) => handleTimeChange(departureTime, e.target.value, setDepartureTime)}
-                />
-              </div>
-            </PopoverContent>
-          </Popover>
+          <Input
+            id="departureTime"
+            type="time"
+            value={departureTime}
+            onChange={(e) => setDepartureTime(e.target.value)}
+          />
         </div>
         <div className="space-y-2">
           <Label htmlFor="arrivalTime">Arrival Time</Label>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !arrivalTime && "text-muted-foreground")}>
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {arrivalTime ? format(arrivalTime, "PPPp") : <span>Pick a date and time</span>}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0">
-              <Calendar mode="single" selected={arrivalTime} onSelect={setArrivalTime} initialFocus />
-               <div className="p-3 border-t border-border">
-                <Label className="text-sm">Time</Label>
-                <Input
-                    type="time"
-                    defaultValue={arrivalTime ? format(arrivalTime, 'HH:mm') : ''}
-                    onChange={(e) => handleTimeChange(arrivalTime, e.target.value, setArrivalTime)}
-                />
-              </div>
-            </PopoverContent>
-          </Popover>
+          <Input
+            id="arrivalTime"
+            type="time"
+            value={arrivalTime}
+            onChange={(e) => setArrivalTime(e.target.value)}
+          />
         </div>
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -273,12 +230,22 @@ export default function SchedulesPage() {
 
   const handleDelete = (schedule: Schedule) => {
     if (window.confirm(`Are you sure you want to delete this schedule?`)) {
+      if (!firestore) return;
       const scheduleRef = doc(firestore, 'schedules', schedule.id);
       deleteDocumentNonBlocking(scheduleRef);
       toast({
         title: 'Schedule Deleted',
         description: `The schedule has been deleted.`,
       });
+    }
+  };
+  
+  const formatTime = (timeString: string) => {
+    try {
+        const date = parse(timeString, 'HH:mm', new Date());
+        return format(date, 'p');
+    } catch (e) {
+        return "Invalid Time";
     }
   };
 
@@ -321,13 +288,15 @@ export default function SchedulesPage() {
                 Fill in the details below. Click save when you're done.
               </DialogDescription>
             </DialogHeader>
-            <ScheduleForm
-              firestore={firestore}
-              schedule={editingSchedule}
-              ships={ships || []}
-              routes={routes || []}
-              onFinished={() => setIsFormOpen(false)}
-            />
+            {firestore && (
+              <ScheduleForm
+                firestore={firestore}
+                schedule={editingSchedule}
+                ships={ships || []}
+                routes={routes || []}
+                onFinished={() => setIsFormOpen(false)}
+              />
+            )}
           </DialogContent>
         </Dialog>
       </div>
@@ -367,8 +336,8 @@ export default function SchedulesPage() {
                         {schedule.tripType}
                       </Badge>
                     </TableCell>
-                    <TableCell>{format(new Date(schedule.departureTime), "PPp")}</TableCell>
-                    <TableCell>{format(new Date(schedule.arrivalTime), "PPp")}</TableCell>
+                    <TableCell>{formatTime(schedule.departureTime)}</TableCell>
+                    <TableCell>{formatTime(schedule.arrivalTime)}</TableCell>
                     <TableCell>{schedule.availableSeats}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">

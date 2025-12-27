@@ -230,12 +230,12 @@
         "departureTime": {
           "type": "string",
           "description": "The scheduled departure time.",
-          "format": "date-time"
+          "format": "time"
         },
         "arrivalTime": {
           "type": "string",
           "description": "The estimated arrival time.",
-          "format": "date-time"
+          "format": "time"
         },
         "availableSeats": {
           "type": "number",
