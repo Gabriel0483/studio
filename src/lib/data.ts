@@ -1,7 +1,8 @@
-import { Ship, Users, LineChart, Route as RouteIcon, Anchor, BarChart, Warehouse, Ticket } from 'lucide-react';
+import { Ship, Users, LineChart, Route as RouteIcon, Anchor, BarChart, Warehouse, Ticket, BookCopy } from 'lucide-react';
 
 export const navLinks = [
   { href: '/dashboard', label: 'Dashboard', icon: LineChart },
+  { href: '/dashboard/bookings', label: 'Bookings', icon: BookCopy },
   { href: '/dashboard/passengers', label: 'Passengers', icon: Users },
   { href: '/dashboard/operations', label: 'Operations', icon: Anchor },
   { href: '/dashboard/ports', label: 'Ports', icon: Warehouse },

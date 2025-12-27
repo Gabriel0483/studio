@@ -34,32 +34,102 @@ import { toast } from "@/hooks/use-toast"
 import { PublicHeader } from "@/components/public-header"
 import { PublicFooter } from "@/components/public-footer"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase"
+import { collection, doc, serverTimestamp, runTransaction } from "firebase/firestore"
+import React, { useMemo, useState, useEffect } from "react"
 
 const bookingFormSchema = z.object({
   fullName: z.string().min(2, { message: "Full name must be at least 2 characters." }),
   email: z.string().email({ message: "Please enter a valid email address." }),
-  passengers: z.coerce.number().int().min(1, { message: "At least one passenger is required." }),
-  route: z.string({ required_error: "Please select a route." }),
-  date: z.date({ required_error: "A date for your trip is required." }),
+  numberOfSeats: z.coerce.number().int().min(1, { message: "At least one passenger is required." }),
+  scheduleId: z.string({ required_error: "Please select a schedule." }),
 });
 
 export default function BookingPage() {
+  const firestore = useFirestore();
+  const { user } = useUser();
+
+  const schedulesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'schedules') : null, [firestore]);
+  const routesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'routes') : null, [firestore]);
+  const faresQuery = useMemoFirebase(() => firestore ? collection(firestore, 'fares') : null, [firestore]);
+  
+  const { data: schedules, isLoading: isLoadingSchedules } = useCollection(schedulesQuery);
+  const { data: routes, isLoading: isLoadingRoutes } = useCollection(routesQuery);
+  const { data: fares, isLoading: isLoadingFares } = useCollection(faresQuery);
+
   const form = useForm<z.infer<typeof bookingFormSchema>>({
     resolver: zodResolver(bookingFormSchema),
     defaultValues: {
       fullName: "",
       email: "",
-      passengers: 1,
+      numberOfSeats: 1,
     },
   });
 
-  function onSubmit(data: z.infer<typeof bookingFormSchema>) {
-    toast({
-      title: "Booking Successful!",
-      description: `Your booking for ${data.passengers} on ${format(data.date, "PPP")} has been confirmed.`,
-    });
-    form.reset();
+  const getRouteName = (routeId: string) => routes?.find(r => r.id === routeId)?.name || 'Unknown Route';
+
+  async function onSubmit(data: z.infer<typeof bookingFormSchema>) {
+    if (!firestore || !user) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Could not connect to service.' });
+        return;
+    }
+  
+    const { scheduleId, numberOfSeats } = data;
+    const scheduleRef = doc(firestore, 'schedules', scheduleId);
+    
+    try {
+        const newBookingRef = doc(collection(firestore, 'bookings'));
+
+        await runTransaction(firestore, async (transaction) => {
+            const scheduleDoc = await transaction.get(scheduleRef);
+            if (!scheduleDoc.exists()) {
+                throw new Error("Schedule does not exist!");
+            }
+
+            const scheduleData = scheduleDoc.data();
+            const newAvailableSeats = scheduleData.availableSeats - numberOfSeats;
+            if (newAvailableSeats < 0) {
+                throw new Error("Not enough seats available.");
+            }
+
+            const relevantFare = fares?.find(f => f.routeId === scheduleData.routeId);
+            if(!relevantFare){
+                throw new Error("Could not calculate total price, no fare found for this route.");
+            }
+            const totalPrice = (relevantFare.price || 0) * numberOfSeats;
+
+
+            transaction.update(scheduleRef, { availableSeats: newAvailableSeats });
+
+            transaction.set(newBookingRef, {
+                id: newBookingRef.id,
+                passengerId: user.uid,
+                passengerName: data.fullName,
+                passengerEmail: data.email,
+                scheduleId,
+                bookingDate: serverTimestamp(),
+                numberOfSeats,
+                totalPrice,
+                routeName: getRouteName(scheduleData.routeId),
+            });
+        });
+
+        toast({
+            title: "Booking Successful!",
+            description: `Your booking has been confirmed.`,
+        });
+        form.reset();
+
+    } catch (e: any) {
+        toast({
+            variant: "destructive",
+            title: "Uh oh! Something went wrong.",
+            description: e.message || "Could not complete your booking.",
+        });
+    }
   }
+
+  const isLoading = isLoadingSchedules || isLoadingRoutes || isLoadingFares;
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -72,6 +142,11 @@ export default function BookingPage() {
               <CardDescription>Fill in the details below to complete your reservation.</CardDescription>
             </CardHeader>
             <CardContent>
+              {isLoading ? (
+                <div className="flex justify-center items-center h-40">
+                  <p>Loading booking information...</p>
+                </div>
+              ) : (
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
                   <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
@@ -104,30 +179,32 @@ export default function BookingPage() {
                   </div>
                   <FormField
                     control={form.control}
-                    name="route"
+                    name="scheduleId"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Route</FormLabel>
+                        <FormLabel>Route & Schedule</FormLabel>
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
                           <FormControl>
                             <SelectTrigger>
-                              <SelectValue placeholder="Select a destination route" />
+                              <SelectValue placeholder="Select a destination and time" />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="mainland-to-island">Mainland to Island</SelectItem>
-                            <SelectItem value="island-to-port">Island to Port</SelectItem>
-                            <SelectItem value="scenic-coastal-tour">Scenic Coastal Tour</SelectItem>
+                            {schedules && schedules.filter(s => s.availableSeats > 0).map(schedule => (
+                                <SelectItem key={schedule.id} value={schedule.id}>
+                                   {getRouteName(schedule.routeId)} @ {schedule.departureTime}
+                                </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                  <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                  <div className="grid grid-cols-1 gap-6">
                     <FormField
                       control={form.control}
-                      name="passengers"
+                      name="numberOfSeats"
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Number of Passengers</FormLabel>
@@ -141,51 +218,13 @@ export default function BookingPage() {
                         </FormItem>
                       )}
                     />
-                    <FormField
-                      control={form.control}
-                      name="date"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-col">
-                          <FormLabel>Departure Date</FormLabel>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <FormControl>
-                                <Button
-                                  variant={"outline"}
-                                  className={cn(
-                                    "pl-3 text-left font-normal",
-                                    !field.value && "text-muted-foreground"
-                                  )}
-                                >
-                                  {field.value ? (
-                                    format(field.value, "PPP")
-                                  ) : (
-                                    <span>Pick a date</span>
-                                  )}
-                                  <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                </Button>
-                              </FormControl>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="start">
-                              <Calendar
-                                mode="single"
-                                selected={field.value}
-                                onSelect={field.onChange}
-                                disabled={(date) =>
-                                  date < new Date(new Date().setHours(0,0,0,0)) 
-                                }
-                                initialFocus
-                              />
-                            </PopoverContent>
-                          </Popover>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
                   </div>
-                  <Button type="submit" size="lg" className="w-full">Confirm Booking</Button>
+                  <Button type="submit" size="lg" className="w-full" disabled={!user}>
+                    {user ? 'Confirm Booking' : 'Sign in to book'}
+                  </Button>
                 </form>
               </Form>
+              )}
             </CardContent>
           </Card>
         </div>

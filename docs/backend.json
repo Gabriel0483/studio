@@ -272,11 +272,23 @@
         },
         "passengerId": {
           "type": "string",
-          "description": "Reference to Passenger. (Relationship: Passenger 1:N Booking)"
+          "description": "Reference to Passenger (user.uid). (Relationship: Passenger 1:N Booking)"
+        },
+        "passengerName": {
+          "type": "string",
+          "description": "Denormalized name of the passenger for display."
+        },
+        "passengerEmail": {
+          "type": "string",
+          "description": "Denormalized email of the passenger for display."
         },
         "scheduleId": {
           "type": "string",
           "description": "Reference to Schedule. (Relationship: Schedule 1:N Booking)"
+        },
+        "routeName": {
+          "type": "string",
+          "description": "Denormalized name of the route for display purposes."
         },
         "bookingDate": {
           "type": "string",
@@ -297,7 +309,8 @@
         "passengerId",
         "scheduleId",
         "bookingDate",
-        "numberOfSeats"
+        "numberOfSeats",
+        "totalPrice"
       ]
     },
     "MaintenanceRecord": {
@@ -465,7 +478,7 @@
           "schema": {
             "$ref": "#/backend/entities/Booking"
           },
-          "description": "Stores booking information. Access control: restricted to the passenger who made the booking or authorized personnel. Includes denormalized `passengerId` for authorization independence.",
+          "description": "Stores booking information. Access control: restricted to the passenger who made the booking or authorized personnel. Includes denormalized passengerId for authorization independence.",
           "params": [
             {
               "name": "bookingId",
@@ -491,6 +504,6 @@
         }
       }
     ],
-    "reasoning": "The Firestore data structure is designed to support the TransitFlow application's requirements for managing passengers, ships, routes, schedules, bookings, and maintenance records. The structure prioritizes authorization independence to ensure secure and scalable operations. Path-based ownership is used for user-specific data (passengers), while collaborative data (if any in future) will leverage membership maps. Structural segregation is employed to maintain a homogeneous security posture within collections.\n\nAuthorization Independence: Denormalization is applied where necessary to avoid `get()` calls in security rules. For instance, if access to Bookings needed to be restricted to passengers who made them, the `passengerId` is used in the Booking document, avoiding the need to `get` the Passenger document in rules.\n\nQAPs Support:  Segregation ensures that list operations are secure. For example, listing ships does not require filtering based on complex rules; all documents in the `/ships` collection have the same basic access control requirements."
+    "reasoning": "The Firestore data structure is designed to support the TransitFlow application's requirements for managing passengers, ships, routes, schedules, bookings, and maintenance records. The structure prioritizes authorization independence to ensure secure and scalable operations. Path-based ownership is used for user-specific data (passengers), while collaborative data (if any in future) will leverage membership maps. Structural segregation is employed to maintain a homogeneous security posture within collections.\n\nAuthorization Independence: Denormalization is applied where necessary to avoid get() calls in security rules. For instance, if access to Bookings needed to be restricted to passengers who made them, the passengerId is used in the Booking document, avoiding the need to get the Passenger document in rules.\n\nQAPs Support:  Segregation ensures that list operations are secure. For example, listing ships does not require filtering based on complex rules; all documents in the /ships collection have the same basic access control requirements."
   }
 }
