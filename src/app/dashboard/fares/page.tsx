@@ -178,7 +178,7 @@ const FareForm = ({
                 </Select>
             </div>
             <div className="space-y-2">
-                <Label htmlFor="price">Price ($)</Label>
+                <Label htmlFor="price">Price (₱)</Label>
                 <Input
                     id="price"
                     type="number"
@@ -304,7 +304,7 @@ export default function FaresPage() {
                   <TableRow key={fare.id}>
                     <TableCell className="font-medium">{fare.routeName}</TableCell>
                     <TableCell>{fare.passengerType}</TableCell>
-                    <TableCell>${fare.price.toFixed(2)}</TableCell>
+                    <TableCell>₱{fare.price.toFixed(2)}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
                         <Button
