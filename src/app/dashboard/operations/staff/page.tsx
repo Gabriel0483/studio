@@ -76,7 +76,7 @@ const StaffForm = ({
 }) => {
   const [name, setName] = useState(staffMember?.name || '');
   const [role, setRole] = useState(staffMember?.role || '');
-  const [assignedShipId, setAssignedShipId] = useState(staffMember?.assignedShipId || '');
+  const [assignedShipId, setAssignedShipId] = useState(staffMember?.assignedShipId || 'unassigned');
   const { toast } = useToast();
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -90,12 +90,13 @@ const StaffForm = ({
       return;
     }
     
-    const selectedShip = ships.find(s => s.id === assignedShipId);
+    const finalShipId = assignedShipId === 'unassigned' ? null : assignedShipId;
+    const selectedShip = ships.find(s => s.id === finalShipId);
 
     const staffData = {
       name,
       role,
-      assignedShipId: assignedShipId || null,
+      assignedShipId: finalShipId,
       assignedShipName: selectedShip ? selectedShip.name : 'Unassigned',
     };
 
@@ -150,7 +151,7 @@ const StaffForm = ({
             <SelectValue placeholder="Select a ship (optional)" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Unassigned</SelectItem>
+            <SelectItem value="unassigned">Unassigned</SelectItem>
             {ships.map((ship) => (
               <SelectItem key={ship.id} value={ship.id}>
                 {ship.name}

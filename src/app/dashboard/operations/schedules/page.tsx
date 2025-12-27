@@ -84,7 +84,7 @@ const ScheduleForm = ({
   routes: Route[];
   onFinished: () => void;
 }) => {
-  const [shipId, setShipId] = useState(schedule?.shipId || '');
+  const [shipId, setShipId] = useState(schedule?.shipId || 'unassigned');
   const [routeId, setRouteId] = useState(schedule?.routeId || '');
   const [departureTime, setDepartureTime] = useState(schedule?.departureTime || '');
   const [arrivalTime, setArrivalTime] = useState(schedule?.arrivalTime || '');
@@ -113,10 +113,11 @@ const ScheduleForm = ({
         return;
     }
     
-    const selectedShip = ships.find(s => s.id === shipId);
+    const finalShipId = shipId === 'unassigned' ? null : shipId;
+    const selectedShip = ships.find(s => s.id === finalShipId);
 
     const scheduleData = {
-      shipId: shipId || null,
+      shipId: finalShipId,
       shipName: selectedShip ? selectedShip.name : 'Unassigned',
       routeId,
       departureTime,
@@ -151,7 +152,7 @@ const ScheduleForm = ({
             <Select onValueChange={setShipId} defaultValue={shipId}>
                 <SelectTrigger id="shipId"><SelectValue placeholder="Select a ship" /></SelectTrigger>
                 <SelectContent>
-                    <SelectItem value="">Unassigned</SelectItem>
+                    <SelectItem value="unassigned">Unassigned</SelectItem>
                     {ships.map((ship) => <SelectItem key={ship.id} value={ship.id}>{ship.name}</SelectItem>)}
                 </SelectContent>
             </Select>
