@@ -18,16 +18,19 @@ export default function OperationsLayout({
     <div className="space-y-6">
        <div>
         <h1 className="text-2xl font-bold tracking-tight">Operational Management</h1>
-        <p className="text-muted-foreground">Manage your fleet and staff assignments.</p>
+        <p className="text-muted-foreground">Manage your fleet, staff, and schedules.</p>
       </div>
 
       <Tabs value={activeTab}>
-        <TabsList className="grid w-full grid-cols-2 md:w-[400px]">
+        <TabsList className="grid w-full grid-cols-3 md:w-[600px]">
           <TabsTrigger value="ships" asChild>
             <Link href="/dashboard/operations/ships">Fleet Management</Link>
           </TabsTrigger>
           <TabsTrigger value="staff" asChild>
             <Link href="/dashboard/operations/staff">Staff Management</Link>
+          </TabsTrigger>
+          <TabsTrigger value="schedules" asChild>
+            <Link href="/dashboard/operations/schedules">Schedules</Link>
           </TabsTrigger>
         </TabsList>
       </Tabs>
