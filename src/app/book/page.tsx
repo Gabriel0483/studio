@@ -47,7 +47,7 @@ const fareBreakdownSchema = z.object({
 
 const bookingFormSchema = z.object({
   primaryEmail: z.string().email({ message: "Please enter a valid email address." }),
-  travelDate: z.date({ required_error: "A date of travel is required." }),
+  travelDate: z.string().refine((val) => !isNaN(Date.parse(val)), { message: "A date of travel is required."}),
   scheduleId: z.string({ required_error: "Please select a schedule." }),
   passengers: z.array(passengerSchema).min(1, "At least one passenger is required."),
   fareBreakdown: z.array(fareBreakdownSchema),
@@ -71,6 +71,7 @@ export default function BookingPage() {
     resolver: zodResolver(bookingFormSchema),
     defaultValues: {
       primaryEmail: "",
+      travelDate: new Date().toISOString().split("T")[0],
       passengers: [{ fullName: "", birthDate: "" }],
       fareBreakdown: [],
     },
@@ -88,6 +89,7 @@ export default function BookingPage() {
 
   const watchScheduleId = form.watch('scheduleId');
   const watchPassengers = form.watch('passengers');
+  const watchTravelDate = form.watch('travelDate');
 
   useEffect(() => {
     const selectedSchedule = schedules?.find(s => s.id === watchScheduleId);
@@ -173,7 +175,7 @@ export default function BookingPage() {
             .filter(item => item.count > 0)
             .map(item => ({...item, fareId: availableFares.find(f => f.passengerType === item.passengerType)?.id })),
           bookingDate: serverTimestamp(),
-          travelDate: data.travelDate,
+          travelDate: new Date(data.travelDate),
           numberOfSeats: totalSeats,
           totalPrice,
           routeName: getRouteName(scheduleData.routeId),
@@ -246,37 +248,11 @@ export default function BookingPage() {
                             control={form.control}
                             name="travelDate"
                             render={({ field }) => (
-                                <FormItem className="flex flex-col">
+                                <FormItem>
                                 <FormLabel>Date of Travel</FormLabel>
-                                <Popover>
-                                    <PopoverTrigger asChild>
-                                    <FormControl>
-                                        <Button
-                                        variant={"outline"}
-                                        className={cn(
-                                            "pl-3 text-left font-normal",
-                                            !field.value && "text-muted-foreground"
-                                        )}
-                                        >
-                                        {field.value ? (
-                                            format(field.value, "PPP")
-                                        ) : (
-                                            <span>Pick a date</span>
-                                        )}
-                                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                        </Button>
-                                    </FormControl>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0" align="start">
-                                    <Calendar
-                                        mode="single"
-                                        selected={field.value}
-                                        onSelect={field.onChange}
-                                        disabled={(date) => date < new Date() || date < new Date("1900-01-01")}
-                                        initialFocus
-                                    />
-                                    </PopoverContent>
-                                </Popover>
+                                <FormControl>
+                                  <Input type="date" {...field} min={new Date().toISOString().split("T")[0]} />
+                                </FormControl>
                                 <FormMessage />
                                 </FormItem>
                             )}
@@ -287,7 +263,7 @@ export default function BookingPage() {
                             render={({ field }) => (
                             <FormItem>
                                 <FormLabel>Route & Schedule</FormLabel>
-                                <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!form.watch('travelDate')}>
+                                <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!watchTravelDate}>
                                 <FormControl>
                                     <SelectTrigger>
                                     <SelectValue placeholder="Select a destination and time" />
@@ -322,7 +298,7 @@ export default function BookingPage() {
                                             <FormItem>
                                                 <FormLabel>{field.passengerType} (₱{fareInfo?.price.toFixed(2) || '0.00'})</FormLabel>
                                                 <FormControl>
-                                                    <Input type="number" min="0" {...fieldProps} />
+                                                    <Input type="number" min="0" {...fieldProps} onChange={e => fieldProps.onChange(parseInt(e.target.value, 10) || 0)} />
                                                 </FormControl>
                                             </FormItem>
                                         );
@@ -389,7 +365,7 @@ export default function BookingPage() {
                       </Button>
                     </div>
 
-                    <Button type="submit" size="lg" className="w-full" disabled={totalSeats !== watchPassengers.length}>
+                    <Button type="submit" size="lg" className="w-full" disabled={!form.formState.isValid || totalSeats === 0 || totalSeats !== watchPassengers.length}>
                       Confirm Booking
                     </Button>
                   </form>
