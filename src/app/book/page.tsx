@@ -26,10 +26,11 @@ import { toast } from "@/hooks/use-toast"
 import { PublicHeader } from "@/components/public-header"
 import { PublicFooter } from "@/components/public-footer"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { useFirestore, useCollection, useMemoFirebase, useUser, errorEmitter, FirestorePermissionError } from "@/firebase"
+import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase"
 import { collection, doc, serverTimestamp, runTransaction } from "firebase/firestore"
 import React, { useMemo, useState, useEffect } from "react"
 import { Separator } from "@/components/ui/separator"
+import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 
 const passengerSchema = z.object({
   fullName: z.string().min(2, { message: "Full name must be at least 2 characters." }),
@@ -108,12 +109,26 @@ export default function BookingPage() {
 
   const totalSeats = watchPassengers.length;
   
-  const totalPrice = useMemo(() => {
-    return watchPassengers.reduce((acc, passenger) => {
-      if (!passenger.fareType) return acc;
-      const fareInfo = availableFares.find(f => f.passengerType === passenger.fareType);
-      return acc + (fareInfo?.price || 0);
-    }, 0);
+  const bookingSummary = useMemo(() => {
+    const fareDetails = watchPassengers
+      .map(passenger => {
+        if (!passenger.fareType) return null;
+        const fareInfo = availableFares.find(f => f.passengerType === passenger.fareType);
+        return {
+          name: passenger.fullName || 'Passenger',
+          fareType: passenger.fareType,
+          price: fareInfo?.price || 0,
+        };
+      })
+      .filter(Boolean);
+
+    const totalPrice = fareDetails.reduce((acc, detail) => acc + (detail?.price || 0), 0);
+    
+    return {
+      details: fareDetails,
+      totalPrice,
+      totalTickets: watchPassengers.length,
+    };
   }, [watchPassengers, availableFares]);
 
 
@@ -143,7 +158,11 @@ export default function BookingPage() {
         const bookingData = {
           id: newBookingRef.id,
           passengerId: user.uid,
-          passengerInfo: data.passengers,
+          passengerInfo: data.passengers.map(p => ({
+            fullName: p.fullName,
+            birthDate: p.birthDate || null,
+            fareType: p.fareType,
+          })),
           passengerEmail: data.primaryEmail,
           passengerPhone: data.primaryPhone,
           scheduleId,
@@ -159,12 +178,24 @@ export default function BookingPage() {
           bookingDate: serverTimestamp(),
           travelDate: new Date(data.travelDate),
           numberOfSeats: totalSeats,
-          totalPrice,
+          totalPrice: bookingSummary.totalPrice,
           routeName: getRouteName(scheduleData.routeId),
         };
 
         transaction.set(newBookingRef, bookingData);
       });
+
+      // Also create/update passenger profile non-blockingly
+      const passengerRef = doc(firestore, 'passengers', user.uid);
+      const passengerData = {
+          id: user.uid,
+          firstName: data.passengers[0].fullName.split(' ')[0],
+          lastName: data.passengers[0].fullName.split(' ').slice(1).join(' '),
+          email: data.primaryEmail,
+          phone: data.primaryPhone,
+          address: '', // Address not collected in this form
+      };
+      setDocumentNonBlocking(passengerRef, passengerData, { merge: true });
 
       toast({
         title: "Booking Successful!",
@@ -174,22 +205,10 @@ export default function BookingPage() {
 
     } catch (e: any) {
       console.error(e); // Keep detailed log for debugging
-      const isPermissionError = e.message.includes('permission-denied') || e.code === 'permission-denied';
-      
-      let errorToEmit = e; // Default to original error
-      if (isPermissionError) {
-          errorToEmit = new FirestorePermissionError({
-              path: newBookingRef.path,
-              operation: 'create',
-              requestResourceData: { ...data, passengerId: user.uid, numberOfSeats: totalSeats },
-          });
-          errorEmitter.emit('permission-error', errorToEmit);
-      }
-
       toast({
         variant: "destructive",
         title: "Uh oh! Something went wrong.",
-        description: isPermissionError ? "You do not have permission to perform this action." : (e.message || "Could not complete your booking."),
+        description: e.message || "Could not complete your booking.",
       });
     }
   }
@@ -309,7 +328,7 @@ export default function BookingPage() {
                               <FormItem className="sm:col-span-2">
                                 <FormLabel>Birth Date</FormLabel>
                                 <FormControl>
-                                  <Input type="date" {...field} />
+                                  <Input type="date" {...field} placeholder="YYYY-MM-DD" />
                                 </FormControl>
                                 <FormMessage />
                               </FormItem>
@@ -394,24 +413,29 @@ export default function BookingPage() {
                         />
                     </div>
                     
-                    {totalSeats > 0 && (
+                    {bookingSummary.totalTickets > 0 && bookingSummary.totalPrice > 0 && (
                         <Card>
                             <CardHeader>
                                 <CardTitle>Booking Summary</CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 <div className="flex justify-between items-center">
-                                    <span>Route</span>
+                                    <span className="text-muted-foreground">Route</span>
                                     <span className="font-medium">{getRouteName(watchRouteId)}</span>
                                 </div>
-                                <div className="flex justify-between items-center">
-                                    <span>Total Tickets</span>
-                                    <span className="font-medium">{totalSeats}</span>
-                                </div>
+                                <Separator />
+                                <h4 className="font-medium">Fare Breakdown</h4>
+                                {bookingSummary.details.map((item, index) => (
+                                    <div key={index} className="flex justify-between items-center text-sm">
+                                        <span>1 x {item?.name} ({item?.fareType})</span>
+                                        <span className="font-medium">₱{item?.price.toFixed(2)}</span>
+                                    </div>
+                                ))}
+                                {bookingSummary.details.length === 0 && <p className="text-sm text-muted-foreground">Select fare types for passengers to see breakdown.</p>}
                                 <Separator />
                                 <div className="flex justify-between items-center text-lg font-bold">
                                     <span>Total Price</span>
-                                    <span>₱{totalPrice.toFixed(2)}</span>
+                                    <span>₱{bookingSummary.totalPrice.toFixed(2)}</span>
                                 </div>
                             </CardContent>
                         </Card>
@@ -432,3 +456,5 @@ export default function BookingPage() {
     </div>
   )
 }
+
+    
