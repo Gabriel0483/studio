@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useFieldArray, useForm } from "react-hook-form"
 import * as z from "zod"
-import { PlusCircle, Trash2, Plus, Minus } from "lucide-react"
+import { PlusCircle, Trash2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -34,11 +34,7 @@ import { Separator } from "@/components/ui/separator"
 const passengerSchema = z.object({
   fullName: z.string().min(2, { message: "Full name must be at least 2 characters." }),
   birthDate: z.string().optional(),
-});
-
-const fareBreakdownSchema = z.object({
-  passengerType: z.string(),
-  count: z.coerce.number().int().min(0),
+  fareType: z.string({ required_error: "Please select a fare type."}),
 });
 
 const bookingFormSchema = z.object({
@@ -46,7 +42,6 @@ const bookingFormSchema = z.object({
   travelDate: z.string().refine((val) => !isNaN(Date.parse(val)), { message: "A date of travel is required."}),
   scheduleId: z.string({ required_error: "Please select a schedule." }),
   passengers: z.array(passengerSchema).min(1, "At least one passenger is required."),
-  fareBreakdown: z.array(fareBreakdownSchema),
   primaryEmail: z.string().email({ message: "Please enter a valid email address." }),
   primaryPhone: z.string().min(1, { message: "Please enter a contact number." }),
 });
@@ -72,8 +67,7 @@ export default function BookingPage() {
       routeId: "",
       travelDate: new Date().toISOString().split("T")[0],
       scheduleId: "",
-      passengers: [{ fullName: "", birthDate: "" }],
-      fareBreakdown: [],
+      passengers: [{ fullName: "", birthDate: "", fareType: "" }],
       primaryEmail: "",
       primaryPhone: "",
     },
@@ -84,16 +78,10 @@ export default function BookingPage() {
     name: "passengers",
   });
   
-  const { fields: fareFields, replace: replaceFareFields } = useFieldArray({
-    control: form.control,
-    name: "fareBreakdown",
-  });
-
   const watchRouteId = form.watch('routeId');
   const watchTravelDate = form.watch('travelDate');
   const watchScheduleId = form.watch('scheduleId');
   const watchPassengers = form.watch('passengers');
-  const watchFareBreakdown = form.watch('fareBreakdown');
 
   // Filter schedules based on route and date
   useEffect(() => {
@@ -112,34 +100,21 @@ export default function BookingPage() {
     if (selectedSchedule && routes && allFares) {
       const route = routes.find(r => r.id === selectedSchedule.routeId);
       const routeFares = allFares.filter(f => f.routeId === route?.id);
-      
-      const passengerTypes = route?.passengerTypes || [];
-      const newFareBreakdown = passengerTypes.map(type => ({
-        passengerType: type,
-        count: 0
-      }));
-      replaceFareFields(newFareBreakdown);
-      
       setAvailableFares(routeFares);
     } else {
-      replaceFareFields([]);
       setAvailableFares([]);
     }
-  }, [watchScheduleId, allSchedules, routes, allFares, replaceFareFields]);
-  
-  const totalSeats = useMemo(() => {
-    return watchFareBreakdown.reduce((acc, current) => acc + current.count, 0);
-  }, [watchFareBreakdown]);
+  }, [watchScheduleId, allSchedules, routes, allFares]);
 
-  useEffect(() => {
-    const numPassengers = watchPassengers.length;
-    if (totalSeats > 0 && totalSeats !== numPassengers) {
-       form.setError("fareBreakdown", { type: "manual", message: `The number of tickets (${totalSeats}) must match the number of passengers (${numPassengers}).` });
-    }
-    else {
-      form.clearErrors("fareBreakdown");
-    }
-  }, [totalSeats, watchPassengers, form]);
+  const totalSeats = watchPassengers.length;
+  
+  const totalPrice = useMemo(() => {
+    return watchPassengers.reduce((acc, passenger) => {
+      if (!passenger.fareType) return acc;
+      const fareInfo = availableFares.find(f => f.passengerType === passenger.fareType);
+      return acc + (fareInfo?.price || 0);
+    }, 0);
+  }, [watchPassengers, availableFares]);
 
 
   const getRouteName = (routeId: string) => routes?.find(r => r.id === routeId)?.name || 'Unknown Route';
@@ -148,14 +123,6 @@ export default function BookingPage() {
     if (!firestore || !user) {
       toast({ variant: 'destructive', title: 'Error', description: 'Could not connect. Please try again later.' });
       return;
-    }
-    if (totalSeats === 0) {
-      form.setError("fareBreakdown", { type: "manual", message: "You must select at least one ticket." });
-      return;
-    }
-    if (totalSeats !== data.passengers.length) {
-       form.setError("fareBreakdown", { type: "manual", message: "The number of tickets must match the number of passengers." });
-       return;
     }
 
     const { scheduleId } = data;
@@ -171,11 +138,6 @@ export default function BookingPage() {
         const newAvailableSeats = scheduleData.availableSeats - totalSeats;
         if (newAvailableSeats < 0) throw new Error("Not enough seats available.");
         
-        const totalPrice = data.fareBreakdown.reduce((acc, item) => {
-          const fareInfo = availableFares.find(f => f.passengerType === item.passengerType);
-          return acc + (fareInfo?.price || 0) * item.count;
-        }, 0);
-
         transaction.update(scheduleRef, { availableSeats: newAvailableSeats });
         
         const bookingData = {
@@ -185,16 +147,15 @@ export default function BookingPage() {
           passengerEmail: data.primaryEmail,
           passengerPhone: data.primaryPhone,
           scheduleId,
-          fareDetails: data.fareBreakdown
-            .filter(item => item.count > 0)
-            .map(item => {
-                const fareInfo = availableFares.find(f => f.passengerType === item.passengerType);
-                return {
-                    ...item,
-                    fareId: fareInfo?.id,
-                    pricePerTicket: fareInfo?.price
-                };
-            }),
+          fareDetails: data.passengers.map(p => {
+            const fareInfo = availableFares.find(f => f.passengerType === p.fareType);
+            return {
+              fareId: fareInfo?.id || null,
+              passengerType: p.fareType,
+              count: 1,
+              pricePerTicket: fareInfo?.price || 0
+            }
+          }),
           bookingDate: serverTimestamp(),
           travelDate: new Date(data.travelDate),
           numberOfSeats: totalSeats,
@@ -212,16 +173,19 @@ export default function BookingPage() {
       form.reset();
 
     } catch (e: any) {
+      console.error(e); // Keep detailed log for debugging
       const isPermissionError = e.message.includes('permission-denied') || e.code === 'permission-denied';
-      const permissionError = isPermissionError ? new FirestorePermissionError({
-          path: newBookingRef.path,
-          operation: 'create',
-          requestResourceData: { ...data, passengerId: user.uid, numberOfSeats: totalSeats },
-      }) : null;
-
-      if(permissionError){
-        errorEmitter.emit('permission-error', permissionError);
+      
+      let errorToEmit = e; // Default to original error
+      if (isPermissionError) {
+          errorToEmit = new FirestorePermissionError({
+              path: newBookingRef.path,
+              operation: 'create',
+              requestResourceData: { ...data, passengerId: user.uid, numberOfSeats: totalSeats },
+          });
+          errorEmitter.emit('permission-error', errorToEmit);
       }
+
       toast({
         variant: "destructive",
         title: "Uh oh! Something went wrong.",
@@ -318,15 +282,19 @@ export default function BookingPage() {
                         )}
                     />
 
-                    <div className="space-y-4">
+                    <div className="space-y-6">
+                      <h3 className="font-medium text-lg border-b pb-2">Passenger Details</h3>
                       {fields.map((field, index) => (
-                        <div key={field.id} className="grid grid-cols-1 sm:grid-cols-7 gap-4 items-end">
+                        <div key={field.id} className="grid grid-cols-1 sm:grid-cols-8 gap-4 items-end p-4 border rounded-lg relative">
+                           <div className="sm:col-span-8">
+                             <p className="font-semibold text-md">Passenger {index + 1}</p>
+                           </div>
                           <FormField
                             control={form.control}
                             name={`passengers.${index}.fullName`}
                             render={({ field }) => (
-                              <FormItem className="sm:col-span-4">
-                                <FormLabel>Passenger {index + 1} Full Name</FormLabel>
+                              <FormItem className="sm:col-span-3">
+                                <FormLabel>Full Name</FormLabel>
                                 <FormControl>
                                   <Input placeholder="John Doe" {...field} />
                                 </FormControl>
@@ -341,8 +309,32 @@ export default function BookingPage() {
                               <FormItem className="sm:col-span-2">
                                 <FormLabel>Birth Date</FormLabel>
                                 <FormControl>
-                                  <Input type="date" placeholder="YYYY-MM-DD" {...field} />
+                                  <Input type="date" {...field} />
                                 </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                           <FormField
+                            control={form.control}
+                            name={`passengers.${index}.fareType`}
+                            render={({ field }) => (
+                              <FormItem className="sm:col-span-2">
+                                <FormLabel>Fare Type</FormLabel>
+                                 <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!watchScheduleId}>
+                                    <FormControl>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Select fare" />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        {availableFares.map(fare => (
+                                            <SelectItem key={fare.id} value={fare.passengerType}>
+                                                {fare.passengerType} (₱{fare.price.toFixed(2)})
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                                 <FormMessage />
                               </FormItem>
                             )}
@@ -366,54 +358,12 @@ export default function BookingPage() {
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => append({ fullName: "", birthDate: "" })}
+                        onClick={() => append({ fullName: "", birthDate: "", fareType: "" })}
+                        disabled={!watchScheduleId}
                       >
                         <PlusCircle className="mr-2 h-4 w-4" /> Add Another Passenger
                       </Button>
                     </div>
-                    
-                    {watchScheduleId && availableFares.length > 0 && (
-                        <div className="space-y-4 rounded-lg border p-4">
-                            <h3 className="font-medium">Tickets</h3>
-                            <div className="space-y-4">
-                            {fareFields.map((field, index) => {
-                                const fareInfo = availableFares.find(f => f.passengerType === field.passengerType);
-                                const currentCount = form.getValues(`fareBreakdown.${index}.count`);
-                                return (
-                                <div key={field.id} className="flex items-center justify-between">
-                                  <div>
-                                    <p className="font-medium">{field.passengerType}</p>
-                                    <p className="text-sm text-muted-foreground">₱{fareInfo?.price.toFixed(2) || '0.00'}</p>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      size="icon"
-                                      className="h-8 w-8"
-                                      onClick={() => form.setValue(`fareBreakdown.${index}.count`, Math.max(0, currentCount - 1))}
-                                      disabled={currentCount <= 0}
-                                    >
-                                      <Minus className="h-4 w-4" />
-                                    </Button>
-                                    <span className="w-10 text-center font-medium">{currentCount}</span>
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      size="icon"
-                                      className="h-8 w-8"
-                                      onClick={() => form.setValue(`fareBreakdown.${index}.count`, currentCount + 1)}
-                                    >
-                                      <Plus className="h-4 w-4" />
-                                    </Button>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                            </div>
-                            <FormMessage>{form.formState.errors.fareBreakdown?.message}</FormMessage>
-                        </div>
-                    )}
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                         <FormField
@@ -461,19 +411,14 @@ export default function BookingPage() {
                                 <Separator />
                                 <div className="flex justify-between items-center text-lg font-bold">
                                     <span>Total Price</span>
-                                    <span>₱{
-                                        form.getValues('fareBreakdown').reduce((acc, item) => {
-                                            const fareInfo = availableFares.find(f => f.passengerType === item.passengerType);
-                                            return acc + (fareInfo?.price || 0) * item.count;
-                                        }, 0).toFixed(2)
-                                    }</span>
+                                    <span>₱{totalPrice.toFixed(2)}</span>
                                 </div>
                             </CardContent>
                         </Card>
                     )}
 
 
-                    <Button type="submit" size="lg" className="w-full" disabled={!form.formState.isValid || totalSeats === 0 || totalSeats !== watchPassengers.length}>
+                    <Button type="submit" size="lg" className="w-full" disabled={!form.formState.isValid || totalSeats === 0}>
                       Confirm Booking
                     </Button>
                   </form>
