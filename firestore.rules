@@ -1,7 +1,7 @@
 /**
  * @title Firebase Security Rules for Isla Konek (Prototyping Mode)
  * @author Firebase Security Rules Architect
- * @version 1.3
+ * @version 1.4
  *
  * @description
  * This ruleset is designed for the Isla Konek application during its prototyping phase.
@@ -80,14 +80,10 @@ service cloud.firestore {
 
     /**
      * @description Placeholder for role-based access control.
-     * In production, this should be replaced with a check against custom claims.
-     * For example: `return request.auth.token.admin == true;`
+     * For prototyping, all signed-in users are considered admins for simplicity.
      */
     function isAdmin() {
-      // TODO: Implement role-based access control, e.g., using custom claims.
-      // For prototyping, this is locked down and returns false.
-      // To test admin functionality, temporarily set this to `return isSignedIn();`
-      return false;
+      return isSignedIn();
     }
 
     // ----------------------------------------------------------------------
@@ -106,7 +102,7 @@ service cloud.firestore {
     match /ports/{portId} {
       allow get: if true;
       allow list: if true;
-      allow write: if isSignedIn();
+      allow write: if isAdmin();
     }
 
     /**
@@ -120,11 +116,11 @@ service cloud.firestore {
      * @principle Restricts access to a user's own data tree (Self-Creation & Ownership).
      */
     match /passengers/{passengerId} {
-      allow get: if isOwner(passengerId);
-      allow list: if false; // Protects user privacy by preventing enumeration of all passengers.
+      allow get: if isOwner(passengerId) || isAdmin();
+      allow list: if isAdmin();
       allow create: if isOwner(passengerId) && request.resource.data.id == passengerId;
-      allow update: if isExistingOwner(passengerId) && request.resource.data.id == resource.data.id;
-      allow delete: if isExistingOwner(passengerId);
+      allow update: if (isExistingOwner(passengerId) && request.resource.data.id == resource.data.id) || isAdmin();
+      allow delete: if isExistingOwner(passengerId) || isAdmin();
     }
 
     /**
@@ -136,9 +132,9 @@ service cloud.firestore {
      * @principle Enforces strict Role-Based Access Control (RBAC) for sensitive data.
      */
     match /ships/{shipId} {
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
-      allow write: if isSignedIn();
+      allow get: if isAdmin();
+      allow list: if isAdmin();
+      allow write: if isAdmin();
     }
     
     /**
@@ -147,9 +143,9 @@ service cloud.firestore {
      * @path /staff/{staffId}
      */
     match /staff/{staffId} {
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
-      allow write: if isSignedIn();
+      allow get: if isAdmin();
+      allow list: if isAdmin();
+      allow write: if isAdmin();
     }
 
     /**
@@ -164,7 +160,7 @@ service cloud.firestore {
     match /routes/{routeId} {
       allow get: if true;
       allow list: if true;
-      allow write: if isSignedIn();
+      allow write: if isAdmin();
     }
 
     /**
@@ -175,7 +171,7 @@ service cloud.firestore {
     match /fares/{fareId} {
       allow get: if true;
       allow list: if true;
-      allow write: if isSignedIn();
+      allow write: if isAdmin();
     }
 
     /**
@@ -189,7 +185,7 @@ service cloud.firestore {
     match /schedules/{scheduleId} {
       allow get: if true;
       allow list: if true;
-      allow write: if isSignedIn();
+      allow write: if isAdmin();
     }
 
     /**
@@ -205,10 +201,10 @@ service cloud.firestore {
      */
     match /bookings/{bookingId} {
       allow get: if isOwner(resource.data.passengerId) || isAdmin();
-      allow list: if isSignedIn();
+      allow list: if isAdmin();
       allow create: if isSignedIn() && request.resource.data.passengerId == request.auth.uid;
-      allow update: if (isExistingOwner(resource.data.passengerId) && request.resource.data.passengerId == resource.data.passengerId) || (isAdmin() && resource != null);
-      allow delete: if isExistingOwner(resource.data.passengerId) || (isAdmin() && resource != null);
+      allow update: if (isExistingOwner(resource.data.passengerId) && request.resource.data.passengerId == resource.data.passengerId) || isAdmin();
+      allow delete: if isExistingOwner(resource.data.passengerId) || isAdmin();
     }
 
     /**
@@ -222,9 +218,7 @@ service cloud.firestore {
     match /maintenanceRecords/{maintenanceRecordId} {
       allow get: if isAdmin();
       allow list: if isAdmin();
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
+      allow write: if isAdmin();
     }
 
   }
