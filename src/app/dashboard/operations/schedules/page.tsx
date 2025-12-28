@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { collection, doc } from 'firebase/firestore';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import {
@@ -65,7 +65,7 @@ interface Schedule {
   shipId?: string;
   shipName?: string;
   routeId: string;
-  date: string;
+  date: string | null;
   departureTime: string;
   arrivalTime: string;
   availableSeats: number;
@@ -87,16 +87,20 @@ const ScheduleForm = ({
 }) => {
   const [shipId, setShipId] = useState(schedule?.shipId || 'unassigned');
   const [routeId, setRouteId] = useState(schedule?.routeId || '');
-  const [date, setDate] = useState(schedule?.date || new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(schedule?.date || '');
   const [departureTime, setDepartureTime] = useState(schedule?.departureTime || '');
   const [arrivalTime, setArrivalTime] = useState(schedule?.arrivalTime || '');
   const [availableSeats, setAvailableSeats] = useState(schedule?.availableSeats || '');
   const [tripType, setTripType] = useState<'Daily' | 'Special'>(schedule?.tripType || 'Daily');
   const { toast } = useToast();
+  
+  useEffect(() => {
+    setTripType(date ? 'Special' : 'Daily');
+  }, [date]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!routeId || !date || !departureTime || !arrivalTime || !availableSeats || !tripType) {
+    if (!routeId || !departureTime || !arrivalTime || !availableSeats) {
       toast({
         variant: 'destructive',
         title: 'Missing Fields',
@@ -122,11 +126,11 @@ const ScheduleForm = ({
       shipId: finalShipId,
       shipName: selectedShip ? selectedShip.name : 'Unassigned',
       routeId,
-      date,
+      date: date || null,
       departureTime,
       arrivalTime,
       availableSeats: seatsNum,
-      tripType,
+      tripType: date ? 'Special' : 'Daily',
     };
 
     if (schedule) {
@@ -160,14 +164,14 @@ const ScheduleForm = ({
             </Select>
         </div>
          <div className="space-y-2">
-            <Label htmlFor="date">Date</Label>
+            <Label htmlFor="date">Date (Optional)</Label>
             <Input
                 id="date"
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                min={new Date().toISOString().split("T")[0]}
             />
+             <p className="text-xs text-muted-foreground">Leave empty for daily trips.</p>
         </div>
       </div>
        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -212,16 +216,6 @@ const ScheduleForm = ({
             />
         </div>
       </div>
-       <div className="space-y-2">
-            <Label htmlFor="tripType">Trip Type</Label>
-            <Select onValueChange={(value: 'Daily' | 'Special') => setTripType(value)} defaultValue={tripType}>
-                <SelectTrigger id="tripType"><SelectValue placeholder="Select a trip type" /></SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="Daily">Daily</SelectItem>
-                    <SelectItem value="Special">Special</SelectItem>
-                </SelectContent>
-            </Select>
-        </div>
       <DialogFooter>
         <DialogClose asChild>
           <Button type="button" variant="outline">Cancel</Button>
@@ -269,8 +263,8 @@ export default function SchedulesPage() {
     }
   };
   
-  const formatDate = (dateString: string) => {
-    if (!dateString) return "Not set";
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return "Daily";
     try {
         // Assuming dateString is in 'YYYY-MM-DD' format
         const date = parse(dateString, 'yyyy-MM-dd', new Date());
@@ -417,5 +411,3 @@ export default function SchedulesPage() {
     </div>
   );
 }
-
-    

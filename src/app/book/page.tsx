@@ -89,7 +89,7 @@ export default function BookingPage() {
     if (watchRouteId && watchTravelDate && allSchedules) {
       const relatedSchedules = allSchedules.filter(s => 
         s.routeId === watchRouteId && 
-        s.date === watchTravelDate &&
+        (s.tripType === 'Daily' || s.date === watchTravelDate) &&
         s.availableSeats > 0
       );
       setFilteredSchedules(relatedSchedules);
@@ -460,5 +460,3 @@ export default function BookingPage() {
     </div>
   )
 }
-
-    
