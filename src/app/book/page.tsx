@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useFieldArray, useForm } from "react-hook-form"
 import * as z from "zod"
-import { PlusCircle, Trash2 } from "lucide-react"
+import { PlusCircle, Trash2, Plus, Minus } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -29,6 +29,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useFirestore, useCollection, useMemoFirebase, useUser, errorEmitter, FirestorePermissionError } from "@/firebase"
 import { collection, doc, serverTimestamp, runTransaction } from "firebase/firestore"
 import React, { useMemo, useState, useEffect } from "react"
+import { Separator } from "@/components/ui/separator"
 
 const passengerSchema = z.object({
   fullName: z.string().min(2, { message: "Full name must be at least 2 characters." }),
@@ -321,25 +322,41 @@ export default function BookingPage() {
                     {watchScheduleId && availableFares.length > 0 && (
                         <div className="space-y-4 rounded-lg border p-4">
                             <h3 className="font-medium">Tickets</h3>
-                            <div className="grid grid-cols-2 gap-4">
-                            {fareFields.map((field, index) => (
-                                <FormField
-                                    key={field.id}
-                                    control={form.control}
-                                    name={`fareBreakdown.${index}.count`}
-                                    render={({ field: fieldProps }) => {
-                                        const fareInfo = availableFares.find(f => f.passengerType === field.passengerType);
-                                        return (
-                                            <FormItem>
-                                                <FormLabel>{field.passengerType} (₱{fareInfo?.price.toFixed(2) || '0.00'})</FormLabel>
-                                                <FormControl>
-                                                    <Input type="number" min="0" {...fieldProps} onChange={e => fieldProps.onChange(parseInt(e.target.value, 10) || 0)} />
-                                                </FormControl>
-                                            </FormItem>
-                                        );
-                                    }}
-                                />
-                            ))}
+                            <div className="space-y-4">
+                            {fareFields.map((field, index) => {
+                                const fareInfo = availableFares.find(f => f.passengerType === field.passengerType);
+                                const currentCount = form.getValues(`fareBreakdown.${index}.count`);
+                                return (
+                                <div key={field.id} className="flex items-center justify-between">
+                                  <div>
+                                    <p className="font-medium">{field.passengerType}</p>
+                                    <p className="text-sm text-muted-foreground">₱{fareInfo?.price.toFixed(2) || '0.00'}</p>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="icon"
+                                      className="h-8 w-8"
+                                      onClick={() => form.setValue(`fareBreakdown.${index}.count`, Math.max(0, currentCount - 1))}
+                                      disabled={currentCount <= 0}
+                                    >
+                                      <Minus className="h-4 w-4" />
+                                    </Button>
+                                    <span className="w-10 text-center font-medium">{currentCount}</span>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="icon"
+                                      className="h-8 w-8"
+                                      onClick={() => form.setValue(`fareBreakdown.${index}.count`, currentCount + 1)}
+                                    >
+                                      <Plus className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              );
+                            })}
                             </div>
                             <FormMessage>{form.formState.errors.fareBreakdown?.message}</FormMessage>
                         </div>
@@ -434,16 +451,24 @@ export default function BookingPage() {
                             <CardHeader>
                                 <CardTitle>Booking Summary</CardTitle>
                             </CardHeader>
-                            <CardContent>
-                                <div className="space-y-2">
-                                    <p><strong>Route:</strong> {getRouteName(watchRouteId)}</p>
-                                    <p><strong>Total Tickets:</strong> {totalSeats}</p>
-                                    <p className="text-lg font-bold"><strong>Total Price: ₱{
+                            <CardContent className="space-y-4">
+                                <div className="flex justify-between items-center">
+                                    <span>Route</span>
+                                    <span className="font-medium">{getRouteName(watchRouteId)}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span>Total Tickets</span>
+                                    <span className="font-medium">{totalSeats}</span>
+                                </div>
+                                <Separator />
+                                <div className="flex justify-between items-center text-lg font-bold">
+                                    <span>Total Price</span>
+                                    <span>₱{
                                         form.getValues('fareBreakdown').reduce((acc, item) => {
                                             const fareInfo = availableFares.find(f => f.passengerType === item.passengerType);
                                             return acc + (fareInfo?.price || 0) * item.count;
                                         }, 0).toFixed(2)
-                                    }</strong></p>
+                                    }</span>
                                 </div>
                             </CardContent>
                         </Card>
