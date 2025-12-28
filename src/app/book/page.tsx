@@ -92,11 +92,10 @@ export default function BookingPage() {
   // Filter schedules based on route and date
   useEffect(() => {
     if (watchRouteId && watchTravelDate && allSchedules) {
-      const isToday = new Date(watchTravelDate).toDateString() === new Date().toDateString();
       const relatedSchedules = allSchedules.filter(s => 
         s.routeId === watchRouteId && 
         (
-          (s.tripType === 'Daily' && isToday) || 
+          s.tripType === 'Daily' || 
           (s.tripType === 'Special' && s.date === watchTravelDate)
         ) &&
         s.availableSeats > 0
@@ -516,5 +515,3 @@ export default function BookingPage() {
     </div>
   )
 }
-
-    
