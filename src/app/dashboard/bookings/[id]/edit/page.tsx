@@ -163,6 +163,10 @@ export default function EditBookingPage({ params }: { params: { id: string } }) 
   }, [watchScheduleId, allSchedules, routes, allFares]);
 
   const bookingSummary = useMemo(() => {
+    if (!watchPassengers) {
+      return { details: [], totalPrice: 0, totalTickets: 0 };
+    }
+
     const fareDetails = watchPassengers
       .map((passenger) => {
         if (!passenger.fareType) return null;
