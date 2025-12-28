@@ -14,15 +14,13 @@ export function PublicHeader() {
            <Link href="/book" className="text-sm font-medium text-muted-foreground hover:text-foreground">
             Book Now
           </Link>
-          <Button asChild>
-            <Link href="/dashboard">Dashboard</Link>
+          <Button asChild variant="outline">
+            <Link href="/dashboard">Login</Link>
           </Button>
         </nav>
-        <div className="md:hidden">
-            <Button asChild>
-                <Link href="/dashboard">Dashboard</Link>
-            </Button>
-        </div>
+         <Button asChild className="md:hidden">
+            <Link href="/dashboard">Login</Link>
+        </Button>
       </div>
     </header>
   );

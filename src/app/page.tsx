@@ -5,7 +5,7 @@ import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { Bot, Ship, Users, BarChart } from 'lucide-react';
 import { PublicHeader } from '@/components/public-header';
 import { PublicFooter } from '@/components/public-footer';
-import { RouteSelection } from '@/components/route-selection';
+import { Button } from '@/components/ui/button';
 
 const heroImage = PlaceHolderImages.find((img) => img.id === 'hero-image');
 
@@ -50,25 +50,21 @@ export default function Home() {
             )}
             <div className="absolute inset-0 bg-gradient-to-t from-white via-white/80 to-transparent" />
           </div>
-          <div className="container mx-auto px-4 md:px-6">
-            <div className="grid gap-10 lg:grid-cols-2 lg:gap-16">
-              <div className="flex flex-col justify-center space-y-6">
-                <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl md:text-6xl">
-                  Streamline Your Shipping Operations with Isla Konek
-                </h1>
-                <p className="max-w-xl text-lg text-muted-foreground md:text-xl">
-                  From passenger reservations to daily operations, our all-in-one web application automates the entire process, saving you time, money, and headaches.
-                </p>
-              </div>
-              <div className="flex items-center justify-center">
-                <Card className="w-full max-w-md shadow-2xl">
-                  <CardHeader>
-                    <CardTitle className="text-center text-2xl">Find Your Ferry</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <RouteSelection />
-                  </CardContent>
-                </Card>
+          <div className="container mx-auto px-4 text-center md:px-6">
+            <div className="flex flex-col items-center space-y-6">
+              <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl md:text-6xl">
+                Streamline Your Shipping Operations with Isla Konek
+              </h1>
+              <p className="max-w-3xl text-lg text-muted-foreground md:text-xl">
+                From passenger reservations to daily operations, our all-in-one web application automates the entire process, saving you time, money, and headaches.
+              </p>
+              <div className="flex flex-col gap-4 sm:flex-row">
+                <Button asChild size="lg">
+                  <Link href="/book">Book a Seat Online</Link>
+                </Button>
+                <Button asChild variant="secondary" size="lg">
+                  <Link href="/dashboard">Access Company Dashboard</Link>
+                </Button>
               </div>
             </div>
           </div>
