@@ -79,7 +79,7 @@ export default function BookingPage() {
     },
   });
 
-  const { fields, append, remove } = useFieldArray({
+  const { fields, append, remove, replace } = useFieldArray({
     control: form.control,
     name: "passengers",
   });
@@ -92,9 +92,13 @@ export default function BookingPage() {
   // Filter schedules based on route and date
   useEffect(() => {
     if (watchRouteId && watchTravelDate && allSchedules) {
+      const isToday = new Date(watchTravelDate).toDateString() === new Date().toDateString();
       const relatedSchedules = allSchedules.filter(s => 
         s.routeId === watchRouteId && 
-        (s.tripType === 'Daily' || s.date === watchTravelDate) &&
+        (
+          (s.tripType === 'Daily' && isToday) || 
+          (s.tripType === 'Special' && s.date === watchTravelDate)
+        ) &&
         s.availableSeats > 0
       );
       setFilteredSchedules(relatedSchedules);
@@ -104,6 +108,14 @@ export default function BookingPage() {
     }
   }, [watchRouteId, watchTravelDate, allSchedules, form]);
   
+  // Reset schedule and fares when route changes
+  useEffect(() => {
+    form.resetField('scheduleId');
+    replace([{ fullName: "", birthDate: "", fareType: "" }]);
+    setAvailableFares([]);
+  }, [watchRouteId, form, replace]);
+
+
   // Update fares when schedule changes
   useEffect(() => {
     const selectedSchedule = allSchedules?.find(s => s.id === watchScheduleId);
@@ -119,6 +131,8 @@ export default function BookingPage() {
   const totalSeats = watchPassengers.length;
   
   const bookingSummary = useMemo(() => {
+    if (!watchPassengers) return { details: [], totalPrice: 0, totalTickets: 0 };
+    
     const fareDetails = watchPassengers
       .map(passenger => {
         if (!passenger.fareType) return null;
@@ -250,199 +264,193 @@ export default function BookingPage() {
             
             {step === 'form' && (
               <CardContent>
-                {isLoading ? (
-                  <div className="flex justify-center items-center h-40">
-                    <p>Loading booking information...</p>
-                  </div>
-                ) : (
-                  <Form {...form}>
-                    <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-8">
-                      
-                      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                          <FormField
-                              control={form.control}
-                              name="routeId"
-                              render={({ field }) => (
-                              <FormItem>
-                                  <FormLabel>Route</FormLabel>
-                                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                  <FormControl>
-                                      <SelectTrigger>
-                                      <SelectValue placeholder="Select a route" />
-                                      </SelectTrigger>
-                                  </FormControl>
-                                  <SelectContent>
-                                      {routes?.map(route => (
-                                          <SelectItem key={route.id} value={route.id}>
-                                              {route.name}
-                                          </SelectItem>
-                                      ))}
-                                  </SelectContent>
-                                  </Select>
-                                  <FormMessage />
-                              </FormItem>
-                              )}
-                          />
-                          <FormField
-                              control={form.control}
-                              name="travelDate"
-                              render={({ field }) => (
-                                  <FormItem>
-                                  <FormLabel>Date of Travel</FormLabel>
-                                  <FormControl>
-                                    <Input type="date" {...field} min={new Date().toISOString().split("T")[0]} />
-                                  </FormControl>
-                                  <FormMessage />
-                                  </FormItem>
-                              )}
-                          />
-                      </div>
-                      <FormField
-                          control={form.control}
-                          name="scheduleId"
-                          render={({ field }) => (
-                          <FormItem>
-                              <FormLabel>Available Trips</FormLabel>
-                              <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!watchRouteId || !watchTravelDate}>
-                              <FormControl>
-                                  <SelectTrigger>
-                                  <SelectValue placeholder="Select a time" />
-                                  </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                  {filteredSchedules.map(schedule => (
-                                      <SelectItem key={schedule.id} value={schedule.id}>
-                                          {schedule.departureTime} - {schedule.arrivalTime} ({schedule.availableSeats} seats left)
-                                      </SelectItem>
-                                  ))}
-                              </SelectContent>
-                              </Select>
-                              {(!filteredSchedules || filteredSchedules.length === 0) && watchRouteId && watchTravelDate && (
-                                  <p className="text-sm text-muted-foreground pt-1">No available trips for the selected route and date.</p>
-                              )}
-                              <FormMessage />
-                          </FormItem>
-                          )}
-                      />
+                <Form {...form}>
+                  <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-8">
+                    
+                    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                        <FormField
+                            control={form.control}
+                            name="routeId"
+                            render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Route</FormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                    <SelectTrigger disabled={isLoadingRoutes}>
+                                      <SelectValue placeholder={isLoadingRoutes ? "Loading routes..." : "Select a route"} />
+                                    </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    {routes?.map(route => (
+                                        <SelectItem key={route.id} value={route.id}>
+                                            {route.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                                </Select>
+                                <FormMessage />
+                            </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="travelDate"
+                            render={({ field }) => (
+                                <FormItem>
+                                <FormLabel>Date of Travel</FormLabel>
+                                <FormControl>
+                                  <Input type="date" {...field} min={new Date().toISOString().split("T")[0]} disabled={!watchRouteId} />
+                                </FormControl>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                    </div>
+                    <FormField
+                        control={form.control}
+                        name="scheduleId"
+                        render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Available Trips</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value} disabled={!watchRouteId || !watchTravelDate}>
+                            <FormControl>
+                                <SelectTrigger>
+                                <SelectValue placeholder="Select a time" />
+                                </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                                {filteredSchedules.map(schedule => (
+                                    <SelectItem key={schedule.id} value={schedule.id}>
+                                        {schedule.departureTime} - {schedule.arrivalTime} ({schedule.availableSeats} seats left)
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                            </Select>
+                            {(!filteredSchedules || filteredSchedules.length === 0) && watchRouteId && watchTravelDate && (
+                                <p className="text-sm text-muted-foreground pt-1">No available trips for the selected route and date.</p>
+                            )}
+                            <FormMessage />
+                        </FormItem>
+                        )}
+                    />
 
-                      <div className="space-y-6">
-                        <h3 className="font-medium text-lg border-b pb-2">Passenger Details</h3>
-                        {fields.map((field, index) => (
-                          <div key={field.id} className="grid grid-cols-1 sm:grid-cols-8 gap-4 items-end p-4 border rounded-lg relative">
-                            <div className="sm:col-span-8">
-                              <p className="font-semibold text-md">Passenger {index + 1}</p>
-                            </div>
-                            <FormField
-                              control={form.control}
-                              name={`passengers.${index}.fullName`}
-                              render={({ field }) => (
-                                <FormItem className="sm:col-span-3">
-                                  <FormLabel>Full Name</FormLabel>
-                                  <FormControl>
-                                    <Input placeholder="John Doe" {...field} />
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                            <FormField
-                              control={form.control}
-                              name={`passengers.${index}.birthDate`}
-                              render={({ field }) => (
-                                <FormItem className="sm:col-span-2">
-                                  <FormLabel>Birth Date</FormLabel>
-                                  <FormControl>
-                                    <Input type="date" {...field} placeholder="YYYY-MM-DD" />
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                            <FormField
-                              control={form.control}
-                              name={`passengers.${index}.fareType`}
-                              render={({ field }) => (
-                                <FormItem className="sm:col-span-2">
-                                  <FormLabel>Fare Type</FormLabel>
-                                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!watchScheduleId}>
-                                      <FormControl>
-                                          <SelectTrigger>
-                                              <SelectValue placeholder="Select fare" />
-                                          </SelectTrigger>
-                                      </FormControl>
-                                      <SelectContent>
-                                          {availableFares.map(fare => (
-                                              <SelectItem key={fare.id} value={fare.passengerType}>
-                                                  {fare.passengerType} (₱{fare.price.toFixed(2)})
-                                              </SelectItem>
-                                          ))}
-                                      </SelectContent>
-                                  </Select>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                            <div className="sm:col-span-1">
-                              {index > 0 && (
-                                  <Button
-                                      type="button"
-                                      variant="destructive"
-                                      size="icon"
-                                      onClick={() => remove(index)}
-                                      className="w-full"
-                                  >
-                                      <Trash2 className="h-4 w-4" />
-                                  </Button>
-                              )}
-                            </div>
+                    <div className="space-y-6">
+                      <h3 className="font-medium text-lg border-b pb-2">Passenger Details</h3>
+                      {fields.map((field, index) => (
+                        <div key={field.id} className="grid grid-cols-1 sm:grid-cols-8 gap-4 items-end p-4 border rounded-lg relative">
+                          <div className="sm:col-span-8">
+                            <p className="font-semibold text-md">Passenger {index + 1}</p>
                           </div>
-                        ))}
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => append({ fullName: "", birthDate: "", fareType: "" })}
-                          disabled={!watchScheduleId}
-                        >
-                          <PlusCircle className="mr-2 h-4 w-4" /> Add Another Passenger
-                        </Button>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                           <FormField
-                              control={form.control}
-                              name="primaryPhone"
-                              render={({ field }) => (
-                                  <FormItem>
-                                  <FormLabel>Contact Number</FormLabel>
-                                  <FormControl>
-                                      <Input placeholder="e.g., 09171234567" {...field} />
-                                  </FormControl>
-                                  <FormMessage />
-                                  </FormItem>
-                              )}
+                            control={form.control}
+                            name={`passengers.${index}.fullName`}
+                            render={({ field }) => (
+                              <FormItem className="sm:col-span-3">
+                                <FormLabel>Full Name</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="John Doe" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
                           />
                           <FormField
-                              control={form.control}
-                              name="primaryEmail"
-                              render={({ field }) => (
-                                  <FormItem>
-                                  <FormLabel>Contact Email Address</FormLabel>
-                                  <FormControl>
-                                      <Input placeholder="you@example.com" {...field} />
-                                  </FormControl>
-                                  <FormMessage />
-                                  </FormItem>
-                              )}
+                            control={form.control}
+                            name={`passengers.${index}.birthDate`}
+                            render={({ field }) => (
+                              <FormItem className="sm:col-span-2">
+                                <FormLabel>Birth Date</FormLabel>
+                                <FormControl>
+                                  <Input type="date" {...field} placeholder="YYYY-MM-DD" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
                           />
-                      </div>
-                      
-                      <Button type="submit" size="lg" className="w-full" disabled={!form.formState.isValid || totalSeats === 0}>
-                        Review Booking
+                          <FormField
+                            control={form.control}
+                            name={`passengers.${index}.fareType`}
+                            render={({ field }) => (
+                              <FormItem className="sm:col-span-2">
+                                <FormLabel>Fare Type</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value} disabled={!watchScheduleId}>
+                                    <FormControl>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder={isLoadingFares ? "Loading..." : "Select fare"} />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        {availableFares.map(fare => (
+                                            <SelectItem key={fare.id} value={fare.passengerType}>
+                                                {fare.passengerType} (₱{fare.price.toFixed(2)})
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <div className="sm:col-span-1">
+                            {index > 0 && (
+                                <Button
+                                    type="button"
+                                    variant="destructive"
+                                    size="icon"
+                                    onClick={() => remove(index)}
+                                    className="w-full"
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => append({ fullName: "", birthDate: "", fareType: "" })}
+                        disabled={!watchScheduleId}
+                      >
+                        <PlusCircle className="mr-2 h-4 w-4" /> Add Another Passenger
                       </Button>
-                    </form>
-                  </Form>
-                )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        <FormField
+                            control={form.control}
+                            name="primaryPhone"
+                            render={({ field }) => (
+                                <FormItem>
+                                <FormLabel>Contact Number</FormLabel>
+                                <FormControl>
+                                    <Input placeholder="e.g., 09171234567" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="primaryEmail"
+                            render={({ field }) => (
+                                <FormItem>
+                                <FormLabel>Contact Email Address</FormLabel>
+                                <FormControl>
+                                    <Input placeholder="you@example.com" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                    </div>
+                    
+                    <Button type="submit" size="lg" className="w-full" disabled={!form.formState.isValid || totalSeats === 0}>
+                      Review Booking
+                    </Button>
+                  </form>
+                </Form>
               </CardContent>
             )}
             
@@ -508,3 +516,5 @@ export default function BookingPage() {
     </div>
   )
 }
+
+    
