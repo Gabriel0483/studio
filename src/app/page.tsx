@@ -1,11 +1,11 @@
 import Link from 'next/link';
 import Image from 'next/image';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
-import { ArrowRight, Bot, Ship, Users, BarChart } from 'lucide-react';
+import { Bot, Ship, Users, BarChart } from 'lucide-react';
 import { PublicHeader } from '@/components/public-header';
 import { PublicFooter } from '@/components/public-footer';
+import { RouteSelection } from '@/components/route-selection';
 
 const heroImage = PlaceHolderImages.find((img) => img.id === 'hero-image');
 
@@ -38,6 +38,18 @@ export default function Home() {
       <PublicHeader />
       <main className="flex-1">
         <section className="relative w-full py-20 md:py-32 lg:py-40">
+           <div className="absolute inset-0 -z-10">
+            {heroImage && (
+              <Image
+                src={heroImage.imageUrl}
+                alt={heroImage.description}
+                fill
+                className="object-cover"
+                data-ai-hint={heroImage.imageHint}
+              />
+            )}
+            <div className="absolute inset-0 bg-gradient-to-t from-white via-white/80 to-transparent" />
+          </div>
           <div className="container mx-auto px-4 md:px-6">
             <div className="grid gap-10 lg:grid-cols-2 lg:gap-16">
               <div className="flex flex-col justify-center space-y-6">
@@ -47,30 +59,16 @@ export default function Home() {
                 <p className="max-w-xl text-lg text-muted-foreground md:text-xl">
                   From passenger reservations to daily operations, our all-in-one web application automates the entire process, saving you time, money, and headaches.
                 </p>
-                <div className="flex flex-col gap-4 sm:flex-row">
-                  <Button asChild size="lg" className="group">
-                    <Link href="/book">
-                      Book a Seat Online
-                      <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
-                    </Link>
-                  </Button>
-                  <Button asChild size="lg" variant="outline">
-                    <Link href="/dashboard">
-                      Access Company Dashboard
-                    </Link>
-                  </Button>
-                </div>
               </div>
-              <div className="relative h-64 w-full overflow-hidden rounded-xl shadow-2xl lg:h-auto">
-                 {heroImage && (
-                    <Image
-                      src={heroImage.imageUrl}
-                      alt={heroImage.description}
-                      fill
-                      className="object-cover"
-                      data-ai-hint={heroImage.imageHint}
-                    />
-                  )}
+              <div className="flex items-center justify-center">
+                <Card className="w-full max-w-md shadow-2xl">
+                  <CardHeader>
+                    <CardTitle className="text-center text-2xl">Find Your Ferry</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <RouteSelection />
+                  </CardContent>
+                </Card>
               </div>
             </div>
           </div>

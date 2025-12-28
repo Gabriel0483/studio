@@ -11,9 +11,9 @@ export function PublicHeader() {
           <Link href="/#features" className="text-sm font-medium text-muted-foreground hover:text-foreground">
             Features
           </Link>
-          <Button asChild variant="outline">
-            <Link href="/book">Book Now</Link>
-          </Button>
+           <Link href="/book" className="text-sm font-medium text-muted-foreground hover:text-foreground">
+            Book Now
+          </Link>
           <Button asChild>
             <Link href="/dashboard">Dashboard</Link>
           </Button>
