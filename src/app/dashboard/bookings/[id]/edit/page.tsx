@@ -70,10 +70,11 @@ type BookingFormData = z.infer<typeof bookingFormSchema>;
 export default function EditBookingPage({ params }: { params: { id: string } }) {
   const firestore = useFirestore();
   const router = useRouter();
+  const { id: bookingId } = params;
 
   const bookingRef = useMemoFirebase(
-    () => (firestore && params.id ? doc(firestore, 'bookings', params.id) : null),
-    [firestore, params.id]
+    () => (firestore && bookingId ? doc(firestore, 'bookings', bookingId) : null),
+    [firestore, bookingId]
   );
   const { data: booking, isLoading: isLoadingBooking } = useDoc(bookingRef);
 
@@ -196,7 +197,7 @@ export default function EditBookingPage({ params }: { params: { id: string } }) 
     routes?.find((r) => r.id === routeId)?.name || 'Unknown Route';
 
   async function handleUpdateBooking(data: BookingFormData) {
-    if (!firestore || !booking) {
+    if (!firestore || !booking || !bookingRef) {
       toast({
         variant: 'destructive',
         title: 'Error',
