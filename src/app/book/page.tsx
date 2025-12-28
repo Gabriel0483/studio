@@ -261,7 +261,7 @@ export default function BookingPage() {
                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                                 <FormControl>
                                     <SelectTrigger>
-                                    <SelectValue placeholder="Select a destination" />
+                                    <SelectValue placeholder="Select a route" />
                                     </SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
