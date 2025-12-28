@@ -93,6 +93,7 @@ export default function BookingPage() {
   const watchTravelDate = form.watch('travelDate');
   const watchScheduleId = form.watch('scheduleId');
   const watchPassengers = form.watch('passengers');
+  const watchFareBreakdown = form.watch('fareBreakdown');
 
   // Filter schedules based on route and date
   useEffect(() => {
@@ -127,15 +128,13 @@ export default function BookingPage() {
   }, [watchScheduleId, allSchedules, routes, allFares, replaceFareFields]);
   
   const totalSeats = useMemo(() => {
-    return form.getValues('fareBreakdown').reduce((acc, current) => acc + current.count, 0);
-  }, [form.watch('fareBreakdown')]);
+    return watchFareBreakdown.reduce((acc, current) => acc + current.count, 0);
+  }, [watchFareBreakdown]);
 
   useEffect(() => {
     const numPassengers = watchPassengers.length;
-    if (totalSeats > numPassengers) {
-       form.setError("fareBreakdown", { type: "manual", message: `You have selected ${totalSeats} tickets but only provided ${numPassengers} passenger names.` });
-    } else if (totalSeats < numPassengers) {
-        form.setError("fareBreakdown", { type: "manual", message: `You have provided ${numPassengers} passenger names but only selected ${totalSeats} tickets.` });
+    if (totalSeats > 0 && totalSeats !== numPassengers) {
+       form.setError("fareBreakdown", { type: "manual", message: `The number of tickets (${totalSeats}) must match the number of passengers (${numPassengers}).` });
     }
     else {
       form.clearErrors("fareBreakdown");
@@ -318,50 +317,6 @@ export default function BookingPage() {
                         </FormItem>
                         )}
                     />
-                    
-                    {watchScheduleId && availableFares.length > 0 && (
-                        <div className="space-y-4 rounded-lg border p-4">
-                            <h3 className="font-medium">Tickets</h3>
-                            <div className="space-y-4">
-                            {fareFields.map((field, index) => {
-                                const fareInfo = availableFares.find(f => f.passengerType === field.passengerType);
-                                const currentCount = form.getValues(`fareBreakdown.${index}.count`);
-                                return (
-                                <div key={field.id} className="flex items-center justify-between">
-                                  <div>
-                                    <p className="font-medium">{field.passengerType}</p>
-                                    <p className="text-sm text-muted-foreground">₱{fareInfo?.price.toFixed(2) || '0.00'}</p>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      size="icon"
-                                      className="h-8 w-8"
-                                      onClick={() => form.setValue(`fareBreakdown.${index}.count`, Math.max(0, currentCount - 1))}
-                                      disabled={currentCount <= 0}
-                                    >
-                                      <Minus className="h-4 w-4" />
-                                    </Button>
-                                    <span className="w-10 text-center font-medium">{currentCount}</span>
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      size="icon"
-                                      className="h-8 w-8"
-                                      onClick={() => form.setValue(`fareBreakdown.${index}.count`, currentCount + 1)}
-                                    >
-                                      <Plus className="h-4 w-4" />
-                                    </Button>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                            </div>
-                            <FormMessage>{form.formState.errors.fareBreakdown?.message}</FormMessage>
-                        </div>
-                    )}
-
 
                     <div className="space-y-4">
                       {fields.map((field, index) => (
@@ -416,6 +371,49 @@ export default function BookingPage() {
                         <PlusCircle className="mr-2 h-4 w-4" /> Add Another Passenger
                       </Button>
                     </div>
+                    
+                    {watchScheduleId && availableFares.length > 0 && (
+                        <div className="space-y-4 rounded-lg border p-4">
+                            <h3 className="font-medium">Tickets</h3>
+                            <div className="space-y-4">
+                            {fareFields.map((field, index) => {
+                                const fareInfo = availableFares.find(f => f.passengerType === field.passengerType);
+                                const currentCount = form.getValues(`fareBreakdown.${index}.count`);
+                                return (
+                                <div key={field.id} className="flex items-center justify-between">
+                                  <div>
+                                    <p className="font-medium">{field.passengerType}</p>
+                                    <p className="text-sm text-muted-foreground">₱{fareInfo?.price.toFixed(2) || '0.00'}</p>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="icon"
+                                      className="h-8 w-8"
+                                      onClick={() => form.setValue(`fareBreakdown.${index}.count`, Math.max(0, currentCount - 1))}
+                                      disabled={currentCount <= 0}
+                                    >
+                                      <Minus className="h-4 w-4" />
+                                    </Button>
+                                    <span className="w-10 text-center font-medium">{currentCount}</span>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="icon"
+                                      className="h-8 w-8"
+                                      onClick={() => form.setValue(`fareBreakdown.${index}.count`, currentCount + 1)}
+                                    >
+                                      <Plus className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            </div>
+                            <FormMessage>{form.formState.errors.fareBreakdown?.message}</FormMessage>
+                        </div>
+                    )}
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                         <FormField
