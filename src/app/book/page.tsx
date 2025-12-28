@@ -86,8 +86,12 @@ export default function BookingPage() {
 
   // Filter schedules based on route and date
   useEffect(() => {
-    if (watchRouteId && allSchedules) {
-      const relatedSchedules = allSchedules.filter(s => s.routeId === watchRouteId && s.availableSeats > 0);
+    if (watchRouteId && watchTravelDate && allSchedules) {
+      const relatedSchedules = allSchedules.filter(s => 
+        s.routeId === watchRouteId && 
+        s.date === watchTravelDate &&
+        s.availableSeats > 0
+      );
       setFilteredSchedules(relatedSchedules);
       form.resetField('scheduleId');
     } else {
@@ -293,7 +297,7 @@ export default function BookingPage() {
                                 ))}
                             </SelectContent>
                             </Select>
-                             {(!filteredSchedules || filteredSchedules.length === 0) && watchRouteId && (
+                             {(!filteredSchedules || filteredSchedules.length === 0) && watchRouteId && watchTravelDate && (
                                 <p className="text-sm text-muted-foreground pt-1">No available trips for the selected route and date.</p>
                             )}
                             <FormMessage />

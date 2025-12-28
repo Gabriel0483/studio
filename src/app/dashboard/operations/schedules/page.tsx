@@ -65,6 +65,7 @@ interface Schedule {
   shipId?: string;
   shipName?: string;
   routeId: string;
+  date: string;
   departureTime: string;
   arrivalTime: string;
   availableSeats: number;
@@ -86,6 +87,7 @@ const ScheduleForm = ({
 }) => {
   const [shipId, setShipId] = useState(schedule?.shipId || 'unassigned');
   const [routeId, setRouteId] = useState(schedule?.routeId || '');
+  const [date, setDate] = useState(schedule?.date || new Date().toISOString().split('T')[0]);
   const [departureTime, setDepartureTime] = useState(schedule?.departureTime || '');
   const [arrivalTime, setArrivalTime] = useState(schedule?.arrivalTime || '');
   const [availableSeats, setAvailableSeats] = useState(schedule?.availableSeats || '');
@@ -94,7 +96,7 @@ const ScheduleForm = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!routeId || !departureTime || !arrivalTime || !availableSeats || !tripType) {
+    if (!routeId || !date || !departureTime || !arrivalTime || !availableSeats || !tripType) {
       toast({
         variant: 'destructive',
         title: 'Missing Fields',
@@ -120,6 +122,7 @@ const ScheduleForm = ({
       shipId: finalShipId,
       shipName: selectedShip ? selectedShip.name : 'Unassigned',
       routeId,
+      date,
       departureTime,
       arrivalTime,
       availableSeats: seatsNum,
@@ -148,16 +151,6 @@ const ScheduleForm = ({
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-            <Label htmlFor="shipId">Ship (Optional)</Label>
-            <Select onValueChange={setShipId} defaultValue={shipId}>
-                <SelectTrigger id="shipId"><SelectValue placeholder="Select a ship" /></SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="unassigned">Unassigned</SelectItem>
-                    {ships.map((ship) => <SelectItem key={ship.id} value={ship.id}>{ship.name}</SelectItem>)}
-                </SelectContent>
-            </Select>
-        </div>
-         <div className="space-y-2">
             <Label htmlFor="routeId">Route</Label>
             <Select onValueChange={setRouteId} defaultValue={routeId}>
                 <SelectTrigger id="routeId"><SelectValue placeholder="Select a route" /></SelectTrigger>
@@ -166,8 +159,18 @@ const ScheduleForm = ({
                 </SelectContent>
             </Select>
         </div>
+         <div className="space-y-2">
+            <Label htmlFor="date">Date</Label>
+            <Input
+                id="date"
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                min={new Date().toISOString().split("T")[0]}
+            />
+        </div>
       </div>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="departureTime">Departure Time</Label>
           <Input
@@ -188,6 +191,16 @@ const ScheduleForm = ({
         </div>
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+         <div className="space-y-2">
+            <Label htmlFor="shipId">Ship (Optional)</Label>
+            <Select onValueChange={setShipId} defaultValue={shipId}>
+                <SelectTrigger id="shipId"><SelectValue placeholder="Select a ship" /></SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="unassigned">Unassigned</SelectItem>
+                    {ships.map((ship) => <SelectItem key={ship.id} value={ship.id}>{ship.name}</SelectItem>)}
+                </SelectContent>
+            </Select>
+        </div>
         <div className="space-y-2">
             <Label htmlFor="availableSeats">Available Seats</Label>
             <Input
@@ -198,7 +211,8 @@ const ScheduleForm = ({
             placeholder="e.g., 150"
             />
         </div>
-        <div className="space-y-2">
+      </div>
+       <div className="space-y-2">
             <Label htmlFor="tripType">Trip Type</Label>
             <Select onValueChange={(value: 'Daily' | 'Special') => setTripType(value)} defaultValue={tripType}>
                 <SelectTrigger id="tripType"><SelectValue placeholder="Select a trip type" /></SelectTrigger>
@@ -208,7 +222,6 @@ const ScheduleForm = ({
                 </SelectContent>
             </Select>
         </div>
-      </div>
       <DialogFooter>
         <DialogClose asChild>
           <Button type="button" variant="outline">Cancel</Button>
@@ -255,6 +268,18 @@ export default function SchedulesPage() {
         return "Invalid Time";
     }
   };
+  
+  const formatDate = (dateString: string) => {
+    if (!dateString) return "Not set";
+    try {
+        // Assuming dateString is in 'YYYY-MM-DD' format
+        const date = parse(dateString, 'yyyy-MM-dd', new Date());
+        return format(date, 'PPP');
+    } catch (e) {
+        return "Invalid Date";
+    }
+  };
+
 
   const isLoading = isLoadingSchedules || isLoadingShips || isLoadingRoutes;
 
@@ -317,6 +342,7 @@ export default function SchedulesPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Route</TableHead>
+                <TableHead>Date</TableHead>
                 <TableHead>Ship</TableHead>
                 <TableHead>Trip Type</TableHead>
                 <TableHead>Departure</TableHead>
@@ -328,7 +354,7 @@ export default function SchedulesPage() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center">
+                  <TableCell colSpan={8} className="text-center">
                     Loading schedules...
                   </TableCell>
                 </TableRow>
@@ -336,6 +362,7 @@ export default function SchedulesPage() {
                 schedules.map((schedule) => (
                   <TableRow key={schedule.id}>
                     <TableCell className="font-medium">{getRouteName(schedule.routeId)}</TableCell>
+                    <TableCell>{formatDate(schedule.date)}</TableCell>
                     <TableCell>{schedule.shipName || 'Unassigned'}</TableCell>
                     <TableCell>
                       <Badge variant={getTripTypeVariant(schedule.tripType) as any}>
@@ -371,7 +398,7 @@ export default function SchedulesPage() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-24 text-center">
+                  <TableCell colSpan={8} className="h-24 text-center">
                     <div className="flex flex-col items-center gap-2">
                         <CalendarIcon className="h-8 w-8 text-muted-foreground" />
                         <p className="text-muted-foreground">No schedules found.</p>
@@ -390,3 +417,5 @@ export default function SchedulesPage() {
     </div>
   );
 }
+
+    
