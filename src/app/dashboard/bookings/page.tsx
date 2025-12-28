@@ -21,17 +21,18 @@ import {
   collection,
   Timestamp,
   doc,
+  runTransaction,
 } from 'firebase/firestore';
 import { BookCopy, Pencil, Search, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 
 interface Booking {
   id: string;
+  scheduleId: string;
   passengerInfo?: { fullName: string; birthDate?: string }[];
   passengerEmail: string;
   passengerPhone: string;
@@ -81,7 +82,7 @@ export default function BookingsPage() {
     router.push(`/dashboard/bookings/${bookingId}/edit`);
   };
 
-  const handleDelete = (booking: Booking) => {
+  const handleDelete = async (booking: Booking) => {
     if (
       !firestore ||
       !window.confirm(
@@ -92,12 +93,33 @@ export default function BookingsPage() {
     }
 
     const bookingRef = doc(firestore, 'bookings', booking.id);
-    deleteDocumentNonBlocking(bookingRef);
+    const scheduleRef = doc(firestore, 'schedules', booking.scheduleId);
 
-    toast({
-      title: 'Booking Deleted',
-      description: 'The booking has been successfully deleted.',
-    });
+    try {
+      await runTransaction(firestore, async (transaction) => {
+        const scheduleDoc = await transaction.get(scheduleRef);
+
+        if (scheduleDoc.exists()) {
+          const currentSeats = scheduleDoc.data().availableSeats || 0;
+          const newSeats = currentSeats + booking.numberOfSeats;
+          transaction.update(scheduleRef, { availableSeats: newSeats });
+        }
+        
+        transaction.delete(bookingRef);
+      });
+
+      toast({
+        title: 'Booking Deleted',
+        description: 'The booking has been successfully deleted and seats have been returned.',
+      });
+    } catch (e: any) {
+      console.error(e);
+      toast({
+        variant: 'destructive',
+        title: 'Error Deleting Booking',
+        description: e.message || 'There was a problem deleting the booking.',
+      });
+    }
   };
 
   return (
