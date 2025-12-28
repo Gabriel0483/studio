@@ -129,7 +129,7 @@ export default function BookingPage() {
           price: fareInfo?.price || 0,
         };
       })
-      .filter(Boolean);
+      .filter((item): item is { name: string; fareType: string; price: number } => item !== null);
 
     const totalPrice = fareDetails.reduce((acc, detail) => acc + (detail?.price || 0), 0);
     
@@ -472,10 +472,10 @@ export default function BookingPage() {
                      {bookingSummary.details.map((item, index) => (
                         <div key={index} className="flex justify-between items-center text-sm pb-2">
                             <div>
-                                <p className="font-medium">{item?.name}</p>
-                                <p className="text-muted-foreground">{item?.fareType}</p>
+                                <p className="font-medium">{item.name}</p>
+                                <p className="text-muted-foreground">{item.fareType}</p>
                             </div>
-                            <span className="font-medium">₱{item?.price.toFixed(2)}</span>
+                            <span className="font-medium">₱{item.price.toFixed(2)}</span>
                         </div>
                     ))}
                   </div>
