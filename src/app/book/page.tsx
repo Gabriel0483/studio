@@ -101,11 +101,10 @@ export default function BookingPage() {
         s.availableSeats > 0
       );
       setFilteredSchedules(relatedSchedules);
-      form.resetField('scheduleId');
     } else {
       setFilteredSchedules([]);
     }
-  }, [watchRouteId, watchTravelDate, allSchedules, form]);
+  }, [watchRouteId, watchTravelDate, allSchedules]);
   
   // Reset schedule and fares when route changes
   useEffect(() => {
@@ -252,11 +251,13 @@ export default function BookingPage() {
         <div className="container mx-auto px-4 py-24 md:px-6 md:py-32">
           <Card className="mx-auto max-w-3xl">
             <CardHeader>
-              <CardTitle className="text-3xl font-bold tracking-tight">Book Your Seat Online</CardTitle>
+              <CardTitle className="text-3xl font-bold tracking-tight">
+                {step === 'form' ? 'Book Your Seat Online' : 'Your Trip Itinerary'}
+              </CardTitle>
               <CardDescription>
                 {step === 'form' 
                   ? "Fill in the details below to complete your reservation."
-                  : "Please review your booking details before confirming."
+                  : "Please review your trip itinerary before confirming your booking."
                 }
               </CardDescription>
             </CardHeader>
