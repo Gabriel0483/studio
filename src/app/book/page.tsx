@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useFieldArray, useForm } from "react-hook-form"
 import * as z from "zod"
-import { PlusCircle, Trash2, ArrowLeft } from "lucide-react"
+import { PlusCircle, Trash2, ArrowLeft, Download, RefreshCw } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -28,10 +28,12 @@ import { PublicFooter } from "@/components/public-footer"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase"
 import { collection, doc, serverTimestamp, runTransaction, Timestamp } from "firebase/firestore"
-import React, { useMemo, useState, useEffect } from "react"
+import React, { useMemo, useState, useEffect, useRef } from "react"
 import { Separator } from "@/components/ui/separator"
 import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { format } from "date-fns"
+import { useReactToPrint } from 'react-to-print';
+import { TripItinerary } from "@/components/trip-itinerary";
 
 const passengerSchema = z.object({
   fullName: z.string().min(2, { message: "Full name must be at least 2 characters." }),
@@ -60,13 +62,24 @@ type BookingSummary = {
   totalTickets: number;
 };
 
+// This represents the final confirmed booking data
+type ConfirmedBooking = BookingFormData & {
+  id: string;
+  bookingDate: Date;
+  status: 'Reserved' | 'Waitlisted';
+  routeName: string;
+  departureTime: string;
+  arrivalTime: string;
+  totalPrice: number;
+};
 
 export default function BookingPage() {
   const firestore = useFirestore();
   const { user } = useUser();
   
-  const [step, setStep] = useState<'form' | 'summary'>('form');
+  const [step, setStep] = useState<'form' | 'summary' | 'confirmation'>('form');
   const [bookingSummary, setBookingSummary] = useState<BookingSummary>({ details: [], totalPrice: 0, totalTickets: 0 });
+  const [confirmedBooking, setConfirmedBooking] = useState<ConfirmedBooking | null>(null);
 
   const schedulesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'schedules') : null, [firestore]);
   const routesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'routes') : null, [firestore]);
@@ -78,6 +91,11 @@ export default function BookingPage() {
 
   const [availableFares, setAvailableFares] = useState<any[]>([]);
   const [filteredSchedules, setFilteredSchedules] = useState<any[]>([]);
+
+  const itineraryRef = useRef(null);
+  const handlePrint = useReactToPrint({
+    content: () => itineraryRef.current,
+  });
 
   const form = useForm<BookingFormData>({
     resolver: zodResolver(bookingFormSchema),
@@ -101,7 +119,6 @@ export default function BookingPage() {
   const watchScheduleId = form.watch('scheduleId');
   const watchPassengers = form.watch('passengers');
 
-  // Filter schedules based on route and date
   useEffect(() => {
     if (watchRouteId && watchTravelDate && allSchedules) {
       const selectedDate = new Date(watchTravelDate);
@@ -111,13 +128,12 @@ export default function BookingPage() {
         if (s.routeId !== watchRouteId) return false;
         
         if (s.tripType === 'Daily') {
-          return true; // Daily trips are available on any date
+          return true;
         }
         
         if (s.tripType === 'Special' && s.date) {
             const specialDate = new Date(s.date);
             specialDate.setHours(0, 0, 0, 0);
-            // The date for special trips comes as YYYY-MM-DD string, compare it correctly
             return format(specialDate, 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd');
         }
 
@@ -129,7 +145,6 @@ export default function BookingPage() {
     }
   }, [watchRouteId, watchTravelDate, allSchedules]);
   
-  // Reset schedule and fares when route changes
   useEffect(() => {
     form.resetField('scheduleId');
     replace([{ fullName: "", birthDate: "", fareType: "" }]);
@@ -137,7 +152,6 @@ export default function BookingPage() {
   }, [watchRouteId, form, replace]);
 
 
-  // Update fares when schedule changes
   useEffect(() => {
     const selectedSchedule = allSchedules?.find(s => s.id === watchScheduleId);
     if (selectedSchedule && routes && allFares) {
@@ -154,6 +168,9 @@ export default function BookingPage() {
   const getRouteName = (routeId: string) => routes?.find(r => r.id === routeId)?.name || 'Unknown Route';
   
   const calculateBookingSummary = (data: BookingFormData): BookingSummary => {
+    if (!data.passengers || !Array.isArray(data.passengers)) {
+      return { details: [], totalPrice: 0, totalTickets: 0 };
+    }
     const fareDetails = data.passengers
       .map(passenger => {
         if (!passenger.fareType) return null;
@@ -193,15 +210,20 @@ export default function BookingPage() {
     const summary = calculateBookingSummary(data);
 
     try {
-      await runTransaction(firestore, async (transaction) => {
+      const bookingStatus = await runTransaction(firestore, async (transaction) => {
         const scheduleDoc = await transaction.get(scheduleRef);
         if (!scheduleDoc.exists()) throw new Error("Schedule does not exist!");
 
         const scheduleData = scheduleDoc.data();
-        const newAvailableSeats = scheduleData.availableSeats - totalSeats;
-        if (newAvailableSeats < 0) throw new Error("Not enough seats available.");
-        
-        transaction.update(scheduleRef, { availableSeats: newAvailableSeats });
+        const currentAvailableSeats = scheduleData.availableSeats || 0;
+        let status: 'Reserved' | 'Waitlisted' = 'Reserved';
+
+        if (currentAvailableSeats >= totalSeats) {
+            const newAvailableSeats = currentAvailableSeats - totalSeats;
+            transaction.update(scheduleRef, { availableSeats: newAvailableSeats });
+        } else {
+            status = 'Waitlisted';
+        }
         
         const bookingData = {
           id: newBookingRef.id,
@@ -214,11 +236,11 @@ export default function BookingPage() {
           passengerEmail: data.primaryEmail,
           passengerPhone: data.primaryPhone,
           scheduleId,
-          fareDetails: data.passengers.map(p => {
-            const fareInfo = availableFares.find(f => f.passengerType === p.fareType);
+          fareDetails: summary.details.map(d => {
+            const fareInfo = availableFares.find(f => f.passengerType === d.fareType);
             return {
               fareId: fareInfo?.id || null,
-              passengerType: p.fareType,
+              passengerType: d.fareType,
               count: 1,
               pricePerTicket: fareInfo?.price || 0
             }
@@ -228,12 +250,13 @@ export default function BookingPage() {
           numberOfSeats: totalSeats,
           totalPrice: summary.totalPrice,
           routeName: getRouteName(scheduleData.routeId),
+          status: status,
         };
 
         transaction.set(newBookingRef, bookingData);
+        return status;
       });
 
-      // Also create/update passenger profile non-blockingly
       const passengerRef = doc(firestore, 'passengers', user.uid);
       const passengerData = {
           id: user.uid,
@@ -241,19 +264,31 @@ export default function BookingPage() {
           lastName: data.passengers[0].fullName.split(' ').slice(1).join(' '),
           email: data.primaryEmail,
           phone: data.primaryPhone,
-          address: '', // Address not collected in this form
+          address: '',
       };
       setDocumentNonBlocking(passengerRef, passengerData, { merge: true });
 
       toast({
         title: "Booking Successful!",
-        description: `Your booking for ${totalSeats} passenger(s) has been confirmed.`,
+        description: `Your booking is now ${bookingStatus}. Check your itinerary for details.`,
       });
-      form.reset();
-      setStep('form');
+
+      const currentSchedule = filteredSchedules.find(s => s.id === watchScheduleId);
+      setConfirmedBooking({
+        ...data,
+        id: newBookingRef.id,
+        bookingDate: new Date(),
+        status: bookingStatus,
+        routeName: getRouteName(watchRouteId),
+        departureTime: currentSchedule?.departureTime,
+        arrivalTime: currentSchedule?.arrivalTime,
+        totalPrice: summary.totalPrice,
+      });
+
+      setStep('confirmation');
 
     } catch (e: any) {
-      console.error(e); // Keep detailed log for debugging
+      console.error(e);
       toast({
         variant: "destructive",
         title: "Uh oh! Something went wrong.",
@@ -262,8 +297,13 @@ export default function BookingPage() {
     }
   }
 
-  const isLoading = isLoadingSchedules || isLoadingRoutes || isLoadingFares;
+  const handleNewBooking = () => {
+    form.reset();
+    setStep('form');
+    setConfirmedBooking(null);
+  };
 
+  const isLoading = isLoadingSchedules || isLoadingRoutes || isLoadingFares;
   const currentSchedule = filteredSchedules.find(s => s.id === watchScheduleId);
 
   return (
@@ -274,13 +314,14 @@ export default function BookingPage() {
           <Card className="mx-auto max-w-3xl">
             <CardHeader>
               <CardTitle className="text-3xl font-bold tracking-tight">
-                {step === 'form' ? 'Book Your Seat Online' : 'Your Trip Itinerary'}
+                {step === 'form' && 'Book Your Seat Online'}
+                {step === 'summary' && 'Your Trip Itinerary'}
+                {step === 'confirmation' && 'Booking Confirmed!'}
               </CardTitle>
               <CardDescription>
-                {step === 'form' 
-                  ? "Fill in the details below to complete your reservation."
-                  : "Please review your trip itinerary before confirming your booking."
-                }
+                {step === 'form' && "Fill in the details below to complete your reservation."}
+                {step === 'summary' && "Please review your trip itinerary before confirming your booking."}
+                {step === 'confirmation' && "Your booking is complete. You can download your itinerary below."}
               </CardDescription>
             </CardHeader>
             
@@ -288,7 +329,6 @@ export default function BookingPage() {
               <CardContent>
                 <Form {...form}>
                   <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-8">
-                    
                     <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                         <FormField
                             control={form.control}
@@ -343,7 +383,7 @@ export default function BookingPage() {
                             <SelectContent>
                                 {filteredSchedules.map(schedule => (
                                     <SelectItem key={schedule.id} value={schedule.id}>
-                                        {schedule.departureTime} - {schedule.arrivalTime} ({schedule.availableSeats} seats left)
+                                        {schedule.departureTime} - {schedule.arrivalTime} ({schedule.availableSeats > 0 ? `${schedule.availableSeats} seats left` : 'Waitlist available'})
                                     </SelectItem>
                                 ))}
                             </SelectContent>
@@ -355,7 +395,6 @@ export default function BookingPage() {
                         </FormItem>
                         )}
                     />
-
                     <div className="space-y-6">
                       <h3 className="font-medium text-lg border-b pb-2">Passenger Details</h3>
                       {fields.map((field, index) => (
@@ -438,7 +477,6 @@ export default function BookingPage() {
                         <PlusCircle className="mr-2 h-4 w-4" /> Add Another Passenger
                       </Button>
                     </div>
-
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                         <FormField
                             control={form.control}
@@ -467,7 +505,6 @@ export default function BookingPage() {
                             )}
                         />
                     </div>
-                    
                     <Button type="submit" size="lg" className="w-full" disabled={!form.formState.isValid || totalSeats === 0}>
                       Submit Booking
                     </Button>
@@ -494,9 +531,7 @@ export default function BookingPage() {
                       </div>
                     </div>
                   </div>
-
                   <Separator />
-
                   <div className="space-y-4">
                     <h3 className="font-semibold text-lg">Passenger & Fare Breakdown</h3>
                      {bookingSummary.details.map((item, index) => (
@@ -509,9 +544,7 @@ export default function BookingPage() {
                         </div>
                     ))}
                   </div>
-
                   <Separator />
-
                   <div className="flex justify-between items-center text-xl font-bold">
                       <span>Total Price</span>
                       <span>₱{bookingSummary.totalPrice.toFixed(2)}</span>
@@ -531,6 +564,23 @@ export default function BookingPage() {
               </>
             )}
 
+            {step === 'confirmation' && confirmedBooking && (
+              <>
+                <CardContent>
+                  <div ref={itineraryRef} className="p-4 sm:p-6">
+                    <TripItinerary booking={confirmedBooking} />
+                  </div>
+                </CardContent>
+                <CardFooter className="flex-col sm:flex-row gap-2">
+                  <Button variant="outline" size="lg" className="w-full sm:w-auto" onClick={handleNewBooking}>
+                    <RefreshCw className="mr-2 h-4 w-4" /> Make Another Booking
+                  </Button>
+                  <Button onClick={handlePrint} size="lg" className="w-full sm:w-auto flex-1">
+                    <Download className="mr-2 h-4 w-4" /> Download Itinerary
+                  </Button>
+                </CardFooter>
+              </>
+            )}
           </Card>
         </div>
       </main>

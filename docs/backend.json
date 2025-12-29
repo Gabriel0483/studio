@@ -336,6 +336,11 @@
         "totalPrice": {
           "type": "number",
           "description": "The total price of the booking."
+        },
+        "status": {
+            "type": "string",
+            "description": "The status of the booking.",
+            "enum": ["Reserved", "Waitlisted"]
         }
       },
       "required": [
@@ -348,7 +353,8 @@
         "bookingDate",
         "travelDate",
         "numberOfSeats",
-        "totalPrice"
+        "totalPrice",
+        "status"
       ]
     },
     "MaintenanceRecord": {
