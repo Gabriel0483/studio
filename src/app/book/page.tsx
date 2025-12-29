@@ -446,7 +446,7 @@ export default function BookingPage() {
                     </div>
                     
                     <Button type="submit" size="lg" className="w-full" disabled={!form.formState.isValid || totalSeats === 0}>
-                      Review Booking
+                      Submit Booking
                     </Button>
                   </form>
                 </Form>
