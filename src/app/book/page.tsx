@@ -50,11 +50,23 @@ const bookingFormSchema = z.object({
 
 type BookingFormData = z.infer<typeof bookingFormSchema>;
 
+type BookingSummary = {
+  details: {
+    name: string;
+    fareType: string;
+    price: number;
+  }[];
+  totalPrice: number;
+  totalTickets: number;
+};
+
+
 export default function BookingPage() {
   const firestore = useFirestore();
   const { user } = useUser();
   
   const [step, setStep] = useState<'form' | 'summary'>('form');
+  const [bookingSummary, setBookingSummary] = useState<BookingSummary>({ details: [], totalPrice: 0, totalTickets: 0 });
 
   const schedulesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'schedules') : null, [firestore]);
   const routesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'routes') : null, [firestore]);
@@ -92,14 +104,25 @@ export default function BookingPage() {
   // Filter schedules based on route and date
   useEffect(() => {
     if (watchRouteId && watchTravelDate && allSchedules) {
-      const relatedSchedules = allSchedules.filter(s => 
-        s.routeId === watchRouteId && 
-        (
-          s.tripType === 'Daily' || 
-          (s.tripType === 'Special' && s.date === watchTravelDate)
-        ) &&
-        s.availableSeats > 0
-      );
+      const selectedDate = new Date(watchTravelDate);
+      selectedDate.setHours(0, 0, 0, 0);
+
+      const relatedSchedules = allSchedules.filter(s => {
+        if (s.routeId !== watchRouteId) return false;
+        
+        if (s.tripType === 'Daily') {
+          return true; // Daily trips are available on any date
+        }
+        
+        if (s.tripType === 'Special' && s.date) {
+            const specialDate = new Date(s.date);
+            specialDate.setHours(0, 0, 0, 0);
+            // The date for special trips comes as YYYY-MM-DD string, compare it correctly
+            return format(specialDate, 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd');
+        }
+
+        return false;
+      });
       setFilteredSchedules(relatedSchedules);
     } else {
       setFilteredSchedules([]);
@@ -128,10 +151,10 @@ export default function BookingPage() {
 
   const totalSeats = watchPassengers.length;
   
-  const bookingSummary = useMemo(() => {
-    if (!watchPassengers) return { details: [], totalPrice: 0, totalTickets: 0 };
-    
-    const fareDetails = watchPassengers
+  const getRouteName = (routeId: string) => routes?.find(r => r.id === routeId)?.name || 'Unknown Route';
+  
+  const calculateBookingSummary = (data: BookingFormData): BookingSummary => {
+    const fareDetails = data.passengers
       .map(passenger => {
         if (!passenger.fareType) return null;
         const fareInfo = availableFares.find(f => f.passengerType === passenger.fareType);
@@ -142,21 +165,19 @@ export default function BookingPage() {
         };
       })
       .filter((item): item is { name: string; fareType: string; price: number } => item !== null);
-
+  
     const totalPrice = fareDetails.reduce((acc, detail) => acc + (detail?.price || 0), 0);
     
     return {
       details: fareDetails,
       totalPrice,
-      totalTickets: watchPassengers.length,
+      totalTickets: data.passengers.length,
     };
-  }, [watchPassengers, availableFares]);
+  };
 
-
-  const getRouteName = (routeId: string) => routes?.find(r => r.id === routeId)?.name || 'Unknown Route';
-  
   const handleFormSubmit = (data: BookingFormData) => {
-    // On first step submit, just validate and move to summary
+    const summary = calculateBookingSummary(data);
+    setBookingSummary(summary);
     setStep('summary');
   };
 
@@ -169,6 +190,7 @@ export default function BookingPage() {
     const { scheduleId } = data;
     const scheduleRef = doc(firestore, 'schedules', scheduleId);
     const newBookingRef = doc(collection(firestore, 'bookings'));
+    const summary = calculateBookingSummary(data);
 
     try {
       await runTransaction(firestore, async (transaction) => {
@@ -204,7 +226,7 @@ export default function BookingPage() {
           bookingDate: serverTimestamp(),
           travelDate: new Date(data.travelDate),
           numberOfSeats: totalSeats,
-          totalPrice: bookingSummary.totalPrice,
+          totalPrice: summary.totalPrice,
           routeName: getRouteName(scheduleData.routeId),
         };
 
