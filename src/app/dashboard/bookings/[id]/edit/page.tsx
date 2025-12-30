@@ -40,7 +40,7 @@ import { collection, doc, runTransaction, Timestamp, query, where, getDocs } fro
 import React, { useMemo, useState, useEffect } from 'react';
 import { Separator } from '@/components/ui/separator';
 import { format } from 'date-fns';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 
 const passengerSchema = z.object({
   fullName: z
@@ -65,10 +65,11 @@ const bookingFormSchema = z.object({
 
 type BookingFormData = z.infer<typeof bookingFormSchema>;
 
-export default function EditBookingPage({ params }: { params: { id: string } }) {
+export default function EditBookingPage() {
   const firestore = useFirestore();
   const router = useRouter();
-  const { id: bookingId } = params;
+  const params = useParams();
+  const bookingId = params.id as string;
 
   const [booking, setBooking] = useState<any>(null);
   const [isLoadingBooking, setIsLoadingBooking] = useState(true);
