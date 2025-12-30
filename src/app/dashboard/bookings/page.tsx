@@ -116,7 +116,7 @@ export default function BookingsPage() {
       await runTransaction(firestore, async (transaction) => {
         const scheduleDoc = await transaction.get(scheduleRef);
 
-        if (scheduleDoc.exists()) {
+        if (scheduleDoc.exists() && bookingToDelete.status === 'Reserved') {
           const currentSeats = scheduleDoc.data().availableSeats || 0;
           const newSeats = currentSeats + bookingToDelete.numberOfSeats;
           transaction.update(scheduleRef, { availableSeats: newSeats });
@@ -185,7 +185,7 @@ export default function BookingsPage() {
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow>
+                  <TableRow key="loading">
                     <TableCell colSpan={9} className="text-center">
                       Loading bookings...
                     </TableCell>
@@ -229,7 +229,7 @@ export default function BookingsPage() {
                     </TableRow>
                   ))
                 ) : (
-                  <TableRow>
+                  <TableRow key="no-bookings">
                     <TableCell colSpan={9} className="h-24 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <BookCopy className="h-8 w-8 text-muted-foreground" />
