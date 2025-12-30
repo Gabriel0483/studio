@@ -173,7 +173,6 @@ export default function BookingsPage() {
                 <TableRow>
                   <TableHead>Booking Ref</TableHead>
                   <TableHead>Passenger(s)</TableHead>
-                  <TableHead>Contact</TableHead>
                   <TableHead>Route</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Seats</TableHead>
@@ -185,7 +184,7 @@ export default function BookingsPage() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center">
+                    <TableCell colSpan={8} className="text-center">
                       Loading bookings...
                     </TableCell>
                   </TableRow>
@@ -197,10 +196,6 @@ export default function BookingsPage() {
                         {Array.isArray(booking.passengerInfo)
                           ? booking.passengerInfo.map((p) => p.fullName).join(', ')
                           : 'N/A'}
-                      </TableCell>
-                      <TableCell>
-                        <div>{booking.passengerEmail}</div>
-                        <div>{booking.passengerPhone}</div>
                       </TableCell>
                       <TableCell>{booking.routeName}</TableCell>
                        <TableCell>{booking.status}</TableCell>
@@ -232,7 +227,7 @@ export default function BookingsPage() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={9} className="h-24 text-center">
+                    <TableCell colSpan={8} className="h-24 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <BookCopy className="h-8 w-8 text-muted-foreground" />
                         <p className="text-muted-foreground">No bookings found.</p>
