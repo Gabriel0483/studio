@@ -28,11 +28,10 @@ import { PublicFooter } from "@/components/public-footer"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase"
 import { collection, doc, serverTimestamp, runTransaction, Timestamp } from "firebase/firestore"
-import React, { useMemo, useState, useEffect, useRef } from "react"
+import React, { useMemo, useState, useEffect } from "react"
 import { Separator } from "@/components/ui/separator"
 import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { format } from "date-fns"
-import { useReactToPrint } from 'react-to-print';
 import { TripItinerary } from "@/components/trip-itinerary";
 
 const passengerSchema = z.object({
@@ -91,11 +90,6 @@ export default function BookingPage() {
 
   const [availableFares, setAvailableFares] = useState<any[]>([]);
   const [filteredSchedules, setFilteredSchedules] = useState<any[]>([]);
-
-  const itineraryRef = useRef(null);
-  const handlePrint = useReactToPrint({
-    content: () => itineraryRef.current,
-  });
 
   const form = useForm<BookingFormData>({
     resolver: zodResolver(bookingFormSchema),
@@ -321,7 +315,7 @@ export default function BookingPage() {
               <CardDescription>
                 {step === 'form' && "Fill in the details below to complete your reservation."}
                 {step === 'summary' && "Please review your trip itinerary before confirming your booking."}
-                {step === 'confirmation' && "Your booking is complete. You can download your itinerary below."}
+                {step === 'confirmation' && "Your booking is complete. You can view your itinerary below."}
               </CardDescription>
             </CardHeader>
             
@@ -567,16 +561,13 @@ export default function BookingPage() {
             {step === 'confirmation' && confirmedBooking && (
               <>
                 <CardContent>
-                  <div ref={itineraryRef} className="p-4 sm:p-6">
+                  <div className="p-4 sm:p-6">
                     <TripItinerary booking={confirmedBooking} />
                   </div>
                 </CardContent>
                 <CardFooter className="flex-col sm:flex-row gap-2">
                   <Button variant="outline" size="lg" className="w-full sm:w-auto" onClick={handleNewBooking}>
                     <RefreshCw className="mr-2 h-4 w-4" /> Make Another Booking
-                  </Button>
-                  <Button onClick={handlePrint} size="lg" className="w-full sm:w-auto flex-1">
-                    <Download className="mr-2 h-4 w-4" /> Download Itinerary
                   </Button>
                 </CardFooter>
               </>
