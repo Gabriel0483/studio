@@ -32,7 +32,6 @@ import {
   Timestamp,
   doc,
   runTransaction,
-  writeBatch,
 } from 'firebase/firestore';
 import { BookCopy, Pencil, Search, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -61,7 +60,6 @@ export default function BookingsPage() {
   const { toast } = useToast();
   const [search, setSearch] = useState('');
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [isDeleteAllDialogOpen, setIsDeleteAllDialogOpen] = useState(false);
   const [bookingToDelete, setBookingToDelete] = useState<Booking | null>(null);
 
   const bookingsQuery = useMemoFirebase(() => {
@@ -143,41 +141,6 @@ export default function BookingsPage() {
     }
   };
 
-  const handleDeleteAll = async () => {
-    if (!firestore || !bookings || bookings.length === 0) {
-      toast({ title: 'No bookings to delete.' });
-      return;
-    }
-    try {
-      for (const booking of bookings) {
-         const bookingRef = doc(firestore, 'bookings', booking.firestoreId);
-         const scheduleRef = doc(firestore, 'schedules', booking.scheduleId);
-
-         await runTransaction(firestore, async (transaction) => {
-           const scheduleDoc = await transaction.get(scheduleRef);
-           if (scheduleDoc.exists() && booking.status === 'Reserved') {
-             const currentSeats = scheduleDoc.data().availableSeats || 0;
-             const newSeats = currentSeats + booking.numberOfSeats;
-             transaction.update(scheduleRef, { availableSeats: newSeats });
-           }
-           transaction.delete(bookingRef);
-         });
-      }
-      toast({
-        title: 'All Bookings Deleted',
-        description: 'All bookings have been successfully deleted.',
-      });
-    } catch (error: any) {
-       toast({
-        variant: 'destructive',
-        title: 'Error Deleting All Bookings',
-        description: error.message || 'An unexpected error occurred.',
-      });
-    } finally {
-        setIsDeleteAllDialogOpen(false);
-    }
-  };
-
   return (
     <>
       <div className="space-y-6">
@@ -204,14 +167,6 @@ export default function BookingsPage() {
                   onChange={(e) => setSearch(e.target.value)}
                 />
               </div>
-              <Button 
-                variant="destructive" 
-                onClick={() => setIsDeleteAllDialogOpen(true)}
-                disabled={!bookings || bookings.length === 0}
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete All
-              </Button>
             </div>
           </CardHeader>
           <CardContent>
@@ -303,24 +258,6 @@ export default function BookingsPage() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete}>
               Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-      
-      <AlertDialog open={isDeleteAllDialogOpen} onOpenChange={setIsDeleteAllDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete All Bookings?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete all
-              bookings in the system and release all reserved seats. Are you sure you want to proceed?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteAll}>
-              Yes, Delete All
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
