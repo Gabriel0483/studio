@@ -32,6 +32,7 @@ import {
   Timestamp,
   doc,
   runTransaction,
+  deleteDoc,
 } from 'firebase/firestore';
 import { BookCopy, Pencil, Search, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -263,3 +264,5 @@ export default function BookingsPage() {
     </>
   );
 }
+
+    
