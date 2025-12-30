@@ -35,13 +35,11 @@ import {
   useFirestore,
   useCollection,
   useMemoFirebase,
-  useUser,
-  useDoc,
 } from '@/firebase';
-import { collection, doc, serverTimestamp, runTransaction, Timestamp, updateDoc, query, where, getDocs, writeBatch } from 'firebase/firestore';
+import { collection, doc, runTransaction, Timestamp, query, where, getDocs } from 'firebase/firestore';
 import React, { useMemo, useState, useEffect } from 'react';
 import { Separator } from '@/components/ui/separator';
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 import { useRouter } from 'next/navigation';
 
 const passengerSchema = z.object({
@@ -81,13 +79,20 @@ export default function EditBookingPage({ params }: { params: { id: string } }) 
       setIsLoadingBooking(true);
       const bookingsRef = collection(firestore, 'bookings');
       const q = query(bookingsRef, where('id', '==', bookingId));
-      const querySnapshot = await getDocs(q);
-      if (!querySnapshot.empty) {
-        const bookingDoc = querySnapshot.docs[0];
-        setBooking({ ...bookingDoc.data(), firestoreId: bookingDoc.id });
-      } else {
-        console.log('No such document!');
+      try {
+        const querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+          const bookingDoc = querySnapshot.docs[0];
+          setBooking({ ...bookingDoc.data(), firestoreId: bookingDoc.id });
+        } else {
+          console.log('No such document!');
+          toast({ variant: 'destructive', title: 'Error', description: 'Booking not found.' });
+        }
+      } catch (error) {
+        console.error("Error fetching booking: ", error);
+        toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch booking details.' });
       }
+      
       setIsLoadingBooking(false);
     }
     fetchBooking();
@@ -119,7 +124,7 @@ export default function EditBookingPage({ params }: { params: { id: string } }) 
   });
 
   useEffect(() => {
-    if (booking) {
+    if (booking && allSchedules) {
       const travelDate =
         booking.travelDate instanceof Timestamp
           ? booking.travelDate.toDate()

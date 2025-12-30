@@ -51,6 +51,7 @@ interface Booking {
   bookingDate: Timestamp;
   numberOfSeats: number;
   totalPrice: number;
+  status: 'Reserved' | 'Waitlisted';
 }
 
 export default function BookingsPage() {
@@ -71,12 +72,9 @@ export default function BookingsPage() {
   const filteredBookings = useMemo(() => {
     if (!bookings) return [];
     
-    // Add firestoreId to each booking object
-    const bookingsWithFirestoreId = bookings.map(b => ({...b, firestoreId: b.id}));
+    if (!search) return bookings;
 
-    if (!search) return bookingsWithFirestoreId;
-
-    return bookingsWithFirestoreId.filter((booking) => {
+    return bookings.filter((booking) => {
       const searchTerm = search.toLowerCase();
       const passengerNames = Array.isArray(booking.passengerInfo)
         ? booking.passengerInfo.map((p) => p.fullName.toLowerCase()).join(' ')
@@ -177,6 +175,7 @@ export default function BookingsPage() {
                   <TableHead>Passenger(s)</TableHead>
                   <TableHead>Contact</TableHead>
                   <TableHead>Route</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead>Seats</TableHead>
                   <TableHead>Total Price</TableHead>
                   <TableHead>Booking Date</TableHead>
@@ -186,7 +185,7 @@ export default function BookingsPage() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center">
+                    <TableCell colSpan={9} className="text-center">
                       Loading bookings...
                     </TableCell>
                   </TableRow>
@@ -204,6 +203,7 @@ export default function BookingsPage() {
                         <div>{booking.passengerPhone}</div>
                       </TableCell>
                       <TableCell>{booking.routeName}</TableCell>
+                       <TableCell>{booking.status}</TableCell>
                       <TableCell>{booking.numberOfSeats}</TableCell>
                       <TableCell>
                         ₱{booking.totalPrice?.toFixed(2) ?? '0.00'}
@@ -232,7 +232,7 @@ export default function BookingsPage() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={8} className="h-24 text-center">
+                    <TableCell colSpan={9} className="h-24 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <BookCopy className="h-8 w-8 text-muted-foreground" />
                         <p className="text-muted-foreground">No bookings found.</p>
