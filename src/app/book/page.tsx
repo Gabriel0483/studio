@@ -28,7 +28,7 @@ import { PublicFooter } from "@/components/public-footer"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase"
 import { collection, doc, serverTimestamp, runTransaction, Timestamp } from "firebase/firestore"
-import React, { useMemo, useState, useEffect } from "react"
+import React, { useMemo, useState, useEffect, useRef } from "react"
 import { Separator } from "@/components/ui/separator"
 import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { format } from "date-fns"
@@ -84,6 +84,7 @@ const generateBookingReference = (length: number) => {
 export default function BookingPage() {
   const firestore = useFirestore();
   const { user } = useUser();
+  const itineraryRef = useRef<HTMLDivElement>(null);
   
   const [step, setStep] = useState<'form' | 'summary' | 'confirmation'>('form');
   const [bookingSummary, setBookingSummary] = useState<BookingSummary>({ details: [], totalPrice: 0, totalTickets: 0 });
@@ -126,21 +127,29 @@ export default function BookingPage() {
     if (watchRouteId && watchTravelDate && allSchedules) {
       const selectedDate = new Date(watchTravelDate);
       selectedDate.setHours(0, 0, 0, 0);
+      
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const isToday = selectedDate.getTime() === today.getTime();
+      const now = new Date();
+      const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
 
       const relatedSchedules = allSchedules.filter(s => {
         if (s.routeId !== watchRouteId) return false;
+
+        const isDailyTrip = s.tripType === 'Daily';
+        const isSpecialTripOnDate = s.tripType === 'Special' && s.date && format(new Date(s.date), 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd');
         
-        if (s.tripType === 'Daily') {
-          return true;
+        if (!isDailyTrip && !isSpecialTripOnDate) {
+          return false;
         }
         
-        if (s.tripType === 'Special' && s.date) {
-            const specialDate = new Date(s.date);
-            specialDate.setHours(0, 0, 0, 0);
-            return format(specialDate, 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd');
+        if (isToday) {
+            return s.departureTime > currentTime;
         }
 
-        return false;
+        return true;
       });
       setFilteredSchedules(relatedSchedules);
     } else {
@@ -572,7 +581,7 @@ export default function BookingPage() {
             {step === 'confirmation' && confirmedBooking && (
               <>
                 <CardContent>
-                  <div className="p-4 sm:p-6">
+                  <div ref={itineraryRef} className="p-4 sm:p-6">
                     <TripItinerary booking={confirmedBooking} />
                   </div>
                 </CardContent>
