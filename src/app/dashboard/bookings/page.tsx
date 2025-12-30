@@ -48,6 +48,7 @@ interface Booking {
   passengerEmail: string;
   passengerPhone: string;
   routeName: string;
+  travelDate: Timestamp;
   bookingDate: Timestamp;
   numberOfSeats: number;
   totalPrice: number;
@@ -89,9 +90,9 @@ export default function BookingsPage() {
     });
   }, [bookings, search]);
 
-  const formatDate = (timestamp: Timestamp | undefined) => {
+  const formatDate = (timestamp: Timestamp | undefined, dateFormat = 'PPP p') => {
     if (!timestamp) return 'N/A';
-    return format(timestamp.toDate(), 'PPP p');
+    return format(timestamp.toDate(), dateFormat);
   };
 
   const handleEdit = (bookingId: string) => {
@@ -177,6 +178,7 @@ export default function BookingsPage() {
                   <TableHead>Status</TableHead>
                   <TableHead>Seats</TableHead>
                   <TableHead>Total Price</TableHead>
+                  <TableHead>Travel Date</TableHead>
                   <TableHead>Booking Date</TableHead>
                   <TableHead className="w-[100px] text-right">Actions</TableHead>
                 </TableRow>
@@ -184,7 +186,7 @@ export default function BookingsPage() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center">
+                    <TableCell colSpan={9} className="text-center">
                       Loading bookings...
                     </TableCell>
                   </TableRow>
@@ -203,6 +205,7 @@ export default function BookingsPage() {
                       <TableCell>
                         ₱{booking.totalPrice?.toFixed(2) ?? '0.00'}
                       </TableCell>
+                      <TableCell>{formatDate(booking.travelDate, 'PPP')}</TableCell>
                       <TableCell>{formatDate(booking.bookingDate)}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
@@ -227,7 +230,7 @@ export default function BookingsPage() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={8} className="h-24 text-center">
+                    <TableCell colSpan={9} className="h-24 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <BookCopy className="h-8 w-8 text-muted-foreground" />
                         <p className="text-muted-foreground">No bookings found.</p>
