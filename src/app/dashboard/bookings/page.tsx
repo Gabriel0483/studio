@@ -41,7 +41,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 
 interface Booking {
-  id: string;
+  firestoreId: string; // The actual firestore document ID
+  id: string; // The 6-digit booking reference
   scheduleId: string;
   passengerInfo?: { fullName: string; birthDate?: string }[];
   passengerEmail: string;
@@ -65,19 +66,24 @@ export default function BookingsPage() {
     return collection(firestore, 'bookings');
   }, [firestore]);
 
-  const { data: bookings, isLoading } = useCollection<Booking>(bookingsQuery);
+  const { data: bookings, isLoading } = useCollection<Booking>(bookingsQuery, { idField: 'firestoreId' });
 
   const filteredBookings = useMemo(() => {
     if (!bookings) return [];
-    if (!search) return bookings;
+    
+    // Add firestoreId to each booking object
+    const bookingsWithFirestoreId = bookings.map(b => ({...b, firestoreId: b.id}));
 
-    return bookings.filter((booking) => {
+    if (!search) return bookingsWithFirestoreId;
+
+    return bookingsWithFirestoreId.filter((booking) => {
       const searchTerm = search.toLowerCase();
       const passengerNames = Array.isArray(booking.passengerInfo)
         ? booking.passengerInfo.map((p) => p.fullName.toLowerCase()).join(' ')
         : '';
 
       return (
+        booking.id.toLowerCase().includes(searchTerm) ||
         passengerNames.includes(searchTerm) ||
         booking.passengerEmail.toLowerCase().includes(searchTerm) ||
         booking.routeName.toLowerCase().includes(searchTerm)
@@ -104,7 +110,7 @@ export default function BookingsPage() {
       return;
     }
 
-    const bookingRef = doc(firestore, 'bookings', bookingToDelete.id);
+    const bookingRef = doc(firestore, 'bookings', bookingToDelete.firestoreId);
     const scheduleRef = doc(firestore, 'schedules', bookingToDelete.scheduleId);
 
     try {
@@ -156,7 +162,7 @@ export default function BookingsPage() {
             <div className="relative pt-2">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search by passenger name, email, or route..."
+                placeholder="Search by booking ref, passenger name, email, or route..."
                 className="pl-10"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -167,6 +173,7 @@ export default function BookingsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Booking Ref</TableHead>
                   <TableHead>Passenger(s)</TableHead>
                   <TableHead>Contact</TableHead>
                   <TableHead>Route</TableHead>
@@ -179,13 +186,14 @@ export default function BookingsPage() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center">
+                    <TableCell colSpan={8} className="text-center">
                       Loading bookings...
                     </TableCell>
                   </TableRow>
                 ) : filteredBookings && filteredBookings.length > 0 ? (
                   filteredBookings.map((booking) => (
-                    <TableRow key={booking.id}>
+                    <TableRow key={booking.firestoreId}>
+                      <TableCell className="font-mono">{booking.id}</TableCell>
                       <TableCell className="font-medium">
                         {Array.isArray(booking.passengerInfo)
                           ? booking.passengerInfo.map((p) => p.fullName).join(', ')
@@ -224,7 +232,7 @@ export default function BookingsPage() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={7} className="h-24 text-center">
+                    <TableCell colSpan={8} className="h-24 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <BookCopy className="h-8 w-8 text-muted-foreground" />
                         <p className="text-muted-foreground">No bookings found.</p>

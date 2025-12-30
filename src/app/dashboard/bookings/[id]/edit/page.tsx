@@ -38,7 +38,7 @@ import {
   useUser,
   useDoc,
 } from '@/firebase';
-import { collection, doc, serverTimestamp, runTransaction, Timestamp, updateDoc } from 'firebase/firestore';
+import { collection, doc, serverTimestamp, runTransaction, Timestamp, updateDoc, query, where, getDocs, writeBatch } from 'firebase/firestore';
 import React, { useMemo, useState, useEffect } from 'react';
 import { Separator } from '@/components/ui/separator';
 import { format, parseISO } from 'date-fns';
@@ -72,11 +72,26 @@ export default function EditBookingPage({ params }: { params: { id: string } }) 
   const router = useRouter();
   const { id: bookingId } = params;
 
-  const bookingRef = useMemoFirebase(
-    () => (firestore && bookingId ? doc(firestore, 'bookings', bookingId) : null),
-    [firestore, bookingId]
-  );
-  const { data: booking, isLoading: isLoadingBooking } = useDoc(bookingRef);
+  const [booking, setBooking] = useState<any>(null);
+  const [isLoadingBooking, setIsLoadingBooking] = useState(true);
+
+  useEffect(() => {
+    async function fetchBooking() {
+      if (!firestore || !bookingId) return;
+      setIsLoadingBooking(true);
+      const bookingsRef = collection(firestore, 'bookings');
+      const q = query(bookingsRef, where('id', '==', bookingId));
+      const querySnapshot = await getDocs(q);
+      if (!querySnapshot.empty) {
+        const bookingDoc = querySnapshot.docs[0];
+        setBooking({ ...bookingDoc.data(), firestoreId: bookingDoc.id });
+      } else {
+        console.log('No such document!');
+      }
+      setIsLoadingBooking(false);
+    }
+    fetchBooking();
+  }, [firestore, bookingId]);
 
   const schedulesQuery = useMemoFirebase(
     () => (firestore ? collection(firestore, 'schedules') : null),
@@ -201,7 +216,7 @@ export default function EditBookingPage({ params }: { params: { id: string } }) 
     routes?.find((r) => r.id === routeId)?.name || 'Unknown Route';
 
   async function handleUpdateBooking(data: BookingFormData) {
-    if (!firestore || !booking || !bookingRef) {
+    if (!firestore || !booking) {
       toast({
         variant: 'destructive',
         title: 'Error',
@@ -217,6 +232,7 @@ export default function EditBookingPage({ params }: { params: { id: string } }) 
 
     try {
         await runTransaction(firestore, async (transaction) => {
+            const bookingRef = doc(firestore, 'bookings', booking.firestoreId);
             const scheduleRef = doc(firestore, 'schedules', data.scheduleId);
             const scheduleDoc = await transaction.get(scheduleRef);
 

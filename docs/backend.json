@@ -273,7 +273,7 @@
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the Booking entity."
+          "description": "Unique 6-digit alphanumeric booking reference."
         },
         "passengerId": {
           "type": "string",

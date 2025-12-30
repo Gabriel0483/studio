@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useFieldArray, useForm } from "react-hook-form"
 import * as z from "zod"
-import { PlusCircle, Trash2, ArrowLeft, Download, RefreshCw } from "lucide-react"
+import { PlusCircle, Trash2, ArrowLeft, RefreshCw } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -70,6 +70,15 @@ type ConfirmedBooking = BookingFormData & {
   departureTime: string;
   arrivalTime: string;
   totalPrice: number;
+};
+
+const generateBookingReference = (length: number) => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
 };
 
 export default function BookingPage() {
@@ -200,13 +209,15 @@ export default function BookingPage() {
 
     const { scheduleId } = data;
     const scheduleRef = doc(firestore, 'schedules', scheduleId);
-    const newBookingRef = doc(collection(firestore, 'bookings'));
     const summary = calculateBookingSummary(data);
 
     try {
-      const bookingStatus = await runTransaction(firestore, async (transaction) => {
+      const { status: bookingStatus, bookingId } = await runTransaction(firestore, async (transaction) => {
         const scheduleDoc = await transaction.get(scheduleRef);
         if (!scheduleDoc.exists()) throw new Error("Schedule does not exist!");
+
+        const newBookingRef = doc(collection(firestore, 'bookings'));
+        const bookingId = generateBookingReference(6);
 
         const scheduleData = scheduleDoc.data();
         const currentAvailableSeats = scheduleData.availableSeats || 0;
@@ -220,7 +231,7 @@ export default function BookingPage() {
         }
         
         const bookingData = {
-          id: newBookingRef.id,
+          id: bookingId,
           passengerId: user.uid,
           passengerInfo: data.passengers.map(p => ({
             fullName: p.fullName,
@@ -248,7 +259,7 @@ export default function BookingPage() {
         };
 
         transaction.set(newBookingRef, bookingData);
-        return status;
+        return { status, bookingId };
       });
 
       const passengerRef = doc(firestore, 'passengers', user.uid);
@@ -270,7 +281,7 @@ export default function BookingPage() {
       const currentSchedule = filteredSchedules.find(s => s.id === watchScheduleId);
       setConfirmedBooking({
         ...data,
-        id: newBookingRef.id,
+        id: bookingId,
         bookingDate: new Date(),
         status: bookingStatus,
         routeName: getRouteName(watchRouteId),
