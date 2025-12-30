@@ -46,7 +46,6 @@ interface Booking {
   scheduleId: string;
   passengerInfo?: { fullName: string; birthDate?: string }[];
   passengerEmail: string;
-  passengerPhone: string;
   routeName: string;
   travelDate: Timestamp;
   bookingDate: Timestamp;
