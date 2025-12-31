@@ -186,7 +186,7 @@ export default function BookingsPage() {
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow key="loading">
+                  <TableRow>
                     <TableCell colSpan={9} className="text-center">
                       Loading bookings...
                     </TableCell>
@@ -230,7 +230,7 @@ export default function BookingsPage() {
                     </TableRow>
                   ))
                 ) : (
-                  <TableRow key="no-bookings">
+                  <TableRow>
                     <TableCell colSpan={9} className="h-24 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <BookCopy className="h-8 w-8 text-muted-foreground" />
