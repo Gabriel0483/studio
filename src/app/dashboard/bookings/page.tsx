@@ -230,7 +230,7 @@ export default function BookingsPage() {
                     </TableRow>
                   ))
                 ) : (
-                  <TableRow>
+                  <TableRow key="no-bookings">
                     <TableCell colSpan={9} className="h-24 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <BookCopy className="h-8 w-8 text-muted-foreground" />
