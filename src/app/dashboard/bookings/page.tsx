@@ -186,7 +186,7 @@ export default function BookingsPage() {
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow>
+                  <TableRow key="loading">
                     <TableCell colSpan={9} className="text-center">
                       Loading bookings...
                     </TableCell>
