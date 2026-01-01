@@ -173,7 +173,6 @@ export default function BookingsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Booking Ref</TableHead>
                   <TableHead>Passenger(s)</TableHead>
                   <TableHead>Route</TableHead>
                   <TableHead>Status</TableHead>
@@ -187,14 +186,13 @@ export default function BookingsPage() {
               <TableBody>
                 {isLoading ? (
                   <TableRow key="loading">
-                    <TableCell colSpan={9} className="text-center">
+                    <TableCell colSpan={8} className="text-center">
                       Loading bookings...
                     </TableCell>
                   </TableRow>
                 ) : filteredBookings && filteredBookings.length > 0 ? (
                   filteredBookings.map((booking) => (
                     <TableRow key={booking.firestoreId}>
-                      <TableCell className="font-mono">{booking.id}</TableCell>
                       <TableCell className="font-medium">
                         {Array.isArray(booking.passengerInfo)
                           ? booking.passengerInfo.map((p) => p.fullName).join(', ')
@@ -231,7 +229,7 @@ export default function BookingsPage() {
                   ))
                 ) : (
                   <TableRow key="no-bookings">
-                    <TableCell colSpan={9} className="h-24 text-center">
+                    <TableCell colSpan={8} className="h-24 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <BookCopy className="h-8 w-8 text-muted-foreground" />
                         <p className="text-muted-foreground">No bookings found.</p>
