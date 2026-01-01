@@ -29,7 +29,6 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  CardFooter,
 } from '@/components/ui/card';
 import {
   useFirestore,
@@ -73,47 +72,13 @@ export default function EditBookingPage() {
 
   const [booking, setBooking] = useState<any>(null);
   const [isLoadingBooking, setIsLoadingBooking] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    async function fetchBooking() {
-      if (!firestore || !bookingId) return;
-      setIsLoadingBooking(true);
-      const bookingsRef = collection(firestore, 'bookings');
-      const q = query(bookingsRef, where('id', '==', bookingId));
-      try {
-        const querySnapshot = await getDocs(q);
-        if (!querySnapshot.empty) {
-          const bookingDoc = querySnapshot.docs[0];
-          setBooking({ ...bookingDoc.data(), firestoreId: bookingDoc.id });
-        } else {
-          console.log('No such document!');
-          toast({ variant: 'destructive', title: 'Error', description: 'Booking not found.' });
-        }
-      } catch (error) {
-        console.error("Error fetching booking: ", error);
-        toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch booking details.' });
-      }
-      
-      setIsLoadingBooking(false);
-    }
-    fetchBooking();
-  }, [firestore, bookingId]);
+  const schedulesQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'schedules') : null), [firestore]);
+  const routesQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'routes') : null), [firestore]);
+  const faresQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'fares') : null), [firestore]);
 
-  const schedulesQuery = useMemoFirebase(
-    () => (firestore ? collection(firestore, 'schedules') : null),
-    [firestore]
-  );
-  const routesQuery = useMemoFirebase(
-    () => (firestore ? collection(firestore, 'routes') : null),
-    [firestore]
-  );
-  const faresQuery = useMemoFirebase(
-    () => (firestore ? collection(firestore, 'fares') : null),
-    [firestore]
-  );
-
-  const { data: allSchedules, isLoading: isLoadingSchedules } =
-    useCollection(schedulesQuery);
+  const { data: allSchedules, isLoading: isLoadingSchedules } = useCollection(schedulesQuery);
   const { data: routes, isLoading: isLoadingRoutes } = useCollection(routesQuery);
   const { data: allFares, isLoading: isLoadingFares } = useCollection(faresQuery);
 
@@ -125,26 +90,50 @@ export default function EditBookingPage() {
   });
 
   useEffect(() => {
-    if (booking && allSchedules) {
-      const travelDate =
-        booking.travelDate instanceof Timestamp
-          ? booking.travelDate.toDate()
-          : new Date(booking.travelDate);
+    async function fetchBooking() {
+      if (!firestore || !bookingId) return;
+      setIsLoadingBooking(true);
+      const bookingsRef = collection(firestore, 'bookings');
+      const q = query(bookingsRef, where('id', '==', bookingId));
+      try {
+        const querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+          const bookingDoc = querySnapshot.docs[0];
+          const bookingData = { ...bookingDoc.data(), firestoreId: bookingDoc.id };
+          setBooking(bookingData);
           
-      form.reset({
-        routeId: allSchedules?.find(s => s.id === booking.scheduleId)?.routeId || '',
-        travelDate: format(travelDate, 'yyyy-MM-dd'),
-        scheduleId: booking.scheduleId,
-        passengers: booking.passengerInfo.map((p: any) => ({
-          fullName: p.fullName,
-          birthDate: p.birthDate || '',
-          fareType: p.fareType,
-        })),
-        primaryEmail: booking.passengerEmail,
-        primaryPhone: booking.passengerPhone,
-      });
+          const travelDate =
+            bookingData.travelDate instanceof Timestamp
+              ? bookingData.travelDate.toDate()
+              : new Date(bookingData.travelDate);
+          
+          form.reset({
+            routeId: allSchedules?.find(s => s.id === bookingData.scheduleId)?.routeId || '',
+            travelDate: format(travelDate, 'yyyy-MM-dd'),
+            scheduleId: bookingData.scheduleId,
+            passengers: bookingData.passengerInfo.map((p: any) => ({
+              fullName: p.fullName,
+              birthDate: p.birthDate ? format(new Date(p.birthDate), 'yyyy-MM-dd') : '',
+              fareType: p.fareType,
+            })),
+            primaryEmail: bookingData.passengerEmail,
+            primaryPhone: bookingData.passengerPhone,
+          });
+
+        } else {
+          toast({ variant: 'destructive', title: 'Error', description: 'Booking not found.' });
+        }
+      } catch (error) {
+        console.error("Error fetching booking: ", error);
+        toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch booking details.' });
+      } finally {
+        setIsLoadingBooking(false);
+      }
     }
-  }, [booking, form, allSchedules]);
+    if(firestore && bookingId && allSchedules) {
+        fetchBooking();
+    }
+  }, [firestore, bookingId, allSchedules, form]);
 
 
   const { fields, append, remove } = useFieldArray({
@@ -157,25 +146,23 @@ export default function EditBookingPage() {
   const watchScheduleId = form.watch('scheduleId');
   const watchPassengers = form.watch('passengers');
 
-  // Filter schedules based on route and date
   useEffect(() => {
     if (watchRouteId && watchTravelDate && allSchedules) {
       const relatedSchedules = allSchedules.filter(
         (s) =>
           s.routeId === watchRouteId &&
-          (s.tripType === 'Daily' || s.date === watchTravelDate)
+          (s.tripType === 'Daily' || (s.date && format(new Date(s.date), 'yyyy-MM-dd') === watchTravelDate))
       );
       setFilteredSchedules(relatedSchedules);
     } else {
       setFilteredSchedules([]);
     }
-  }, [watchRouteId, watchTravelDate, allSchedules, form]);
+  }, [watchRouteId, watchTravelDate, allSchedules]);
 
-  // Update fares when schedule changes
   useEffect(() => {
-    const selectedSchedule = allSchedules?.find((s) => s.id === watchScheduleId);
-    if (selectedSchedule && routes && allFares) {
-      const route = routes.find((r) => r.id === selectedSchedule.routeId);
+    if (watchScheduleId && allSchedules && routes && allFares) {
+      const selectedSchedule = allSchedules.find((s) => s.id === watchScheduleId);
+      const route = routes.find((r) => r.id === selectedSchedule?.routeId);
       const routeFares = allFares.filter((f) => f.routeId === route?.id);
       setAvailableFares(routeFares);
     } else {
@@ -223,15 +210,11 @@ export default function EditBookingPage() {
 
   async function handleUpdateBooking(data: BookingFormData) {
     if (!firestore || !booking) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Could not connect. Please try again later.',
-      });
+      toast({ variant: 'destructive', title: 'Error', description: 'Could not connect. Please try again.' });
       return;
     }
+    setIsSubmitting(true);
     
-    // Logic to calculate seat difference
     const originalSeats = booking.numberOfSeats;
     const newSeats = data.passengers.length;
     const seatDifference = newSeats - originalSeats;
@@ -239,16 +222,47 @@ export default function EditBookingPage() {
     try {
         await runTransaction(firestore, async (transaction) => {
             const bookingRef = doc(firestore, 'bookings', booking.firestoreId);
-            const scheduleRef = doc(firestore, 'schedules', data.scheduleId);
-            const scheduleDoc = await transaction.get(scheduleRef);
-
-            if (!scheduleDoc.exists()) throw new Error("Schedule does not exist!");
             
-            const scheduleData = scheduleDoc.data();
-            const newAvailableSeats = scheduleData.availableSeats - seatDifference;
-            if (newAvailableSeats < 0) throw new Error("Not enough seats available for this change.");
+            // Handle old schedule seat adjustment
+            if (booking.scheduleId !== data.scheduleId || seatDifference !== 0) {
+              const oldScheduleRef = doc(firestore, 'schedules', booking.scheduleId);
+              const oldScheduleDoc = await transaction.get(oldScheduleRef);
+              if (oldScheduleDoc.exists() && booking.status === 'Reserved') {
+                transaction.update(oldScheduleRef, { availableSeats: oldScheduleDoc.data().availableSeats + originalSeats });
+              }
+            }
 
-            transaction.update(scheduleRef, { availableSeats: newAvailableSeats });
+            // Handle new schedule seat adjustment
+            const newScheduleRef = doc(firestore, 'schedules', data.scheduleId);
+            const newScheduleDoc = await transaction.get(newScheduleRef);
+            if (!newScheduleDoc.exists()) throw new Error("New schedule does not exist!");
+            
+            const newScheduleData = newScheduleDoc.data();
+            let newAvailableSeats = newScheduleData.availableSeats;
+            let newStatus = booking.status;
+
+            if (booking.scheduleId !== data.scheduleId) {
+                newAvailableSeats = newScheduleData.availableSeats;
+            }
+
+            if (newAvailableSeats >= newSeats) {
+                newAvailableSeats -= newSeats;
+                newStatus = 'Reserved';
+            } else {
+                newStatus = 'Waitlisted';
+            }
+            
+            transaction.update(newScheduleRef, { availableSeats: newAvailableSeats });
+
+            const fareDetails = data.passengers.map((p) => {
+                const fareInfo = availableFares.find(f => f.passengerType === p.fareType);
+                return {
+                    fareId: fareInfo?.id || null,
+                    passengerType: p.fareType,
+                    count: 1,
+                    pricePerTicket: fareInfo?.price || 0
+                }
+            });
 
             const bookingUpdateData = {
                 passengerInfo: data.passengers.map((p) => ({
@@ -259,19 +273,12 @@ export default function EditBookingPage() {
                 passengerEmail: data.primaryEmail,
                 passengerPhone: data.primaryPhone,
                 scheduleId: data.scheduleId,
-                fareDetails: data.passengers.map((p) => {
-                    const fareInfo = availableFares.find(f => f.passengerType === p.fareType);
-                    return {
-                        fareId: fareInfo?.id || null,
-                        passengerType: p.fareType,
-                        count: 1,
-                        pricePerTicket: fareInfo?.price || 0
-                    }
-                }),
+                fareDetails: fareDetails,
                 travelDate: new Date(data.travelDate),
                 numberOfSeats: newSeats,
                 totalPrice: bookingSummary.totalPrice,
-                routeName: getRouteName(scheduleData.routeId),
+                routeName: getRouteName(newScheduleData.routeId),
+                status: newStatus,
             };
             
             transaction.update(bookingRef, bookingUpdateData);
@@ -289,6 +296,8 @@ export default function EditBookingPage() {
         title: 'Uh oh! Something went wrong.',
         description: e.message || 'Could not update the booking.',
       });
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -314,16 +323,16 @@ export default function EditBookingPage() {
 
   return (
     <div className="space-y-6">
-      <Card className="mx-auto max-w-3xl">
+      <Card className="mx-auto max-w-4xl">
         <CardHeader>
            <Button variant="ghost" size="sm" className="w-fit p-0 h-auto mb-2" onClick={() => router.back()}>
                 <ArrowLeft className="mr-2 h-4 w-4" /> Back to Bookings
             </Button>
           <CardTitle className="text-3xl font-bold tracking-tight">
-            Edit Booking
+            Edit Booking #{booking.id}
           </CardTitle>
           <CardDescription>
-            Modify the booking details below and save your changes.
+            Modify the booking details below and save your changes. The original seat count will be restored and the new count will be applied.
           </CardDescription>
         </CardHeader>
 
@@ -333,7 +342,7 @@ export default function EditBookingPage() {
               onSubmit={form.handleSubmit(handleUpdateBooking)}
               className="space-y-8"
             >
-              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
                 <FormField
                   control={form.control}
                   name="routeId"
@@ -341,7 +350,10 @@ export default function EditBookingPage() {
                     <FormItem>
                       <FormLabel>Route</FormLabel>
                       <Select
-                        onValueChange={field.onChange}
+                        onValueChange={(value) => {
+                            field.onChange(value);
+                            form.setValue('scheduleId', '');
+                        }}
                         value={field.value}
                       >
                         <FormControl>
@@ -372,70 +384,71 @@ export default function EditBookingPage() {
                           type="date"
                           {...field}
                           min={new Date().toISOString().split('T')[0]}
+                           onChange={(e) => {
+                                field.onChange(e);
+                                form.setValue('scheduleId', '');
+                            }}
                         />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+                 <FormField
+                    control={form.control}
+                    name="scheduleId"
+                    render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Available Trips</FormLabel>
+                        <Select
+                        onValueChange={field.onChange}
+                        value={field.value}
+                        disabled={!watchRouteId || !watchTravelDate}
+                        >
+                        <FormControl>
+                            <SelectTrigger>
+                            <SelectValue placeholder="Select a time" />
+                            </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                            {filteredSchedules.map((schedule) => (
+                            <SelectItem key={schedule.id} value={schedule.id}>
+                                {schedule.departureTime} - {schedule.arrivalTime} (
+                                {schedule.availableSeats} seats left)
+                            </SelectItem>
+                            ))}
+                        </SelectContent>
+                        </Select>
+                        {(!filteredSchedules || filteredSchedules.length === 0) &&
+                        watchRouteId &&
+                        watchTravelDate && (
+                            <p className="text-sm text-muted-foreground pt-1">
+                            No available trips for the selected route and date.
+                            </p>
+                        )}
+                        <FormMessage />
+                    </FormItem>
+                    )}
+                />
               </div>
-              <FormField
-                control={form.control}
-                name="scheduleId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Available Trips</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      value={field.value}
-                      disabled={!watchRouteId || !watchTravelDate}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a time" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {filteredSchedules.map((schedule) => (
-                          <SelectItem key={schedule.id} value={schedule.id}>
-                            {schedule.departureTime} - {schedule.arrivalTime} (
-                            {schedule.availableSeats} seats left)
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {(!filteredSchedules || filteredSchedules.length === 0) &&
-                      watchRouteId &&
-                      watchTravelDate && (
-                        <p className="text-sm text-muted-foreground pt-1">
-                          No available trips for the selected route and date.
-                        </p>
-                      )}
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              
+              <Separator />
 
               <div className="space-y-6">
-                <h3 className="font-medium text-lg border-b pb-2">
+                <h3 className="font-medium text-lg">
                   Passenger Details
                 </h3>
                 {fields.map((field, index) => (
                   <div
                     key={field.id}
-                    className="grid grid-cols-1 sm:grid-cols-8 gap-4 items-end p-4 border rounded-lg relative"
+                    className="grid grid-cols-1 sm:grid-cols-8 gap-4 items-end p-4 border rounded-lg"
                   >
-                    <div className="sm:col-span-8">
-                      <p className="font-semibold text-md">
-                        Passenger {index + 1}
-                      </p>
-                    </div>
                     <FormField
                       control={form.control}
                       name={`passengers.${index}.fullName`}
                       render={({ field }) => (
                         <FormItem className="sm:col-span-3">
-                          <FormLabel>Full Name</FormLabel>
+                          <FormLabel>Full Name (Passenger {index + 1})</FormLabel>
                           <FormControl>
                             <Input placeholder="John Doe" {...field} />
                           </FormControl>
@@ -450,11 +463,7 @@ export default function EditBookingPage() {
                         <FormItem className="sm:col-span-2">
                           <FormLabel>Birth Date</FormLabel>
                           <FormControl>
-                            <Input
-                              type="date"
-                              {...field}
-                              placeholder="YYYY-MM-DD"
-                            />
+                            <Input type="date" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -500,6 +509,7 @@ export default function EditBookingPage() {
                           size="icon"
                           onClick={() => remove(index)}
                           className="w-full"
+                          aria-label="Remove passenger"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -514,11 +524,12 @@ export default function EditBookingPage() {
                   onClick={() => append({ fullName: '', birthDate: '', fareType: '' })}
                   disabled={!watchScheduleId}
                 >
-                  <PlusCircle className="mr-2 h-4 w-4" /> Add Another
-                  Passenger
+                  <PlusCircle className="mr-2 h-4 w-4" /> Add Another Passenger
                 </Button>
               </div>
 
+              <Separator />
+                <h3 className="font-medium text-lg">Contact Information</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <FormField
                   control={form.control}
@@ -550,8 +561,8 @@ export default function EditBookingPage() {
 
                 <Separator />
 
-                  <div className="space-y-4">
-                    <h3 className="font-semibold text-lg">Booking Summary</h3>
+                  <div className="space-y-4 rounded-lg border bg-secondary/50 p-4">
+                    <h3 className="font-semibold text-lg">Updated Summary</h3>
                      {bookingSummary.details.map((item, index) => (
                         <div key={index} className="flex justify-between items-center text-sm pb-2">
                             <div>
@@ -561,22 +572,20 @@ export default function EditBookingPage() {
                             <span className="font-medium">₱{item.price.toFixed(2)}</span>
                         </div>
                     ))}
+                    <Separator />
+                     <div className="flex justify-between items-center text-xl font-bold">
+                        <span>New Total Price</span>
+                        <span>₱{bookingSummary.totalPrice.toFixed(2)}</span>
+                    </div>
                   </div>
-
-                <Separator />
-
-                <div className="flex justify-between items-center text-xl font-bold">
-                    <span>Total Price</span>
-                    <span>₱{bookingSummary.totalPrice.toFixed(2)}</span>
-                </div>
 
               <Button
                 type="submit"
                 size="lg"
                 className="w-full"
-                disabled={!form.formState.isValid || watchPassengers.length === 0}
+                disabled={isSubmitting || !form.formState.isDirty || !form.formState.isValid || watchPassengers.length === 0}
               >
-                Save Changes
+                 {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : 'Save Changes'}
               </Button>
             </form>
           </Form>

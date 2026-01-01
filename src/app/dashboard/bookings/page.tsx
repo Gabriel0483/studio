@@ -39,6 +39,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
+import { Badge } from '@/components/ui/badge';
 
 interface Booking {
   firestoreId: string; // The actual firestore document ID
@@ -82,6 +83,7 @@ export default function BookingsPage() {
 
       return (
         passengerNames.includes(searchTerm) ||
+        booking.id.toLowerCase().includes(searchTerm) ||
         booking.passengerEmail.toLowerCase().includes(searchTerm) ||
         booking.routeName.toLowerCase().includes(searchTerm)
       );
@@ -140,6 +142,18 @@ export default function BookingsPage() {
     }
   };
 
+  const getStatusVariant = (status: 'Reserved' | 'Waitlisted') => {
+    switch (status) {
+      case 'Reserved':
+        return 'default';
+      case 'Waitlisted':
+        return 'secondary';
+      default:
+        return 'outline';
+    }
+  };
+
+
   return (
     <>
       <div className="space-y-6">
@@ -160,7 +174,7 @@ export default function BookingsPage() {
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search by passenger name, email, or route..."
+                  placeholder="Search by name, email, route, or booking ID..."
                   className="pl-10 w-full"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -172,6 +186,7 @@ export default function BookingsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Booking Ref</TableHead>
                   <TableHead>Passenger(s)</TableHead>
                   <TableHead>Route</TableHead>
                   <TableHead>Status</TableHead>
@@ -185,20 +200,25 @@ export default function BookingsPage() {
               <TableBody>
                 {isLoading ? (
                   <TableRow key="loading">
-                    <TableCell colSpan={8} className="text-center">
+                    <TableCell colSpan={9} className="text-center">
                       Loading bookings...
                     </TableCell>
                   </TableRow>
                 ) : filteredBookings && filteredBookings.length > 0 ? (
                   filteredBookings.map((booking) => (
                     <TableRow key={booking.firestoreId}>
+                      <TableCell className="font-mono">{booking.id}</TableCell>
                       <TableCell className="font-medium">
                         {Array.isArray(booking.passengerInfo)
                           ? booking.passengerInfo.map((p) => p.fullName).join(', ')
                           : 'N/A'}
                       </TableCell>
                       <TableCell>{booking.routeName}</TableCell>
-                       <TableCell>{booking.status}</TableCell>
+                       <TableCell>
+                          <Badge variant={getStatusVariant(booking.status)}>
+                            {booking.status}
+                          </Badge>
+                       </TableCell>
                       <TableCell>{booking.numberOfSeats}</TableCell>
                       <TableCell>
                         ₱{booking.totalPrice?.toFixed(2) ?? '0.00'}
@@ -211,6 +231,7 @@ export default function BookingsPage() {
                             variant="ghost"
                             size="icon"
                             onClick={() => handleEdit(booking.id)}
+                            aria-label={`Edit booking ${booking.id}`}
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
@@ -219,6 +240,7 @@ export default function BookingsPage() {
                             size="icon"
                             className="text-destructive hover:text-destructive"
                             onClick={() => confirmDelete(booking)}
+                            aria-label={`Delete booking ${booking.id}`}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -228,7 +250,7 @@ export default function BookingsPage() {
                   ))
                 ) : (
                   <TableRow key="no-bookings">
-                    <TableCell colSpan={8} className="h-24 text-center">
+                    <TableCell colSpan={9} className="h-24 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <BookCopy className="h-8 w-8 text-muted-foreground" />
                         <p className="text-muted-foreground">No bookings found.</p>
@@ -248,12 +270,12 @@ export default function BookingsPage() {
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
               This action cannot be undone. This will permanently delete the
-              booking and release the seats back into the schedule.
+              booking and release the seats back into the schedule if the booking was reserved.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete}>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
