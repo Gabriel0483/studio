@@ -32,6 +32,7 @@ import {
   Timestamp,
   doc,
   runTransaction,
+  deleteDoc,
 } from 'firebase/firestore';
 import { BookCopy, Pencil, Search, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -174,7 +175,7 @@ export default function BookingsPage() {
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search by name, email, route, or booking ID..."
+                  placeholder="Search by name, email, or route..."
                   className="pl-10 w-full"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -186,7 +187,6 @@ export default function BookingsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Booking Ref</TableHead>
                   <TableHead>Passenger(s)</TableHead>
                   <TableHead>Route</TableHead>
                   <TableHead>Status</TableHead>
@@ -200,14 +200,13 @@ export default function BookingsPage() {
               <TableBody>
                 {isLoading ? (
                   <TableRow key="loading">
-                    <TableCell colSpan={9} className="text-center">
+                    <TableCell colSpan={8} className="text-center">
                       Loading bookings...
                     </TableCell>
                   </TableRow>
                 ) : filteredBookings && filteredBookings.length > 0 ? (
                   filteredBookings.map((booking) => (
                     <TableRow key={booking.firestoreId}>
-                      <TableCell className="font-mono">{booking.id}</TableCell>
                       <TableCell className="font-medium">
                         {Array.isArray(booking.passengerInfo)
                           ? booking.passengerInfo.map((p) => p.fullName).join(', ')
@@ -250,7 +249,7 @@ export default function BookingsPage() {
                   ))
                 ) : (
                   <TableRow key="no-bookings">
-                    <TableCell colSpan={9} className="h-24 text-center">
+                    <TableCell colSpan={8} className="h-24 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <BookCopy className="h-8 w-8 text-muted-foreground" />
                         <p className="text-muted-foreground">No bookings found.</p>
