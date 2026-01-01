@@ -81,7 +81,6 @@ export default function BookingsPage() {
         : '';
 
       return (
-        booking.id.toLowerCase().includes(searchTerm) ||
         passengerNames.includes(searchTerm) ||
         booking.passengerEmail.toLowerCase().includes(searchTerm) ||
         booking.routeName.toLowerCase().includes(searchTerm)
