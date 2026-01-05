@@ -583,7 +583,7 @@ export default function EditBookingPage() {
                 type="submit"
                 size="lg"
                 className="w-full"
-                disabled={isSubmitting || !form.formState.isDirty || !form.formState.isValid || watchPassengers.length === 0}
+                disabled={isSubmitting || !form.formState.isValid || watchPassengers.length === 0}
               >
                  {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : 'Save Changes'}
               </Button>
