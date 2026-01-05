@@ -32,9 +32,8 @@ import {
   Timestamp,
   doc,
   runTransaction,
-  deleteDoc,
 } from 'firebase/firestore';
-import { BookCopy, Pencil, Search, Trash2 } from 'lucide-react';
+import { BookCopy, Pencil, Search, Trash2, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -63,11 +62,12 @@ export default function BookingsPage() {
   const [search, setSearch] = useState('');
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [bookingToDelete, setBookingToDelete] = useState<Booking | null>(null);
+  const [refreshToggle, setRefreshToggle] = useState(false);
 
   const bookingsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return collection(firestore, 'bookings');
-  }, [firestore]);
+  }, [firestore, refreshToggle]);
 
   const { data: bookings, isLoading } = useCollection<Booking>(bookingsQuery, { idField: 'firestoreId' });
 
@@ -103,6 +103,14 @@ export default function BookingsPage() {
   const confirmDelete = (booking: Booking) => {
     setBookingToDelete(booking);
     setIsDeleteDialogOpen(true);
+  };
+  
+  const handleRefresh = () => {
+    setRefreshToggle(prev => !prev);
+    toast({
+        title: 'Bookings Refreshed',
+        description: 'The list of bookings has been updated.',
+    });
   };
 
   const handleDelete = async () => {
@@ -181,12 +189,17 @@ export default function BookingsPage() {
                   onChange={(e) => setSearch(e.target.value)}
                 />
               </div>
+               <Button variant="outline" onClick={handleRefresh}>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Refresh
+                </Button>
             </div>
           </CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Booking Ref</TableHead>
                   <TableHead>Passenger(s)</TableHead>
                   <TableHead>Route</TableHead>
                   <TableHead>Status</TableHead>
@@ -200,13 +213,14 @@ export default function BookingsPage() {
               <TableBody>
                 {isLoading ? (
                   <TableRow key="loading">
-                    <TableCell colSpan={8} className="text-center">
+                    <TableCell colSpan={9} className="text-center">
                       Loading bookings...
                     </TableCell>
                   </TableRow>
                 ) : filteredBookings && filteredBookings.length > 0 ? (
                   filteredBookings.map((booking) => (
                     <TableRow key={booking.firestoreId}>
+                      <TableCell className="font-mono">{booking.id}</TableCell>
                       <TableCell className="font-medium">
                         {Array.isArray(booking.passengerInfo)
                           ? booking.passengerInfo.map((p) => p.fullName).join(', ')
@@ -249,7 +263,7 @@ export default function BookingsPage() {
                   ))
                 ) : (
                   <TableRow key="no-bookings">
-                    <TableCell colSpan={8} className="h-24 text-center">
+                    <TableCell colSpan={9} className="h-24 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <BookCopy className="h-8 w-8 text-muted-foreground" />
                         <p className="text-muted-foreground">No bookings found.</p>
