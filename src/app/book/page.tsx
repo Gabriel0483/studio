@@ -265,6 +265,7 @@ export default function BookingPage() {
           totalPrice: summary.totalPrice,
           routeName: getRouteName(scheduleData.routeId),
           status: status,
+          paymentStatus: 'Unpaid',
         };
 
         transaction.set(newBookingRef, bookingData);

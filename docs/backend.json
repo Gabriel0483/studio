@@ -339,8 +339,13 @@
         },
         "status": {
             "type": "string",
-            "description": "The status of the booking.",
+            "description": "The reservation status of the booking.",
             "enum": ["Reserved", "Waitlisted", "Cancelled"]
+        },
+        "paymentStatus": {
+            "type": "string",
+            "description": "The payment status of the booking.",
+            "enum": ["Unpaid", "Paid"]
         }
       },
       "required": [
@@ -354,7 +359,8 @@
         "travelDate",
         "numberOfSeats",
         "totalPrice",
-        "status"
+        "status",
+        "paymentStatus"
       ]
     },
     "MaintenanceRecord": {

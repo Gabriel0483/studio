@@ -40,6 +40,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { Separator } from '@/components/ui/separator';
 import { format } from 'date-fns';
 import { useRouter, useParams } from 'next/navigation';
+import { Switch } from '@/components/ui/switch';
 
 const passengerSchema = z.object({
   fullName: z
@@ -60,6 +61,7 @@ const bookingFormSchema = z.object({
     .string()
     .email({ message: 'Please enter a valid email address.' }),
   primaryPhone: z.string().min(1, { message: 'Please enter a contact number.' }),
+  paymentStatus: z.string(),
 });
 
 type BookingFormData = z.infer<typeof bookingFormSchema>;
@@ -118,6 +120,7 @@ export default function EditBookingPage() {
             })),
             primaryEmail: bookingData.passengerEmail,
             primaryPhone: bookingData.passengerPhone,
+            paymentStatus: bookingData.paymentStatus || 'Unpaid',
           });
 
         } else {
@@ -279,6 +282,7 @@ export default function EditBookingPage() {
                 totalPrice: bookingSummary.totalPrice,
                 routeName: getRouteName(newScheduleData.routeId),
                 status: newStatus,
+                paymentStatus: data.paymentStatus,
             };
             
             transaction.update(bookingRef, bookingUpdateData);
@@ -529,7 +533,7 @@ export default function EditBookingPage() {
               </div>
 
               <Separator />
-                <h3 className="font-medium text-lg">Contact Information</h3>
+                <h3 className="font-medium text-lg">Contact & Payment</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <FormField
                   control={form.control}
@@ -558,6 +562,28 @@ export default function EditBookingPage() {
                   )}
                 />
               </div>
+              <FormField
+                control={form.control}
+                name="paymentStatus"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                    <div className="space-y-0.5">
+                      <FormLabel className="text-base">
+                        Payment Status
+                      </FormLabel>
+                      <FormDescription>
+                        Mark this booking as paid or unpaid.
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                       <Switch
+                        checked={field.value === 'Paid'}
+                        onCheckedChange={(checked) => field.onChange(checked ? 'Paid' : 'Unpaid')}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
 
                 <Separator />
 
@@ -594,3 +620,5 @@ export default function EditBookingPage() {
     </div>
   );
 }
+
+    

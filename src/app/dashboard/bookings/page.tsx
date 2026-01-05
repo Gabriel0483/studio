@@ -32,8 +32,9 @@ import {
   Timestamp,
   doc,
   runTransaction,
+  updateDoc,
 } from 'firebase/firestore';
-import { BookCopy, Pencil, Search, Trash2, RefreshCw, XCircle } from 'lucide-react';
+import { BookCopy, Pencil, Search, Trash2, RefreshCw, XCircle, CreditCard } from 'lucide-react';
 import { format } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -53,6 +54,7 @@ interface Booking {
   numberOfSeats: number;
   totalPrice: number;
   status: 'Reserved' | 'Waitlisted' | 'Cancelled';
+  paymentStatus: 'Paid' | 'Unpaid';
 }
 
 export default function BookingsPage() {
@@ -62,6 +64,7 @@ export default function BookingsPage() {
   const [search, setSearch] = useState('');
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
+  const [isPaidDialogOpen, setIsPaidDialogOpen] = useState(false);
   const [bookingToProcess, setBookingToProcess] = useState<Booking | null>(null);
   const [refreshToggle, setRefreshToggle] = useState(false);
 
@@ -75,7 +78,7 @@ export default function BookingsPage() {
   const filteredBookings = useMemo(() => {
     if (!bookings) return [];
     
-    if (!search) return bookings;
+    if (!search) return bookings.sort((a, b) => b.bookingDate.toMillis() - a.bookingDate.toMillis());
 
     return bookings.filter((booking) => {
       const searchTerm = search.toLowerCase();
@@ -89,7 +92,7 @@ export default function BookingsPage() {
         booking.passengerEmail.toLowerCase().includes(searchTerm) ||
         booking.routeName.toLowerCase().includes(searchTerm)
       );
-    });
+    }).sort((a, b) => b.bookingDate.toMillis() - a.bookingDate.toMillis());
   }, [bookings, search]);
 
   const formatDate = (timestamp: Timestamp | undefined, dateFormat = 'PPP p') => {
@@ -105,7 +108,7 @@ export default function BookingsPage() {
     setBookingToProcess(booking);
     setIsDeleteDialogOpen(true);
   };
-
+  
   const confirmCancel = (booking: Booking) => {
     if (booking.status === 'Cancelled') {
       toast({
@@ -119,6 +122,18 @@ export default function BookingsPage() {
     setIsCancelDialogOpen(true);
   };
   
+  const confirmPaid = (booking: Booking) => {
+    if (booking.paymentStatus === 'Paid') {
+        toast({
+            title: 'Already Paid',
+            description: 'This booking has already been marked as paid.',
+        });
+        return;
+    }
+    setBookingToProcess(booking);
+    setIsPaidDialogOpen(true);
+  };
+
   const handleRefresh = () => {
     setRefreshToggle(prev => !prev);
     toast({
@@ -205,6 +220,31 @@ export default function BookingsPage() {
     }
   };
 
+  const handleMarkAsPaid = async () => {
+    if (!firestore || !bookingToProcess) {
+      return;
+    }
+    const bookingRef = doc(firestore, 'bookings', bookingToProcess.firestoreId);
+    try {
+      await updateDoc(bookingRef, { paymentStatus: 'Paid' });
+      toast({
+        title: 'Booking Paid',
+        description: `Booking #${bookingToProcess.id} has been marked as paid.`,
+      });
+    } catch (e: any) {
+      console.error(e);
+      toast({
+        variant: 'destructive',
+        title: 'Update Failed',
+        description: e.message || 'Could not mark the booking as paid.',
+      });
+    } finally {
+      setIsPaidDialogOpen(false);
+      setBookingToProcess(null);
+    }
+  };
+
+
   const getStatusVariant = (status: 'Reserved' | 'Waitlisted' | 'Cancelled') => {
     switch (status) {
       case 'Reserved':
@@ -217,7 +257,17 @@ export default function BookingsPage() {
         return 'outline';
     }
   };
-
+  
+  const getPaymentStatusVariant = (status: 'Paid' | 'Unpaid') => {
+    switch (status) {
+        case 'Paid':
+            return 'default';
+        case 'Unpaid':
+            return 'secondary';
+        default:
+            return 'outline';
+    }
+  };
 
   return (
     <>
@@ -259,17 +309,18 @@ export default function BookingsPage() {
                   <TableHead>Passenger(s)</TableHead>
                   <TableHead>Route</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Payment</TableHead>
                   <TableHead>Seats</TableHead>
                   <TableHead>Total Price</TableHead>
                   <TableHead>Travel Date</TableHead>
                   <TableHead>Booking Date</TableHead>
-                  <TableHead className="w-[140px] text-right">Actions</TableHead>
+                  <TableHead className="w-[180px] text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   <TableRow key="loading">
-                    <TableCell colSpan={9} className="text-center">
+                    <TableCell colSpan={10} className="text-center">
                       Loading bookings...
                     </TableCell>
                   </TableRow>
@@ -288,6 +339,11 @@ export default function BookingsPage() {
                             {booking.status}
                           </Badge>
                        </TableCell>
+                       <TableCell>
+                          <Badge variant={getPaymentStatusVariant(booking.paymentStatus || 'Unpaid')}>
+                            {booking.paymentStatus || 'Unpaid'}
+                          </Badge>
+                       </TableCell>
                       <TableCell>{booking.numberOfSeats}</TableCell>
                       <TableCell>
                         ₱{booking.totalPrice?.toFixed(2) ?? '0.00'}
@@ -296,6 +352,15 @@ export default function BookingsPage() {
                       <TableCell>{formatDate(booking.bookingDate)}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
+                           <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => confirmPaid(booking)}
+                            aria-label={`Mark booking ${booking.id} as paid`}
+                            disabled={booking.paymentStatus === 'Paid' || booking.status === 'Cancelled'}
+                          >
+                            <CreditCard className="h-4 w-4" />
+                          </Button>
                           <Button
                             variant="ghost"
                             size="icon"
@@ -329,7 +394,7 @@ export default function BookingsPage() {
                   ))
                 ) : (
                   <TableRow key="no-bookings">
-                    <TableCell colSpan={9} className="h-24 text-center">
+                    <TableCell colSpan={10} className="h-24 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <BookCopy className="h-8 w-8 text-muted-foreground" />
                         <p className="text-muted-foreground">No bookings found.</p>
@@ -373,6 +438,23 @@ export default function BookingsPage() {
             <AlertDialogCancel>Back</AlertDialogCancel>
             <AlertDialogAction onClick={handleCancel}>
               Confirm Cancellation
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      
+      <AlertDialog open={isPaidDialogOpen} onOpenChange={setIsPaidDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Payment</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will mark the booking as "Paid". This action can be reversed by editing the booking.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Back</AlertDialogCancel>
+            <AlertDialogAction onClick={handleMarkAsPaid}>
+              Mark as Paid
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
