@@ -33,7 +33,7 @@ import {
   doc,
   runTransaction,
 } from 'firebase/firestore';
-import { BookCopy, Pencil, Search, Trash2, RefreshCw } from 'lucide-react';
+import { BookCopy, Pencil, Search, Trash2, RefreshCw, XCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -52,7 +52,7 @@ interface Booking {
   bookingDate: Timestamp;
   numberOfSeats: number;
   totalPrice: number;
-  status: 'Reserved' | 'Waitlisted';
+  status: 'Reserved' | 'Waitlisted' | 'Cancelled';
 }
 
 export default function BookingsPage() {
@@ -61,7 +61,8 @@ export default function BookingsPage() {
   const { toast } = useToast();
   const [search, setSearch] = useState('');
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [bookingToDelete, setBookingToDelete] = useState<Booking | null>(null);
+  const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
+  const [bookingToProcess, setBookingToProcess] = useState<Booking | null>(null);
   const [refreshToggle, setRefreshToggle] = useState(false);
 
   const bookingsQuery = useMemoFirebase(() => {
@@ -101,8 +102,21 @@ export default function BookingsPage() {
   };
 
   const confirmDelete = (booking: Booking) => {
-    setBookingToDelete(booking);
+    setBookingToProcess(booking);
     setIsDeleteDialogOpen(true);
+  };
+
+  const confirmCancel = (booking: Booking) => {
+    if (booking.status === 'Cancelled') {
+      toast({
+        variant: 'destructive',
+        title: 'Already Cancelled',
+        description: 'This booking has already been cancelled.',
+      });
+      return;
+    }
+    setBookingToProcess(booking);
+    setIsCancelDialogOpen(true);
   };
   
   const handleRefresh = () => {
@@ -114,20 +128,20 @@ export default function BookingsPage() {
   };
 
   const handleDelete = async () => {
-    if (!firestore || !bookingToDelete) {
+    if (!firestore || !bookingToProcess) {
       return;
     }
 
-    const bookingRef = doc(firestore, 'bookings', bookingToDelete.firestoreId);
-    const scheduleRef = doc(firestore, 'schedules', bookingToDelete.scheduleId);
+    const bookingRef = doc(firestore, 'bookings', bookingToProcess.firestoreId);
+    const scheduleRef = doc(firestore, 'schedules', bookingToProcess.scheduleId);
 
     try {
       await runTransaction(firestore, async (transaction) => {
         const scheduleDoc = await transaction.get(scheduleRef);
 
-        if (scheduleDoc.exists() && bookingToDelete.status === 'Reserved') {
+        if (scheduleDoc.exists() && bookingToProcess.status === 'Reserved') {
           const currentSeats = scheduleDoc.data().availableSeats || 0;
-          const newSeats = currentSeats + bookingToDelete.numberOfSeats;
+          const newSeats = currentSeats + bookingToProcess.numberOfSeats;
           transaction.update(scheduleRef, { availableSeats: newSeats });
         }
         
@@ -136,7 +150,7 @@ export default function BookingsPage() {
 
       toast({
         title: 'Booking Deleted',
-        description: 'The booking has been successfully deleted and seats have been returned.',
+        description: 'The booking has been permanently deleted and seats have been returned.',
       });
     } catch (e: any) {
       console.error(e);
@@ -147,16 +161,58 @@ export default function BookingsPage() {
       });
     } finally {
         setIsDeleteDialogOpen(false);
-        setBookingToDelete(null);
+        setBookingToProcess(null);
     }
   };
 
-  const getStatusVariant = (status: 'Reserved' | 'Waitlisted') => {
+  const handleCancel = async () => {
+    if (!firestore || !bookingToProcess) {
+        return;
+    }
+
+    const bookingRef = doc(firestore, 'bookings', bookingToProcess.firestoreId);
+    const scheduleRef = doc(firestore, 'schedules', bookingToProcess.scheduleId);
+
+    try {
+        await runTransaction(firestore, async (transaction) => {
+            const scheduleDoc = await transaction.get(scheduleRef);
+
+            // Only return seats if the booking was reserved
+            if (scheduleDoc.exists() && bookingToProcess.status === 'Reserved') {
+                const currentSeats = scheduleDoc.data().availableSeats || 0;
+                const newSeats = currentSeats + bookingToProcess.numberOfSeats;
+                transaction.update(scheduleRef, { availableSeats: newSeats });
+            }
+
+            transaction.update(bookingRef, { status: 'Cancelled' });
+        });
+
+        toast({
+            title: 'Booking Cancelled',
+            description: 'The booking has been successfully cancelled.',
+        });
+
+    } catch (e: any) {
+        console.error(e);
+        toast({
+            variant: 'destructive',
+            title: 'Error Cancelling Booking',
+            description: e.message || 'There was a problem cancelling the booking.',
+        });
+    } finally {
+        setIsCancelDialogOpen(false);
+        setBookingToProcess(null);
+    }
+  };
+
+  const getStatusVariant = (status: 'Reserved' | 'Waitlisted' | 'Cancelled') => {
     switch (status) {
       case 'Reserved':
         return 'default';
       case 'Waitlisted':
         return 'secondary';
+      case 'Cancelled':
+        return 'destructive';
       default:
         return 'outline';
     }
@@ -207,7 +263,7 @@ export default function BookingsPage() {
                   <TableHead>Total Price</TableHead>
                   <TableHead>Travel Date</TableHead>
                   <TableHead>Booking Date</TableHead>
-                  <TableHead className="w-[100px] text-right">Actions</TableHead>
+                  <TableHead className="w-[140px] text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -245,8 +301,18 @@ export default function BookingsPage() {
                             size="icon"
                             onClick={() => handleEdit(booking.id)}
                             aria-label={`Edit booking ${booking.id}`}
+                            disabled={booking.status === 'Cancelled'}
                           >
                             <Pencil className="h-4 w-4" />
+                          </Button>
+                           <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => confirmCancel(booking)}
+                            aria-label={`Cancel booking ${booking.id}`}
+                            disabled={booking.status === 'Cancelled'}
+                          >
+                            <XCircle className="h-4 w-4" />
                           </Button>
                           <Button
                             variant="ghost"
@@ -294,6 +360,25 @@ export default function BookingsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Booking Cancellation</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will cancel the booking and change its status to "Cancelled". If the booking was reserved, the seats will be returned to the schedule. The booking record will be kept.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Back</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCancel}>
+              Confirm Cancellation
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
+
+    
