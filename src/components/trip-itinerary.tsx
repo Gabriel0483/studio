@@ -38,25 +38,25 @@ export const TripItinerary: React.FC<TripItineraryProps> = ({ booking }) => {
   };
   
   return (
-    <div className="bg-white text-black p-6 space-y-6">
-      <div className="flex justify-between items-start">
+    <div className="bg-white text-black p-4 sm:p-6 space-y-6">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <Logo />
-        <div className="text-right">
-          <h2 className="text-2xl font-bold">Trip Itinerary</h2>
-          <p className="text-sm text-gray-500">Booking Reference: {booking.id}</p>
+        <div className="text-left sm:text-right">
+          <h2 className="text-xl sm:text-2xl font-bold">Trip Itinerary</h2>
+          <p className="text-xs sm:text-sm text-gray-500">Booking Ref: {booking.id}</p>
         </div>
       </div>
       
       <Separator />
 
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
             <p className="font-bold text-lg">Booking Status</p>
             <Badge variant={getStatusVariant(booking.status) as any} className="text-base mt-1">
                 {booking.status}
             </Badge>
         </div>
-        <div className="text-right">
+        <div className="text-left sm:text-right">
             <p className="font-semibold">Date Booked</p>
             <p className="text-gray-600">{format(booking.bookingDate, 'PPP p')}</p>
         </div>
@@ -71,7 +71,7 @@ export const TripItinerary: React.FC<TripItineraryProps> = ({ booking }) => {
 
       <div>
         <h3 className="font-bold text-xl mb-4 border-b pb-2">Trip Details</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <p className="font-semibold">Route</p>
             <p className="text-gray-600">{booking.routeName}</p>
@@ -88,11 +88,11 @@ export const TripItinerary: React.FC<TripItineraryProps> = ({ booking }) => {
             <p className="font-semibold">Est. Arrival Time</p>
             <p className="text-gray-600">{booking.arrivalTime}</p>
           </div>
-          <div>
+          <div className="sm:col-span-2">
             <p className="font-semibold">Contact Email</p>
-            <p className="text-gray-600">{booking.primaryEmail}</p>
+            <p className="text-gray-600 break-all">{booking.primaryEmail}</p>
           </div>
-           <div>
+           <div className="sm:col-span-2">
             <p className="font-semibold">Contact Phone</p>
             <p className="text-gray-600">{booking.primaryPhone}</p>
           </div>
