@@ -266,6 +266,8 @@ export default function BookingPage() {
           routeName: getRouteName(scheduleData.routeId),
           status: status,
           paymentStatus: 'Unpaid',
+          refundStatus: 'Not Applicable',
+          paymentMethod: 'Cash',
         };
 
         transaction.set(newBookingRef, bookingData);
@@ -539,7 +541,7 @@ export default function BookingPage() {
                         <p className="font-medium">{getRouteName(watchRouteId)}</p>
                       </div>
                        <div>
-                        <p className="text-muted-foreground">Date & Time</p>
+                        <p className="text-muted-foreground">Date &amp; Time</p>
                         <p className="font-medium">
                           {format(new Date(watchTravelDate), 'PPP')} at {currentSchedule?.departureTime}
                         </p>
@@ -548,7 +550,7 @@ export default function BookingPage() {
                   </div>
                   <Separator />
                   <div className="space-y-4">
-                    <h3 className="font-semibold text-lg">Passenger & Fare Breakdown</h3>
+                    <h3 className="font-semibold text-lg">Passenger &amp; Fare Breakdown</h3>
                      {bookingSummary.details.map((item, index) => (
                         <div key={index} className="flex justify-between items-center text-sm pb-2">
                             <div>
@@ -600,5 +602,3 @@ export default function BookingPage() {
     </div>
   )
 }
-
-    
