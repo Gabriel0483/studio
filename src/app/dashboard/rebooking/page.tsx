@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Loader2, Search, AlertCircle, FileQuestion } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useFirestore } from "@/firebase";
-import { collection, doc, query, where, getDocs, updateDoc, Timestamp } from "firebase/firestore";
+import { collection, doc, query, where, getDocs, updateDoc, Timestamp, runTransaction } from "firebase/firestore";
 import React, { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
@@ -40,7 +40,6 @@ export default function RebookingPage() {
     try {
       const bookingsRef = collection(firestore, "bookings");
       
-      // 1. First, try to find by Booking Reference ID (most efficient)
       const qById = query(bookingsRef, where('id', '==', searchQuery.toUpperCase()));
       const byIdSnapshot = await getDocs(qById);
 
@@ -48,13 +47,12 @@ export default function RebookingPage() {
         const bookingDoc = byIdSnapshot.docs[0];
         setSearchedBooking({ ...bookingDoc.data(), firestoreId: bookingDoc.id });
       } else {
-        // 2. If not found by ID, search by passenger name (less efficient, but functional)
         const allBookingsSnapshot = await getDocs(bookingsRef);
         let foundBooking = null;
         for (const doc of allBookingsSnapshot.docs) {
           const bookingData = doc.data();
           const passengers = bookingData.passengerInfo || [];
-          if (passengers.some((p: any) => p.fullName.toLowerCase() === searchQuery.toLowerCase())) {
+          if (passengers.some((p: any) => p.fullName.toLowerCase().includes(searchQuery.toLowerCase()))) {
             foundBooking = { ...bookingData, firestoreId: doc.id };
             break; 
           }
@@ -77,26 +75,58 @@ export default function RebookingPage() {
   const handleProcessRefund = async () => {
     if (!firestore || !searchedBooking) return;
     setIsLoading(true);
-    const bookingRef = doc(firestore, 'bookings', searchedBooking.firestoreId);
+
     try {
-      await updateDoc(bookingRef, { refundStatus: 'Refunded' });
-      // Refresh booking state
-      setSearchedBooking({ ...searchedBooking, refundStatus: 'Refunded' });
-      toast({
-        title: "Refund Processed",
-        description: `Refund for booking #${searchedBooking.id} has been marked as processed.`,
-      });
+        await runTransaction(firestore, async (transaction) => {
+            const bookingRef = doc(firestore, 'bookings', searchedBooking.firestoreId);
+            const scheduleRef = doc(firestore, 'schedules', searchedBooking.scheduleId);
+            
+            // --- READS ---
+            const scheduleDoc = await transaction.get(scheduleRef);
+            
+            // --- WRITES ---
+            const updateData: any = {
+                refundStatus: 'Refunded',
+                refundAmount: searchedBooking.totalPrice, // Assuming full refund for now
+            };
+
+            // If the booking was reserved, cancel it and return seats.
+            if (searchedBooking.status === 'Reserved') {
+                updateData.status = 'Cancelled';
+                if (scheduleDoc.exists()) {
+                    const currentSeats = scheduleDoc.data().availableSeats || 0;
+                    transaction.update(scheduleRef, { availableSeats: currentSeats + searchedBooking.numberOfSeats });
+                }
+            }
+            
+            transaction.update(bookingRef, updateData);
+        });
+
+        // Refresh booking state locally after transaction
+        setSearchedBooking((prev: any) => ({
+            ...prev,
+            refundStatus: 'Refunded',
+            refundAmount: prev.totalPrice,
+            status: prev.status === 'Reserved' ? 'Cancelled' : prev.status,
+        }));
+
+        toast({
+            title: "Refund Processed",
+            description: `Refund for booking #${searchedBooking.id} has been processed.`,
+        });
+
     } catch (error) {
-      console.error("Error processing refund: ", error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to process refund.",
-      });
+        console.error("Error processing refund: ", error);
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Failed to process refund.",
+        });
     } finally {
-      setIsLoading(false);
+        setIsLoading(false);
     }
   };
+
 
   const handleRebook = () => {
     if (!searchedBooking) return;
@@ -108,7 +138,7 @@ export default function RebookingPage() {
     return format(timestamp.toDate(), dateFormat);
   };
   
-  const isRefundable = searchedBooking?.status === 'Cancelled' && searchedBooking?.paymentStatus === 'Paid' && searchedBooking?.refundStatus !== 'Refunded';
+  const isRefundable = searchedBooking?.paymentStatus === 'Paid' && searchedBooking?.refundStatus !== 'Refunded';
 
   return (
     <div className="space-y-6">
@@ -192,6 +222,12 @@ export default function RebookingPage() {
                         <p className="font-semibold text-muted-foreground">Total Price</p>
                         <p className="font-bold">₱{searchedBooking.totalPrice.toFixed(2)}</p>
                     </div>
+                    {searchedBooking.refundAmount > 0 && (
+                        <div>
+                            <p className="font-semibold text-muted-foreground">Amount Refunded</p>
+                            <p className="font-bold">₱{searchedBooking.refundAmount.toFixed(2)}</p>
+                        </div>
+                    )}
                 </div>
             </CardContent>
             <CardFooter className="flex-col sm:flex-row gap-2 justify-end bg-muted/50 py-4">
@@ -216,3 +252,5 @@ export default function RebookingPage() {
     </div>
   );
 }
+
+    
