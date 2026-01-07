@@ -1,9 +1,27 @@
 'use client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { revenueData, bookingsData } from "@/lib/data";
-import { LineChart, Line, BarChart, Bar, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend } from "recharts";
+import { LineChart, Line, BarChart, Bar, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, PieChart, Pie, Cell } from "recharts";
 import { Button } from "@/components/ui/button";
-import { Download } from "lucide-react";
+import { Download, Search } from "lucide-react";
+import { ChartConfig, ChartContainer, ChartTooltipContent } from "@/components/ui/chart";
+import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+
+const bookingsChartConfig = {
+  value: {
+    label: "Bookings",
+  },
+  ...bookingsData.reduce((acc, cur) => {
+    acc[cur.name] = {
+      label: cur.name,
+      color: cur.fill,
+    };
+    return acc;
+  }, {} as ChartConfig),
+} satisfies ChartConfig;
+
 
 export default function ReportsPage() {
   return (
@@ -40,6 +58,27 @@ export default function ReportsPage() {
                 <Line type="monotone" dataKey="passengers" stroke="hsl(var(--primary))" activeDot={{ r: 8 }} />
               </LineChart>
             </ResponsiveContainer>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader>
+            <CardTitle>Bookings by Route</CardTitle>
+            <CardDescription>A breakdown of passenger bookings across different routes.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer config={bookingsChartConfig} className="h-[350px] w-full">
+                <ResponsiveContainer>
+                    <PieChart>
+                        <Tooltip content={<ChartTooltipContent nameKey="name" hideLabel />} />
+                        <Pie data={bookingsData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={110} >
+                           {bookingsData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={entry.fill} />
+                            ))}
+                        </Pie>
+                    </PieChart>
+                </ResponsiveContainer>
+            </ChartContainer>
           </CardContent>
         </Card>
 
