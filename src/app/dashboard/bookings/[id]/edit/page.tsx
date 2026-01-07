@@ -222,42 +222,47 @@ export default function EditBookingPage() {
     const originalSeats = booking.numberOfSeats;
     const newSeats = data.passengers.length;
     const seatDifference = newSeats - originalSeats;
+    const isChangingSchedule = booking.scheduleId !== data.scheduleId;
 
     try {
         await runTransaction(firestore, async (transaction) => {
             const bookingRef = doc(firestore, 'bookings', booking.firestoreId);
-            
-            // Handle old schedule seat adjustment
-            if (booking.scheduleId !== data.scheduleId || seatDifference !== 0) {
-              const oldScheduleRef = doc(firestore, 'schedules', booking.scheduleId);
-              const oldScheduleDoc = await transaction.get(oldScheduleRef);
-              if (oldScheduleDoc.exists() && booking.status === 'Reserved') {
-                transaction.update(oldScheduleRef, { availableSeats: oldScheduleDoc.data().availableSeats + originalSeats });
-              }
-            }
-
-            // Handle new schedule seat adjustment
+            const oldScheduleRef = doc(firestore, 'schedules', booking.scheduleId);
             const newScheduleRef = doc(firestore, 'schedules', data.scheduleId);
-            const newScheduleDoc = await transaction.get(newScheduleRef);
+
+            // --- READS FIRST ---
+            const oldScheduleDoc = await transaction.get(oldScheduleRef);
+            const newScheduleDoc = isChangingSchedule ? await transaction.get(newScheduleRef) : oldScheduleDoc;
+
             if (!newScheduleDoc.exists()) throw new Error("New schedule does not exist!");
             
-            const newScheduleData = newScheduleDoc.data();
-            let newAvailableSeats = newScheduleData.availableSeats;
+            // --- WRITES AFTER ---
             let newStatus = booking.status;
 
-            if (booking.scheduleId !== data.scheduleId) {
-                newAvailableSeats = newScheduleData.availableSeats;
+            // Step 1: Restore seats to the old schedule if it's changing and was reserved
+            if (isChangingSchedule && oldScheduleDoc.exists() && booking.status === 'Reserved') {
+              const oldSeats = oldScheduleDoc.data().availableSeats || 0;
+              transaction.update(oldScheduleRef, { availableSeats: oldSeats + originalSeats });
             }
 
-            if (newAvailableSeats >= newSeats) {
-                newAvailableSeats -= newSeats;
+            // Step 2: Adjust seats on the new/current schedule
+            let currentAvailableSeats = newScheduleDoc.data().availableSeats || 0;
+            
+            // If not changing schedule, add back original seats to calculate new availability accurately
+            if (!isChangingSchedule && booking.status === 'Reserved') {
+              currentAvailableSeats += originalSeats;
+            }
+
+            // Step 3: Determine new status and update seats
+            if (currentAvailableSeats >= newSeats) {
+                currentAvailableSeats -= newSeats;
                 newStatus = 'Reserved';
             } else {
                 newStatus = 'Waitlisted';
             }
+            transaction.update(newScheduleRef, { availableSeats: currentAvailableSeats });
             
-            transaction.update(newScheduleRef, { availableSeats: newAvailableSeats });
-
+            // Step 4: Update the booking document
             const fareDetails = data.passengers.map((p) => {
                 const fareInfo = availableFares.find(f => f.passengerType === p.fareType);
                 return {
@@ -281,7 +286,7 @@ export default function EditBookingPage() {
                 travelDate: new Date(data.travelDate),
                 numberOfSeats: newSeats,
                 totalPrice: bookingSummary.totalPrice,
-                routeName: getRouteName(newScheduleData.routeId),
+                routeName: getRouteName(newScheduleDoc.data().routeId),
                 status: newStatus,
                 paymentStatus: data.paymentStatus,
             };
