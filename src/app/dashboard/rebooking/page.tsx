@@ -163,15 +163,15 @@ export default function RebookingPage() {
                         </div>
                          <div>
                             <p className="font-semibold text-muted-foreground">Booking Status</p>
-                            <p><Badge variant={searchedBooking.status === 'Cancelled' ? 'destructive' : 'default'}>{searchedBooking.status}</Badge></p>
+                            <div><Badge variant={searchedBooking.status === 'Cancelled' ? 'destructive' : 'default'}>{searchedBooking.status}</Badge></div>
                         </div>
                         <div>
                             <p className="font-semibold text-muted-foreground">Payment Status</p>
-                            <p><Badge variant={searchedBooking.paymentStatus === 'Paid' ? 'default' : 'secondary'}>{searchedBooking.paymentStatus}</Badge></p>
+                            <div><Badge variant={searchedBooking.paymentStatus === 'Paid' ? 'default' : 'secondary'}>{searchedBooking.paymentStatus}</Badge></div>
                         </div>
                         <div>
                             <p className="font-semibold text-muted-foreground">Refund Status</p>
-                            <p><Badge variant={searchedBooking.refundStatus === 'Refunded' ? 'default' : 'secondary'}>{searchedBooking.refundStatus || 'Not Applicable'}</Badge></p>
+                            <div><Badge variant={searchedBooking.refundStatus === 'Refunded' ? 'default' : 'secondary'}>{searchedBooking.refundStatus || 'Not Applicable'}</Badge></div>
                         </div>
                     </div>
                      <Separator className="my-4" />
