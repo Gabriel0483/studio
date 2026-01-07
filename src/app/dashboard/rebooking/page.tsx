@@ -171,7 +171,7 @@ export default function RebookingPage() {
                         </div>
                         <div>
                             <p className="font-semibold text-muted-foreground">Refund Status</p>
-                            <p><Badge variant={searchedBooking.refundStatus === 'Refunded' ? 'default' : 'secondary'}>{searchedBooking.refundStatus}</Badge></p>
+                            <p><Badge variant={searchedBooking.refundStatus === 'Refunded' ? 'default' : 'secondary'}>{searchedBooking.refundStatus || 'Not Applicable'}</Badge></p>
                         </div>
                     </div>
                      <Separator className="my-4" />
@@ -186,10 +186,10 @@ export default function RebookingPage() {
                 </div>
             </CardContent>
             <CardFooter className="flex-col sm:flex-row gap-2 justify-end bg-muted/50 py-4">
-                <Button variant="secondary" onClick={handleProcessRefund} disabled={!isRefundable}>
+                <Button variant="secondary" onClick={handleProcessRefund} disabled={!isRefundable || isLoading}>
                     Process Refund
                 </Button>
-                <Button onClick={handleRebook}>
+                <Button onClick={handleRebook} disabled={isLoading}>
                     Rebook
                 </Button>
             </CardFooter>
