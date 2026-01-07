@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Loader2, Search, AlertCircle, FileQuestion } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useFirestore } from "@/firebase";
-import { collection, doc, query, where, getDocs, updateDoc, Timestamp, or } from "firebase/firestore";
+import { collection, doc, query, where, getDocs, updateDoc, Timestamp } from "firebase/firestore";
 import React, { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
@@ -39,18 +39,27 @@ export default function RebookingPage() {
 
     try {
       const bookingsRef = collection(firestore, "bookings");
-      const q = query(bookingsRef, or(
-          where('id', '==', searchQuery.toUpperCase()),
-          where('passengerInfo.0.fullName', '==', searchQuery)
-      ));
       
-      const querySnapshot = await getDocs(q);
+      // 1. First, try to find by Booking Reference ID (most efficient)
+      const qById = query(bookingsRef, where('id', '==', searchQuery.toUpperCase()));
+      const byIdSnapshot = await getDocs(qById);
 
-      if (!querySnapshot.empty) {
-        const bookingDoc = querySnapshot.docs[0];
+      if (!byIdSnapshot.empty) {
+        const bookingDoc = byIdSnapshot.docs[0];
         setSearchedBooking({ ...bookingDoc.data(), firestoreId: bookingDoc.id });
       } else {
-        setSearchedBooking(null);
+        // 2. If not found by ID, search by passenger name (less efficient, but functional)
+        const allBookingsSnapshot = await getDocs(bookingsRef);
+        let foundBooking = null;
+        for (const doc of allBookingsSnapshot.docs) {
+          const bookingData = doc.data();
+          const passengers = bookingData.passengerInfo || [];
+          if (passengers.some((p: any) => p.fullName.toLowerCase() === searchQuery.toLowerCase())) {
+            foundBooking = { ...bookingData, firestoreId: doc.id };
+            break; 
+          }
+        }
+        setSearchedBooking(foundBooking);
       }
     } catch (error) {
       console.error("Error searching for booking: ", error);
