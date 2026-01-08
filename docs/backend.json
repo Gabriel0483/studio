@@ -448,18 +448,22 @@
           "type": "string",
           "description": "Reference to Passenger."
         },
+        "passengerName": {
+            "type": "string",
+            "description": "Denormalized name of the passenger."
+        },
         "scheduleId": {
           "type": "string",
           "description": "Reference to Schedule."
         },
         "status": {
           "type": "string",
-          "description": "Boarding status (e.g., 'Checked-in', 'Boarded', 'No-show').",
-          "enum": ["Checked-in", "Boarded", "No-show"]
+          "description": "Boarding status (e.g., 'Awaiting', 'Boarded', 'No-show').",
+          "enum": ["Awaiting", "Boarded", "No-show"]
         },
-        "checkInTime": {
+        "boardingTime": {
           "type": "string",
-          "description": "The timestamp when the passenger checked in.",
+          "description": "The timestamp when the passenger boarded.",
           "format": "date-time"
         }
       },
@@ -467,6 +471,7 @@
         "id",
         "bookingId",
         "passengerId",
+        "passengerName",
         "scheduleId",
         "status"
       ]
@@ -631,7 +636,7 @@
             "schema": {
                 "$ref": "#/backend/entities/Boarding"
             },
-            "description": "Stores boarding records for passengers on specific trips. Access restricted to authorized personnel.",
+            "description": "Stores real-time boarding records for passengers on specific trips. Access is restricted to authorized personnel. Each passenger in a booking gets a unique boarding record.",
             "params": [
                 {
                     "name": "boardingId",
