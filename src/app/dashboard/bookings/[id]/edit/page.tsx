@@ -63,6 +63,8 @@ const bookingFormSchema = z.object({
     .email({ message: 'Please enter a valid email address.' }),
   primaryPhone: z.string().min(1, { message: 'Please enter a contact number.' }),
   paymentStatus: z.string(),
+  rebookingFee: z.number().optional(),
+  noShowFee: z.number().optional(),
 });
 
 type BookingFormData = z.infer<typeof bookingFormSchema>;
@@ -122,6 +124,8 @@ export default function EditBookingPage() {
             primaryEmail: bookingData.passengerEmail,
             primaryPhone: bookingData.passengerPhone,
             paymentStatus: bookingData.paymentStatus || 'Unpaid',
+            rebookingFee: bookingData.rebookingFee || 0,
+            noShowFee: bookingData.noShowFee || 0,
           });
 
         } else {
@@ -149,6 +153,8 @@ export default function EditBookingPage() {
   const watchTravelDate = form.watch('travelDate');
   const watchScheduleId = form.watch('scheduleId');
   const watchPassengers = form.watch('passengers');
+  const watchRebookingFee = form.watch('rebookingFee');
+  const watchNoShowFee = form.watch('noShowFee');
 
   useEffect(() => {
     if (watchRouteId && watchTravelDate && allSchedules) {
@@ -196,17 +202,24 @@ export default function EditBookingPage() {
           item !== null
       );
 
-    const totalPrice = fareDetails.reduce(
+    const basePrice = fareDetails.reduce(
       (acc, detail) => acc + (detail?.price || 0),
       0
     );
+    
+    const rebookingFee = watchRebookingFee || 0;
+    const noShowFee = watchNoShowFee || 0;
+    const totalPrice = basePrice + rebookingFee + noShowFee;
 
     return {
       details: fareDetails,
+      basePrice,
+      rebookingFee,
+      noShowFee,
       totalPrice,
       totalTickets: watchPassengers.length,
     };
-  }, [watchPassengers, availableFares]);
+  }, [watchPassengers, availableFares, watchRebookingFee, watchNoShowFee]);
 
 
   const getRouteName = (routeId: string) =>
@@ -219,10 +232,7 @@ export default function EditBookingPage() {
     }
     setIsSubmitting(true);
     
-    const originalSeats = booking.numberOfSeats;
     const newSeats = data.passengers.length;
-    const seatDifference = newSeats - originalSeats;
-    const isChangingSchedule = booking.scheduleId !== data.scheduleId;
 
     try {
         await runTransaction(firestore, async (transaction) => {
@@ -232,7 +242,7 @@ export default function EditBookingPage() {
 
             // --- READS FIRST ---
             const oldScheduleDoc = await transaction.get(oldScheduleRef);
-            const newScheduleDoc = isChangingSchedule ? await transaction.get(newScheduleRef) : oldScheduleDoc;
+            const newScheduleDoc = booking.scheduleId === data.scheduleId ? oldScheduleDoc : await transaction.get(newScheduleRef);
 
             if (!newScheduleDoc.exists()) throw new Error("New schedule does not exist!");
             
@@ -240,17 +250,17 @@ export default function EditBookingPage() {
             let newStatus = booking.status;
 
             // Step 1: Restore seats to the old schedule if it's changing and was reserved
-            if (isChangingSchedule && oldScheduleDoc.exists() && booking.status === 'Reserved') {
-              const oldSeats = oldScheduleDoc.data().availableSeats || 0;
-              transaction.update(oldScheduleRef, { availableSeats: oldSeats + originalSeats });
+            if (booking.scheduleId !== data.scheduleId && oldScheduleDoc.exists() && booking.status === 'Reserved') {
+              const oldSeatsCount = oldScheduleDoc.data().availableSeats || 0;
+              transaction.update(oldScheduleRef, { availableSeats: oldSeatsCount + booking.numberOfSeats });
             }
 
             // Step 2: Adjust seats on the new/current schedule
             let currentAvailableSeats = newScheduleDoc.data().availableSeats || 0;
             
             // If not changing schedule, add back original seats to calculate new availability accurately
-            if (!isChangingSchedule && booking.status === 'Reserved') {
-              currentAvailableSeats += originalSeats;
+            if (booking.scheduleId === data.scheduleId && booking.status === 'Reserved') {
+              currentAvailableSeats += booking.numberOfSeats;
             }
 
             // Step 3: Determine new status and update seats
@@ -272,7 +282,10 @@ export default function EditBookingPage() {
                     pricePerTicket: fareInfo?.price || 0
                 }
             });
-
+            
+            const rebookingFee = data.rebookingFee || 0;
+            const noShowFee = data.noShowFee || 0;
+            
             const bookingUpdateData = {
                 passengerInfo: data.passengers.map((p) => ({
                     fullName: p.fullName,
@@ -289,6 +302,8 @@ export default function EditBookingPage() {
                 routeName: getRouteName(newScheduleDoc.data().routeId),
                 status: newStatus,
                 paymentStatus: data.paymentStatus,
+                rebookingFee: rebookingFee > 0 ? rebookingFee : null,
+                noShowFee: noShowFee > 0 ? noShowFee : null,
             };
             
             transaction.update(bookingRef, bookingUpdateData);
@@ -539,7 +554,7 @@ export default function EditBookingPage() {
               </div>
 
               <Separator />
-                <h3 className="font-medium text-lg">Contact & Payment</h3>
+                <h3 className="font-medium text-lg">Contact, Payment & Fees</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <FormField
                   control={form.control}
@@ -568,6 +583,36 @@ export default function EditBookingPage() {
                   )}
                 />
               </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4">
+                    <FormField
+                        control={form.control}
+                        name="rebookingFee"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>Rebooking Fee (₱)</FormLabel>
+                            <FormControl>
+                                <Input type="number" placeholder="0.00" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} />
+                            </FormControl>
+                             <FormDescription>Apply a fee for rebooking, if applicable.</FormDescription>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="noShowFee"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>No-Show Fee (₱)</FormLabel>
+                            <FormControl>
+                                <Input type="number" placeholder="0.00" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} />
+                            </FormControl>
+                            <FormDescription>Apply a fee if the passenger did not show.</FormDescription>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                </div>
               <FormField
                 control={form.control}
                 name="paymentStatus"
@@ -605,8 +650,27 @@ export default function EditBookingPage() {
                         </div>
                     ))}
                     <Separator />
+                    <div className="text-sm space-y-2">
+                        <div className="flex justify-between">
+                            <span>Base Fare Total:</span>
+                            <span>₱{bookingSummary.basePrice.toFixed(2)}</span>
+                        </div>
+                        {bookingSummary.rebookingFee > 0 && (
+                             <div className="flex justify-between text-blue-600">
+                                <span>Rebooking Fee:</span>
+                                <span>+ ₱{bookingSummary.rebookingFee.toFixed(2)}</span>
+                            </div>
+                        )}
+                        {bookingSummary.noShowFee > 0 && (
+                            <div className="flex justify-between text-red-600">
+                                <span>No-Show Fee:</span>
+                                <span>+ ₱{bookingSummary.noShowFee.toFixed(2)}</span>
+                            </div>
+                        )}
+                    </div>
+                    <Separator />
                      <div className="flex justify-between items-center text-xl font-bold">
-                        <span>New Total Price</span>
+                        <span>New Grand Total</span>
                         <span>₱{bookingSummary.totalPrice.toFixed(2)}</span>
                     </div>
                   </div>
