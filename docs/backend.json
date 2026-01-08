@@ -360,6 +360,22 @@
         "refundAmount": {
             "type": "number",
             "description": "The amount refunded to the customer."
+        },
+        "cancellationFee": {
+            "type": "number",
+            "description": "Fee applied upon cancellation."
+        },
+        "cancellationReason": {
+            "type": "string",
+            "description": "Reason for the cancellation (e.g., Passenger Request, Force Majeure)."
+        },
+        "rebookingFee": {
+            "type": "number",
+            "description": "Fee applied for rebooking."
+        },
+        "noShowFee": {
+            "type": "number",
+            "description": "Fee applied if the passenger is a no-show."
         }
       },
       "required": [

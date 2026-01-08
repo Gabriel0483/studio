@@ -6,11 +6,13 @@ import { Loader2, Search, AlertCircle, FileQuestion } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useFirestore } from "@/firebase";
 import { collection, doc, query, where, getDocs, updateDoc, Timestamp, runTransaction } from "firebase/firestore";
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { Separator } from "@/components/ui/separator";
 import { format } from "date-fns";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 
 export default function RebookingPage() {
   const firestore = useFirestore();
@@ -21,6 +23,14 @@ export default function RebookingPage() {
   const [searchedBooking, setSearchedBooking] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [searchPerformed, setSearchPerformed] = useState(false);
+
+  const [isRefundDialogOpen, setIsRefundDialogOpen] = useState(false);
+  const [cancellationFee, setCancellationFee] = useState(0);
+
+  const finalRefundAmount = useMemo(() => {
+    if (!searchedBooking) return 0;
+    return searchedBooking.totalPrice - cancellationFee;
+  }, [searchedBooking, cancellationFee]);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,10 +97,11 @@ export default function RebookingPage() {
             // --- WRITES ---
             const updateData: any = {
                 refundStatus: 'Refunded',
-                refundAmount: searchedBooking.totalPrice, // Assuming full refund for now
+                refundAmount: finalRefundAmount,
+                cancellationFee: cancellationFee,
             };
 
-            // If the booking was reserved, cancel it and return seats.
+            // If the booking was reserved and is now being cancelled through refund, update status and seats.
             if (searchedBooking.status === 'Reserved') {
                 updateData.status = 'Cancelled';
                 if (scheduleDoc.exists()) {
@@ -106,7 +117,8 @@ export default function RebookingPage() {
         setSearchedBooking((prev: any) => ({
             ...prev,
             refundStatus: 'Refunded',
-            refundAmount: prev.totalPrice,
+            refundAmount: finalRefundAmount,
+            cancellationFee: cancellationFee,
             status: prev.status === 'Reserved' ? 'Cancelled' : prev.status,
         }));
 
@@ -124,6 +136,8 @@ export default function RebookingPage() {
         });
     } finally {
         setIsLoading(false);
+        setIsRefundDialogOpen(false);
+        setCancellationFee(0);
     }
   };
 
@@ -141,6 +155,7 @@ export default function RebookingPage() {
   const isRefundable = searchedBooking?.paymentStatus === 'Paid' && searchedBooking?.refundStatus !== 'Refunded';
 
   return (
+    <>
     <div className="space-y-6">
       <Card className="mx-auto max-w-3xl">
         <CardHeader>
@@ -222,6 +237,12 @@ export default function RebookingPage() {
                         <p className="font-semibold text-muted-foreground">Total Price</p>
                         <p className="font-bold">₱{searchedBooking.totalPrice.toFixed(2)}</p>
                     </div>
+                    {searchedBooking.cancellationFee > 0 && (
+                        <div>
+                            <p className="font-semibold text-muted-foreground">Cancellation Fee Applied</p>
+                            <p className="font-bold text-destructive">₱{searchedBooking.cancellationFee.toFixed(2)}</p>
+                        </div>
+                    )}
                     {searchedBooking.refundAmount > 0 && (
                         <div>
                             <p className="font-semibold text-muted-foreground">Amount Refunded</p>
@@ -231,7 +252,7 @@ export default function RebookingPage() {
                 </div>
             </CardContent>
             <CardFooter className="flex-col sm:flex-row gap-2 justify-end bg-muted/50 py-4">
-                <Button variant="secondary" onClick={handleProcessRefund} disabled={!isRefundable || isLoading}>
+                <Button variant="secondary" onClick={() => setIsRefundDialogOpen(true)} disabled={!isRefundable || isLoading}>
                     Process Refund
                 </Button>
                 <Button onClick={handleRebook} disabled={isLoading}>
@@ -250,6 +271,48 @@ export default function RebookingPage() {
         )}
       </Card>
     </div>
+
+    <Dialog open={isRefundDialogOpen} onOpenChange={setIsRefundDialogOpen}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Process Refund for Booking #{searchedBooking?.id}</DialogTitle>
+                <DialogDescription>
+                    Enter a cancellation fee if applicable. The final refund amount will be calculated. To issue a full refund, leave the fee as 0.
+                </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+                <div className="flex justify-between items-center text-sm">
+                    <span className="text-muted-foreground">Total Price:</span>
+                    <span className="font-medium">₱{searchedBooking?.totalPrice.toFixed(2)}</span>
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="cancellation-fee">Cancellation Fee (₱)</Label>
+                    <Input
+                        id="cancellation-fee"
+                        type="number"
+                        value={cancellationFee}
+                        onChange={(e) => setCancellationFee(parseFloat(e.target.value) || 0)}
+                        placeholder="0.00"
+                    />
+                </div>
+                 <Separator />
+                <div className="flex justify-between items-center text-lg font-bold">
+                    <span>Final Refund Amount:</span>
+                    <span>₱{finalRefundAmount.toFixed(2)}</span>
+                </div>
+            </div>
+            <DialogFooter>
+                <DialogClose asChild>
+                    <Button variant="outline">Cancel</Button>
+                </DialogClose>
+                <Button onClick={handleProcessRefund} disabled={isLoading}>
+                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    Confirm Refund
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+    </>
   );
 }
 
