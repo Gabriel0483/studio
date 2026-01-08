@@ -12,11 +12,28 @@ export const navLinks = [
   { href: '/dashboard/reports', label: 'Reports', icon: BarChart },
 ];
 
-export const overviewCards: { title: string; value: string; change: string; icon: React.ElementType }[] = [];
+export const revenueData: { name: string; total: number }[] = [
+  { name: 'Jan', total: Math.floor(Math.random() * 50000) + 10000 },
+  { name: 'Feb', total: Math.floor(Math.random() * 50000) + 10000 },
+  { name: 'Mar', total: Math.floor(Math.random() * 50000) + 10000 },
+  { name: 'Apr', total: Math.floor(Math.random() * 50000) + 10000 },
+  { name: 'May', total: Math.floor(Math.random() * 50000) + 10000 },
+  { name: 'Jun', total: Math.floor(Math.random() * 50000) + 10000 },
+  { name: 'Jul', total: Math.floor(Math.random() * 50000) + 10000 },
+  { name: 'Aug', total: Math.floor(Math.random() * 50000) + 10000 },
+  { name: 'Sep', total: Math.floor(Math.random() * 50000) + 10000 },
+  { name: 'Oct', total: Math.floor(Math.random() * 50000) + 10000 },
+  { name: 'Nov', total: Math.floor(Math.random() * 50000) + 10000 },
+  { name: 'Dec', total: Math.floor(Math.random() * 50000) + 10000 },
+];
 
-export const revenueData: { name: string; total: number }[] = [];
-
-export const bookingsData: { name: string; value: number, fill: string }[] = [];
+export const bookingsData: { name: string; value: number, fill: string }[] = [
+    { name: "Route A", value: 400, fill: "hsl(var(--chart-1))" },
+    { name: "Route B", value: 300, fill: "hsl(var(--chart-2))" },
+    { name: "Route C", value: 200, fill: "hsl(var(--chart-3))" },
+    { name: "Route D", value: 278, fill: "hsl(var(--chart-4))" },
+    { name: "Route E", value: 189, fill: "hsl(var(--chart-5))" },
+];
 
 export const passengers: { id: string; name: string; email: string; route: string; date: string; status: string }[] = [];
 
