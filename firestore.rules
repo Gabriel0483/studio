@@ -1,7 +1,7 @@
 /**
  * @title Firebase Security Rules for Isla Konek (Prototyping Mode)
  * @author Firebase Security Rules Architect
- * @version 1.4
+ * @version 1.5
  *
  * @description
  * This ruleset is designed for the Isla Konek application during its prototyping phase.
@@ -30,6 +30,7 @@
  * - /ports/{portId}: Publicly readable operational data.
  * - /fares/{fareId}: Publicly readable operational data.
  * - /staff/{staffId}: Private operational data for staff management.
+ * - /boarding/{boardingId}: Private operational data for managing passenger boarding.
  *
  * @decisions
  * - Default Deny: All paths are closed by default. Access is granted explicitly.
@@ -219,6 +220,17 @@ service cloud.firestore {
       allow get: if isAdmin();
       allow list: if isAdmin();
       allow write: if isAdmin();
+    }
+    
+    /**
+     * @description Secures passenger boarding records. This is operational data that should
+     * only be accessible to authorized administrators.
+     * @path /boarding/{boardingId}
+     */
+    match /boarding/{boardingId} {
+        allow get: if isAdmin();
+        allow list: if isAdmin();
+        allow write: if isAdmin();
     }
 
   }

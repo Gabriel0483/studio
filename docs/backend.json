@@ -429,6 +429,47 @@
         "endDate",
         "description"
       ]
+    },
+    "Boarding": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Boarding",
+      "type": "object",
+      "description": "Represents the boarding status of a passenger for a specific booking.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Boarding record."
+        },
+        "bookingId": {
+          "type": "string",
+          "description": "Reference to Booking. (Relationship: Booking 1:1 Boarding)"
+        },
+        "passengerId": {
+          "type": "string",
+          "description": "Reference to Passenger."
+        },
+        "scheduleId": {
+          "type": "string",
+          "description": "Reference to Schedule."
+        },
+        "status": {
+          "type": "string",
+          "description": "Boarding status (e.g., 'Checked-in', 'Boarded', 'No-show').",
+          "enum": ["Checked-in", "Boarded", "No-show"]
+        },
+        "checkInTime": {
+          "type": "string",
+          "description": "The timestamp when the passenger checked in.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "bookingId",
+        "passengerId",
+        "scheduleId",
+        "status"
+      ]
     }
   },
   "auth": {
@@ -581,6 +622,22 @@
               "description": "The unique identifier of the maintenance record."
             }
           ]
+        }
+      },
+      {
+        "path": "/boarding/{boardingId}",
+        "definition": {
+            "entityName": "Boarding",
+            "schema": {
+                "$ref": "#/backend/entities/Boarding"
+            },
+            "description": "Stores boarding records for passengers on specific trips. Access restricted to authorized personnel.",
+            "params": [
+                {
+                    "name": "boardingId",
+                    "description": "The unique identifier of the boarding record."
+                }
+            ]
         }
       }
     ],
