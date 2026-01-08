@@ -44,7 +44,7 @@ export default function BoardingManifestPage() {
     if (!bookings) return [];
     
     return bookings
-      .filter(booking => booking.status === 'Reserved')
+      .filter(booking => booking.status === 'Reserved' && booking.paymentStatus === 'Paid')
       .flatMap(booking => 
         (booking.passengerInfo || []).map((p: any, index: number) => {
           const uniquePassengerId = `${booking.id}-${index}`;
@@ -162,7 +162,7 @@ export default function BoardingManifestPage() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={4} className="h-24 text-center">
-                    No passengers booked for this trip.
+                    No paid passengers booked for this trip.
                   </TableCell>
                 </TableRow>
               )}
