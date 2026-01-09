@@ -36,7 +36,7 @@ export default function BoardingManifestPage() {
   }, [firestore, scheduleId]);
   
   const { data: schedule, isLoading: isLoadingSchedule } = useDoc(scheduleRef);
-  const { data: bookings, isLoading: isLoadingBookings } = useCollection(bookingsQuery);
+  const { data: bookings, isLoading: isLoadingBookings } = useCollection(bookingsQuery, { idField: 'firestoreId' });
   const { data: boardingRecords, isLoading: isLoadingBoarding } = useCollection(boardingRecordsQuery);
   const { data: route, isLoading: isLoadingRoute } = useDoc(useMemoFirebase(() => (firestore && schedule?.routeId) ? doc(firestore, 'routes', schedule.routeId) : null, [firestore, schedule]));
 
@@ -47,12 +47,13 @@ export default function BoardingManifestPage() {
       .filter(booking => booking.status === 'Reserved' && booking.paymentStatus === 'Paid')
       .flatMap(booking => 
         (booking.passengerInfo || []).map((p: any, index: number) => {
-          const uniquePassengerId = `${booking.id}-${index}`;
+          const uniquePassengerId = `${booking.firestoreId}-${index}`;
           const boardingRecord = boardingRecords?.find(br => br.passengerId === uniquePassengerId);
           return {
             ...p,
             id: uniquePassengerId,
             bookingId: booking.id,
+            firestoreBookingId: booking.firestoreId,
             bookingStatus: booking.status,
             boardingStatus: boardingRecord?.status || 'Awaiting',
             boardingRecordId: boardingRecord?.id,
@@ -67,7 +68,7 @@ export default function BoardingManifestPage() {
     addDocumentNonBlocking(boardingCol, {
         passengerId: passenger.id,
         passengerName: passenger.fullName,
-        bookingId: passenger.bookingId,
+        bookingId: passenger.firestoreBookingId,
         scheduleId,
         status: 'Boarded',
         boardingTime: serverTimestamp()
@@ -140,7 +141,7 @@ export default function BoardingManifestPage() {
                 passengers.map((passenger) => (
                   <TableRow key={passenger.id}>
                     <TableCell className="font-medium">{passenger.fullName}</TableCell>
-                    <TableCell>{passenger.bookingId}</TableCell>
+                    <TableCell className="font-mono">{passenger.bookingId}</TableCell>
                     <TableCell>
                       <Badge variant={getStatusVariant(passenger.boardingStatus)}>
                         {passenger.boardingStatus}
