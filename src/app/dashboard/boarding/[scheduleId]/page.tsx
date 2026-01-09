@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, ArrowLeft, UserCheck, UserX, LogIn, LogOut } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, differenceInYears } from 'date-fns';
 import { addDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 
@@ -93,6 +93,15 @@ export default function BoardingManifestPage() {
         return 'outline';
     }
   };
+  
+  const calculateAge = (birthDate: string) => {
+    if (!birthDate) return 'N/A';
+    try {
+        return differenceInYears(new Date(), new Date(birthDate)).toString();
+    } catch {
+        return 'N/A';
+    }
+  };
 
   const isLoading = isLoadingSchedule || isLoadingBookings || isLoadingRoute || isLoadingBoarding;
 
@@ -132,6 +141,8 @@ export default function BoardingManifestPage() {
               <TableRow>
                 <TableHead>Passenger Name</TableHead>
                 <TableHead>Booking Ref</TableHead>
+                <TableHead>Age</TableHead>
+                <TableHead>Gender</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -142,6 +153,8 @@ export default function BoardingManifestPage() {
                   <TableRow key={passenger.id}>
                     <TableCell className="font-medium">{passenger.fullName}</TableCell>
                     <TableCell className="font-mono">{passenger.bookingId}</TableCell>
+                    <TableCell>{calculateAge(passenger.birthDate)}</TableCell>
+                    <TableCell>{passenger.gender || 'N/A'}</TableCell>
                     <TableCell>
                       <Badge variant={getStatusVariant(passenger.boardingStatus)}>
                         {passenger.boardingStatus}
@@ -162,7 +175,7 @@ export default function BoardingManifestPage() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={4} className="h-24 text-center">
+                  <TableCell colSpan={6} className="h-24 text-center">
                     No paid passengers booked for this trip.
                   </TableCell>
                 </TableRow>

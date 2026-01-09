@@ -37,6 +37,7 @@ import { TripItinerary } from "@/components/trip-itinerary";
 const passengerSchema = z.object({
   fullName: z.string().min(2, { message: "Full name must be at least 2 characters." }),
   birthDate: z.string().optional(),
+  gender: z.string().optional(),
   fareType: z.string({ required_error: "Please select a fare type."}),
 });
 
@@ -107,7 +108,7 @@ export default function BookingPage() {
       routeId: "",
       travelDate: new Date().toISOString().split("T")[0],
       scheduleId: "",
-      passengers: [{ fullName: "", birthDate: "", fareType: "" }],
+      passengers: [{ fullName: "", birthDate: "", gender: "Male", fareType: "" }],
       primaryEmail: user?.email || "",
       primaryPhone: "",
     },
@@ -245,6 +246,7 @@ export default function BookingPage() {
           passengerInfo: data.passengers.map(p => ({
             fullName: p.fullName,
             birthDate: p.birthDate || null,
+            gender: p.gender || null,
             fareType: p.fareType,
           })),
           passengerEmail: data.primaryEmail,
@@ -415,15 +417,15 @@ export default function BookingPage() {
                     <div className="space-y-6">
                       <h3 className="font-medium text-lg border-b pb-2">Passenger Details</h3>
                       {fields.map((field, index) => (
-                        <div key={field.id} className="grid grid-cols-1 sm:grid-cols-8 gap-4 items-end p-4 border rounded-lg relative">
-                          <div className="sm:col-span-8">
+                        <div key={field.id} className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end p-4 border rounded-lg relative">
+                          <div className="sm:col-span-12">
                             <p className="font-semibold text-md">Passenger {index + 1}</p>
                           </div>
                           <FormField
                             control={form.control}
                             name={`passengers.${index}.fullName`}
                             render={({ field }) => (
-                              <FormItem className="sm:col-span-3">
+                              <FormItem className="sm:col-span-4">
                                 <FormLabel>Full Name</FormLabel>
                                 <FormControl>
                                   <Input placeholder="John Doe" {...field} />
@@ -436,11 +438,29 @@ export default function BookingPage() {
                             control={form.control}
                             name={`passengers.${index}.birthDate`}
                             render={({ field }) => (
-                              <FormItem className="sm:col-span-2">
+                              <FormItem className="sm:col-span-3">
                                 <FormLabel>Birth Date</FormLabel>
                                 <FormControl>
                                   <Input type="date" {...field} placeholder="YYYY-MM-DD" />
                                 </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name={`passengers.${index}.gender`}
+                            render={({ field }) => (
+                              <FormItem className="sm:col-span-2">
+                                <FormLabel>Gender</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                    <FormControl><SelectTrigger><SelectValue placeholder="Gender" /></SelectTrigger></FormControl>
+                                    <SelectContent>
+                                        <SelectItem value="Male">Male</SelectItem>
+                                        <SelectItem value="Female">Female</SelectItem>
+                                        <SelectItem value="Other">Other</SelectItem>
+                                    </SelectContent>
+                                </Select>
                                 <FormMessage />
                               </FormItem>
                             )}
@@ -488,7 +508,7 @@ export default function BookingPage() {
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => append({ fullName: "", birthDate: "", fareType: "" })}
+                        onClick={() => append({ fullName: "", birthDate: "", gender: "Male", fareType: "" })}
                         disabled={!watchScheduleId}
                       >
                         <PlusCircle className="mr-2 h-4 w-4" /> Add Another Passenger

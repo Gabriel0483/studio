@@ -286,7 +286,8 @@
             "type": "object",
             "properties": {
               "fullName": { "type": "string" },
-              "birthDate": { "type": "string", "format": "date" }
+              "birthDate": { "type": "string", "format": "date" },
+              "gender": { "type": "string", "enum": ["Male", "Female", "Other"] }
             }
           }
         },
