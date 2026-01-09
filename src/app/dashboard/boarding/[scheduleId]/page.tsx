@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, ArrowLeft, UserCheck, UserX, LogIn, LogOut } from 'lucide-react';
+import { Loader2, ArrowLeft, UserCheck, UserX, LogIn, LogOut, Users, Ticket, UserMinus } from 'lucide-react';
 import { format, differenceInYears } from 'date-fns';
 import { addDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
@@ -61,6 +61,13 @@ export default function BoardingManifestPage() {
         })
       );
   }, [bookings, boardingRecords]);
+
+  const boardingStats = useMemo(() => {
+    const total = passengers.length;
+    const boarded = passengers.filter(p => p.boardingStatus === 'Boarded').length;
+    const awaiting = total - boarded;
+    return { total, boarded, awaiting };
+  }, [passengers]);
 
   const handleBoarding = useCallback((passenger: typeof passengers[0]) => {
     if (!firestore) return;
@@ -128,6 +135,39 @@ export default function BoardingManifestPage() {
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to Trips
       </Button>
 
+        <div className="grid gap-4 md:grid-cols-3">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Paid Passengers</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{boardingStats.total}</div>
+              <p className="text-xs text-muted-foreground">Total confirmed passengers for this trip.</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Boarded</CardTitle>
+              <UserCheck className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{boardingStats.boarded}</div>
+              <p className="text-xs text-muted-foreground">Passengers who have boarded.</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Awaiting</CardTitle>
+              <UserMinus className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{boardingStats.awaiting}</div>
+              <p className="text-xs text-muted-foreground">Passengers yet to board.</p>
+            </CardContent>
+          </Card>
+        </div>
+
       <Card>
         <CardHeader>
           <CardTitle className="text-2xl font-bold tracking-tight">Passenger Manifest</CardTitle>
@@ -185,5 +225,3 @@ export default function BoardingManifestPage() {
     </div>
   );
 }
-
-    
