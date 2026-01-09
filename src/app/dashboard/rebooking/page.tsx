@@ -91,23 +91,19 @@ export default function RebookingPage() {
             const bookingRef = doc(firestore, 'bookings', searchedBooking.firestoreId);
             const scheduleRef = doc(firestore, 'schedules', searchedBooking.scheduleId);
             
-            // --- READS ---
             const scheduleDoc = await transaction.get(scheduleRef);
             
-            // --- WRITES ---
             const updateData: any = {
+                status: 'Cancelled', // Always set status to Cancelled on refund
                 refundStatus: 'Refunded',
                 refundAmount: finalRefundAmount,
                 cancellationFee: cancellationFee,
             };
 
-            // If the booking was reserved and is now being cancelled through refund, update status and seats.
-            if (searchedBooking.status === 'Reserved') {
-                updateData.status = 'Cancelled';
-                if (scheduleDoc.exists()) {
-                    const currentSeats = scheduleDoc.data().availableSeats || 0;
-                    transaction.update(scheduleRef, { availableSeats: currentSeats + searchedBooking.numberOfSeats });
-                }
+            // If the booking was reserved, return the seats to the schedule.
+            if (searchedBooking.status === 'Reserved' && scheduleDoc.exists()) {
+                const currentSeats = scheduleDoc.data().availableSeats || 0;
+                transaction.update(scheduleRef, { availableSeats: currentSeats + searchedBooking.numberOfSeats });
             }
             
             transaction.update(bookingRef, updateData);
@@ -116,15 +112,15 @@ export default function RebookingPage() {
         // Refresh booking state locally after transaction
         setSearchedBooking((prev: any) => ({
             ...prev,
+            status: 'Cancelled',
             refundStatus: 'Refunded',
             refundAmount: finalRefundAmount,
             cancellationFee: cancellationFee,
-            status: prev.status === 'Reserved' ? 'Cancelled' : prev.status,
         }));
 
         toast({
             title: "Refund Processed",
-            description: `Refund for booking #${searchedBooking.id} has been processed.`,
+            description: `Refund for booking #${searchedBooking.id} has been processed and status is now Cancelled.`,
         });
 
     } catch (error) {
@@ -315,5 +311,3 @@ export default function RebookingPage() {
     </>
   );
 }
-
-    
