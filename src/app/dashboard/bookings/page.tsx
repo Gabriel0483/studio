@@ -78,7 +78,12 @@ export default function BookingsPage() {
   const filteredBookings = useMemo(() => {
     if (!bookings) return [];
     
-    const sortedBookings = [...bookings].sort((a, b) => b.bookingDate.toMillis() - a.bookingDate.toMillis());
+    // Create a new sorted array instead of sorting in-place
+    const sortedBookings = [...bookings].sort((a, b) => {
+        const dateA = a.bookingDate ? a.bookingDate.toMillis() : 0;
+        const dateB = b.bookingDate ? b.bookingDate.toMillis() : 0;
+        return dateB - dateA;
+    });
     
     if (!search) return sortedBookings;
 
@@ -474,5 +479,3 @@ export default function BookingsPage() {
     </>
   );
 }
-
-    
