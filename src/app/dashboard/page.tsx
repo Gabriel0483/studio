@@ -8,7 +8,7 @@ import { ChartConfig, ChartContainer, ChartTooltipContent } from "@/components/u
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, Timestamp } from 'firebase/firestore';
 import { format } from 'date-fns';
-import { Calendar as CalendarIcon, DollarSign, Users, Ticket, Percent, CheckCircle, Clock, CreditCard, XCircle } from 'lucide-react';
+import { Calendar as CalendarIcon, DollarSign, Users, Ticket, Percent, CheckCircle, Clock, CreditCard, XCircle, ClipboardCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -44,9 +44,11 @@ export default function DashboardPage() {
 
   const bookingsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'bookings') : null, [firestore]);
   const schedulesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'schedules') : null, [firestore]);
+  const boardingQuery = useMemoFirebase(() => firestore ? collection(firestore, 'boarding') : null, [firestore]);
 
   const { data: bookings, isLoading: isLoadingBookings } = useCollection(bookingsQuery);
   const { data: allSchedules, isLoading: isLoadingSchedules } = useCollection(schedulesQuery);
+  const { data: boardingRecords, isLoading: isLoadingBoarding } = useCollection(boardingQuery);
   
   const dailySchedules = useMemo(() => {
     if (!allSchedules) return [];
@@ -62,10 +64,11 @@ export default function DashboardPage() {
 
   const filteredStats = useMemo(() => {
     if (!bookings || !allSchedules) {
-      return { totalRevenue: 0, totalPassengers: 0, reserved: 0, waitlisted: 0, paid: 0, unpaid: 0 };
+      return { totalRevenue: 0, totalPassengers: 0, reserved: 0, waitlisted: 0, paid: 0, unpaid: 0, boarded: 0, paidPassengers: 0 };
     }
 
     const selectedDateStr = format(date, 'yyyy-MM-dd');
+    const scheduleIdsForDay = dailySchedules.map(s => s.id);
 
     const relevantBookings = bookings.filter(b => {
       const travelDate = b.travelDate instanceof Timestamp ? b.travelDate.toDate() : new Date(b.travelDate);
@@ -76,6 +79,16 @@ export default function DashboardPage() {
           return false;
       }
       return true;
+    });
+    
+    const paidReservedBookings = relevantBookings.filter(b => b.paymentStatus === 'Paid' && b.status === 'Reserved');
+    const paidPassengers = paidReservedBookings.reduce((acc, b) => acc + b.numberOfSeats, 0);
+
+    const relevantBoardingRecords = (boardingRecords || []).filter(br => {
+        if (scheduleFilter !== 'all') {
+            return br.scheduleId === scheduleFilter;
+        }
+        return scheduleIdsForDay.includes(br.scheduleId);
     });
 
     const totalRevenue = relevantBookings
@@ -97,15 +110,17 @@ export default function DashboardPage() {
       waitlisted,
       paid,
       unpaid,
+      boarded: relevantBoardingRecords.length,
+      paidPassengers: paidPassengers,
     };
-  }, [date, scheduleFilter, bookings, allSchedules]);
+  }, [date, scheduleFilter, bookings, allSchedules, boardingRecords, dailySchedules]);
   
   const overviewCards = [
       { title: 'Total Revenue', value: `₱${filteredStats.totalRevenue.toFixed(2)}`, description: 'Revenue from paid bookings.', icon: DollarSign },
       { title: 'Total Passengers', value: filteredStats.totalPassengers.toString(), description: 'Passengers for selected scope.', icon: Users },
   ];
 
-  const isLoading = isLoadingBookings || isLoadingSchedules;
+  const isLoading = isLoadingBookings || isLoadingSchedules || isLoadingBoarding;
 
   return (
     <div className="space-y-6">
@@ -211,6 +226,21 @@ export default function DashboardPage() {
                             <span>Unpaid: {filteredStats.unpaid}</span>
                         </div>
                     </div>
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Boarding Progress</CardTitle>
+                    <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">
+                        {filteredStats.boarded} / {filteredStats.paidPassengers}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                        {filteredStats.boarded} of {filteredStats.paidPassengers} paid passengers have boarded.
+                    </p>
                 </CardContent>
             </Card>
         </div>
