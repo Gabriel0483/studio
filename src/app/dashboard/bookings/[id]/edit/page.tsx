@@ -36,12 +36,13 @@ import {
   useCollection,
   useMemoFirebase,
 } from '@/firebase';
-import { collection, doc, runTransaction, Timestamp, query, where, getDocs } from 'firebase/firestore';
+import { collection, doc, runTransaction, Timestamp, query, where, getDocs, serverTimestamp } from 'firebase/firestore';
 import React, { useMemo, useState, useEffect } from 'react';
 import { Separator } from '@/components/ui/separator';
 import { format } from 'date-fns';
 import { useRouter, useParams } from 'next/navigation';
 import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
 
 const passengerSchema = z.object({
   fullName: z
@@ -63,7 +64,6 @@ const bookingFormSchema = z.object({
     .email({ message: 'Please enter a valid email address.' }),
   primaryPhone: z.string().min(1, { message: 'Please enter a contact number.' }),
   paymentStatus: z.string(),
-  rebookingFee: z.number().optional(),
   noShowFee: z.number().optional(),
 });
 
@@ -78,6 +78,9 @@ export default function EditBookingPage() {
   const [booking, setBooking] = useState<any>(null);
   const [isLoadingBooking, setIsLoadingBooking] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [rebookingFee, setRebookingFee] = useState(0);
+  const [rebookingReason, setRebookingReason] = useState('');
+
 
   const schedulesQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'schedules') : null), [firestore]);
   const routesQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'routes') : null), [firestore]);
@@ -124,7 +127,6 @@ export default function EditBookingPage() {
             primaryEmail: bookingData.passengerEmail,
             primaryPhone: bookingData.passengerPhone,
             paymentStatus: bookingData.paymentStatus || 'Unpaid',
-            rebookingFee: bookingData.rebookingFee || 0,
             noShowFee: bookingData.noShowFee || 0,
           });
 
@@ -153,7 +155,6 @@ export default function EditBookingPage() {
   const watchTravelDate = form.watch('travelDate');
   const watchScheduleId = form.watch('scheduleId');
   const watchPassengers = form.watch('passengers');
-  const watchRebookingFee = form.watch('rebookingFee');
   const watchNoShowFee = form.watch('noShowFee');
 
   useEffect(() => {
@@ -207,19 +208,22 @@ export default function EditBookingPage() {
       0
     );
     
-    const rebookingFee = watchRebookingFee || 0;
+    const historicalRebookingFees = booking?.rebookingHistory?.reduce((acc: number, item: any) => acc + item.fee, 0) || 0;
     const noShowFee = watchNoShowFee || 0;
-    const totalPrice = basePrice + rebookingFee + noShowFee;
+    const currentRebookingFee = rebookingFee || 0;
+    const totalFees = historicalRebookingFees + currentRebookingFee + noShowFee;
+    const totalPrice = basePrice + totalFees;
 
     return {
       details: fareDetails,
       basePrice,
-      rebookingFee,
+      historicalRebookingFees,
+      currentRebookingFee,
       noShowFee,
       totalPrice,
       totalTickets: watchPassengers.length,
     };
-  }, [watchPassengers, availableFares, watchRebookingFee, watchNoShowFee]);
+  }, [watchPassengers, availableFares, booking, rebookingFee, watchNoShowFee]);
 
 
   const getRouteName = (routeId: string) =>
@@ -283,9 +287,17 @@ export default function EditBookingPage() {
                 }
             });
             
-            const rebookingFee = data.rebookingFee || 0;
             const noShowFee = data.noShowFee || 0;
             
+            const newRebookingHistory = [...(booking.rebookingHistory || [])];
+            if (rebookingFee > 0) {
+                newRebookingHistory.push({
+                    fee: rebookingFee,
+                    date: new Date().toISOString(),
+                    reason: rebookingReason || 'Rebooking Fee',
+                });
+            }
+
             const bookingUpdateData = {
                 passengerInfo: data.passengers.map((p) => ({
                     fullName: p.fullName,
@@ -302,7 +314,7 @@ export default function EditBookingPage() {
                 routeName: getRouteName(newScheduleDoc.data().routeId),
                 status: newStatus,
                 paymentStatus: data.paymentStatus,
-                rebookingFee: rebookingFee > 0 ? rebookingFee : null,
+                rebookingHistory: newRebookingHistory,
                 noShowFee: noShowFee > 0 ? noShowFee : null,
             };
             
@@ -583,21 +595,18 @@ export default function EditBookingPage() {
                   )}
                 />
               </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4">
-                    <FormField
-                        control={form.control}
-                        name="rebookingFee"
-                        render={({ field }) => (
-                            <FormItem>
-                            <FormLabel>Rebooking Fee (₱)</FormLabel>
-                            <FormControl>
-                                <Input type="number" placeholder="0.00" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} />
-                            </FormControl>
-                             <FormDescription>Apply a fee for rebooking, if applicable.</FormDescription>
-                            <FormMessage />
-                            </FormItem>
-                        )}
-                    />
+                <div className="space-y-4 rounded-lg border p-4">
+                  <h4 className="font-medium">Fees</h4>
+                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                            <Label htmlFor="rebookingFee">Add Rebooking Fee (₱)</Label>
+                            <Input id="rebookingFee" type="number" placeholder="0.00" value={rebookingFee} onChange={e => setRebookingFee(parseFloat(e.target.value) || 0)} />
+                        </div>
+                        <div className="space-y-2">
+                           <Label htmlFor="rebookingReason">Reason for Rebooking Fee</Label>
+                           <Textarea id="rebookingReason" placeholder="e.g., Change of travel date" value={rebookingReason} onChange={e => setRebookingReason(e.target.value)} />
+                        </div>
+                   </div>
                     <FormField
                         control={form.control}
                         name="noShowFee"
@@ -607,7 +616,7 @@ export default function EditBookingPage() {
                             <FormControl>
                                 <Input type="number" placeholder="0.00" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} />
                             </FormControl>
-                            <FormDescription>Apply a fee if the passenger did not show.</FormDescription>
+                            <FormDescription>Apply a one-time fee if the passenger did not show.</FormDescription>
                             <FormMessage />
                             </FormItem>
                         )}
@@ -652,13 +661,26 @@ export default function EditBookingPage() {
                     <Separator />
                     <div className="text-sm space-y-2">
                         <div className="flex justify-between">
-                            <span>Base Fare Total:</span>
+                            <span>New Base Fare Total:</span>
                             <span>₱{bookingSummary.basePrice.toFixed(2)}</span>
                         </div>
-                        {bookingSummary.rebookingFee > 0 && (
+
+                        {booking.rebookingHistory?.length > 0 && (
+                          <div className="text-muted-foreground">
+                            <p className="font-medium">Previous Rebooking Fees:</p>
+                             {booking.rebookingHistory.map((item: any, index: number) => (
+                                <div key={index} className="flex justify-between pl-2">
+                                    <span>- {item.reason || 'Rebooking Fee'} on {format(new Date(item.date), 'PP')}</span>
+                                    <span>+ ₱{item.fee.toFixed(2)}</span>
+                                </div>
+                            ))}
+                          </div>
+                        )}
+                       
+                        {bookingSummary.currentRebookingFee > 0 && (
                              <div className="flex justify-between text-blue-600">
-                                <span>Rebooking Fee:</span>
-                                <span>+ ₱{bookingSummary.rebookingFee.toFixed(2)}</span>
+                                <span>New Rebooking Fee (This Change):</span>
+                                <span>+ ₱{bookingSummary.currentRebookingFee.toFixed(2)}</span>
                             </div>
                         )}
                         {bookingSummary.noShowFee > 0 && (
@@ -690,5 +712,3 @@ export default function EditBookingPage() {
     </div>
   );
 }
-
-    
