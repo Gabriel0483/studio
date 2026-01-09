@@ -43,7 +43,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Pencil, Plus, Trash2, Calendar as CalendarIcon } from 'lucide-react';
+import { Pencil, Plus, Trash2, Calendar as CalendarIcon, Users } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { Firestore } from 'firebase/firestore';
 import { format, parse } from 'date-fns';
@@ -58,6 +58,13 @@ interface Ship {
 interface Route {
   id: string;
   name: string;
+}
+
+interface Staff {
+  id: string;
+  name: string;
+  role: string;
+  assignedShipId?: string;
 }
 
 interface Schedule {
@@ -77,12 +84,14 @@ const ScheduleForm = ({
   schedule,
   ships,
   routes,
+  staff,
   onFinished,
 }: {
   firestore: Firestore;
   schedule?: Schedule;
   ships: Ship[];
   routes: Route[];
+  staff: Staff[];
   onFinished: () => void;
 }) => {
   const [shipId, setShipId] = useState(schedule?.shipId || 'unassigned');
@@ -92,11 +101,22 @@ const ScheduleForm = ({
   const [arrivalTime, setArrivalTime] = useState(schedule?.arrivalTime || '');
   const [availableSeats, setAvailableSeats] = useState(schedule?.availableSeats || '');
   const [tripType, setTripType] = useState<'Daily' | 'Special'>(schedule?.tripType || 'Daily');
+  const [assignedCrew, setAssignedCrew] = useState<Staff[]>([]);
   const { toast } = useToast();
   
   useEffect(() => {
     setTripType(date ? 'Special' : 'Daily');
   }, [date]);
+
+  useEffect(() => {
+    if (shipId && shipId !== 'unassigned' && staff) {
+        const crew = staff.filter(s => s.assignedShipId === shipId);
+        setAssignedCrew(crew);
+    } else {
+        setAssignedCrew([]);
+    }
+  }, [shipId, staff]);
+
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -216,6 +236,21 @@ const ScheduleForm = ({
             />
         </div>
       </div>
+
+       {assignedCrew.length > 0 && (
+        <div className="space-y-2 rounded-md border p-4">
+          <h4 className="font-medium text-sm flex items-center">
+            <Users className="mr-2 h-4 w-4" />
+            Assigned Crew
+          </h4>
+          <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
+            {assignedCrew.map(member => (
+              <li key={member.id}>{member.name} - <span className="font-semibold">{member.role}</span></li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <DialogFooter>
         <DialogClose asChild>
           <Button type="button" variant="outline">Cancel</Button>
@@ -231,10 +266,14 @@ export default function SchedulesPage() {
   const schedulesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'schedules') : null, [firestore]);
   const shipsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'ships') : null, [firestore]);
   const routesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'routes') : null, [firestore]);
+  const staffQuery = useMemoFirebase(() => firestore ? collection(firestore, 'staff') : null, [firestore]);
+
 
   const { data: schedules, isLoading: isLoadingSchedules } = useCollection<Omit<Schedule, 'id'>>(schedulesQuery);
   const { data: ships, isLoading: isLoadingShips } = useCollection<Omit<Ship, 'id'>>(shipsQuery);
   const { data: routes, isLoading: isLoadingRoutes } = useCollection<Omit<Route, 'id'>>(routesQuery);
+  const { data: staff, isLoading: isLoadingStaff } = useCollection<Omit<Staff, 'id'>>(staffQuery);
+
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<Schedule | undefined>(undefined);
@@ -275,7 +314,7 @@ export default function SchedulesPage() {
   };
 
 
-  const isLoading = isLoadingSchedules || isLoadingShips || isLoadingRoutes;
+  const isLoading = isLoadingSchedules || isLoadingShips || isLoadingRoutes || isLoadingStaff;
 
   const getRouteName = (routeId: string) => routes?.find(r => r.id === routeId)?.name || 'Unknown Route';
   
@@ -319,6 +358,7 @@ export default function SchedulesPage() {
                 schedule={editingSchedule}
                 ships={ships || []}
                 routes={routes || []}
+                staff={staff || []}
                 onFinished={() => setIsFormOpen(false)}
               />
             )}
