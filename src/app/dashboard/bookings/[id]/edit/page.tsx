@@ -43,6 +43,7 @@ import { format } from 'date-fns';
 import { useRouter, useParams } from 'next/navigation';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 
 const passengerSchema = z.object({
   fullName: z
