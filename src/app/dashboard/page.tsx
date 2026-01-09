@@ -2,40 +2,26 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { revenueData, bookingsData } from "@/lib/data";
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, PieChart, Pie, Cell } from "recharts";
 import { ChartConfig, ChartContainer, ChartTooltipContent } from "@/components/ui/chart";
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, Timestamp } from 'firebase/firestore';
-import { format } from 'date-fns';
-import { Calendar as CalendarIcon, DollarSign, Users, Ticket, Percent, CheckCircle, Clock, CreditCard, XCircle, ClipboardCheck } from 'lucide-react';
+import { format, getMonth, getYear } from 'date-fns';
+import { Calendar as CalendarIcon, DollarSign, Users, Ticket, CheckCircle, Clock, CreditCard, XCircle, ClipboardCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
 
-const chartConfig: ChartConfig = {
-  total: {
-    label: "Revenue",
-  },
-};
-
-const bookingsChartConfig = {
-  value: {
-    label: "Bookings",
-  },
-  ...bookingsData.reduce((acc, cur) => {
-    acc[cur.name] = {
-      label: cur.name,
-      color: cur.fill,
-    };
-    return acc;
-  }, {} as ChartConfig),
-} satisfies ChartConfig;
-
+const chartColors = [
+  "hsl(var(--chart-1))",
+  "hsl(var(--chart-2))",
+  "hsl(var(--chart-3))",
+  "hsl(var(--chart-4))",
+  "hsl(var(--chart-5))",
+];
 
 export default function DashboardPage() {
   const firestore = useFirestore();
@@ -68,7 +54,6 @@ export default function DashboardPage() {
     }
 
     const selectedDateStr = format(date, 'yyyy-MM-dd');
-    const scheduleIdsForDay = dailySchedules.map(s => s.id);
 
     const relevantBookings = bookings.filter(b => {
       const travelDate = b.travelDate instanceof Timestamp ? b.travelDate.toDate() : new Date(b.travelDate);
@@ -85,11 +70,19 @@ export default function DashboardPage() {
     const paidPassengers = paidReservedBookings.reduce((acc, b) => acc + b.numberOfSeats, 0);
 
     const relevantBoardingRecords = (boardingRecords || []).filter(br => {
+        const schedule = allSchedules.find(s => s.id === br.scheduleId);
+        if (!schedule) return false;
+
+        const scheduleDate = schedule.tripType === 'Daily' ? date : (schedule.date ? new Date(schedule.date) : new Date());
+        if (format(scheduleDate, 'yyyy-MM-dd') !== selectedDateStr) {
+          return false;
+        }
         if (scheduleFilter !== 'all') {
             return br.scheduleId === scheduleFilter;
         }
-        return scheduleIdsForDay.includes(br.scheduleId);
+        return true;
     });
+
 
     const totalRevenue = relevantBookings
       .filter(b => b.paymentStatus === 'Paid')
@@ -113,7 +106,59 @@ export default function DashboardPage() {
       boarded: relevantBoardingRecords.length,
       paidPassengers: paidPassengers,
     };
-  }, [date, scheduleFilter, bookings, allSchedules, boardingRecords, dailySchedules]);
+  }, [date, scheduleFilter, bookings, allSchedules, boardingRecords]);
+
+  const { revenueData, bookingsByRouteData } = useMemo(() => {
+    if (!bookings) return { revenueData: [], bookingsByRouteData: [] };
+
+    // Process revenue data
+    const currentYear = getYear(new Date());
+    const monthlyRevenue = Array.from({ length: 12 }, (_, i) => ({
+      name: format(new Date(currentYear, i), 'MMM'),
+      total: 0,
+    }));
+
+    bookings.forEach(booking => {
+      if (booking.paymentStatus === 'Paid') {
+        const bookingDate = booking.bookingDate instanceof Timestamp ? booking.bookingDate.toDate() : new Date(booking.bookingDate);
+        if (getYear(bookingDate) === currentYear) {
+          const month = getMonth(bookingDate);
+          monthlyRevenue[month].total += booking.totalPrice;
+        }
+      }
+    });
+    
+    // Process bookings by route
+    const routeCounts: { [key: string]: number } = {};
+    bookings.forEach(booking => {
+      if (booking.routeName) {
+        routeCounts[booking.routeName] = (routeCounts[booking.routeName] || 0) + 1;
+      }
+    });
+
+    const bookingsByRouteData = Object.entries(routeCounts)
+        .map(([name, value], index) => ({
+            name,
+            value,
+            fill: chartColors[index % chartColors.length],
+        }))
+        .sort((a, b) => b.value - a.value);
+
+
+    return { revenueData: monthlyRevenue, bookingsByRouteData };
+  }, [bookings]);
+
+  const revenueChartConfig: ChartConfig = {
+      total: { label: "Revenue" },
+  };
+
+  const bookingsChartConfig = bookingsByRouteData.reduce((acc, cur) => {
+    acc[cur.name] = {
+      label: cur.name,
+      color: cur.fill,
+    };
+    return acc;
+  }, {} as ChartConfig);
   
   const overviewCards = [
       { title: 'Total Revenue', value: `₱${filteredStats.totalRevenue.toFixed(2)}`, description: 'Revenue from paid bookings.', icon: DollarSign },
@@ -170,7 +215,7 @@ export default function DashboardPage() {
       </div>
 
       {isLoading ? (
-        <div className="flex h-[128px] items-center justify-center rounded-lg border border-dashed">
+        <div className="flex h-[256px] items-center justify-center rounded-lg border border-dashed">
             <Loader2 className="mr-2 h-6 w-6 animate-spin" />
             <span>Loading daily figures...</span>
         </div>
@@ -229,7 +274,7 @@ export default function DashboardPage() {
                 </CardContent>
             </Card>
 
-            <Card>
+            <Card className="col-span-1 md:col-span-2 lg:col-span-4">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Boarding Progress</CardTitle>
                     <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
@@ -239,22 +284,21 @@ export default function DashboardPage() {
                         {filteredStats.boarded} / {filteredStats.paidPassengers}
                     </div>
                     <p className="text-xs text-muted-foreground">
-                        {filteredStats.boarded} of {filteredStats.paidPassengers} paid passengers have boarded.
+                        {filteredStats.boarded} of {filteredStats.paidPassengers} paid passengers have boarded for the selected scope.
                     </p>
                 </CardContent>
             </Card>
         </div>
       )}
 
-
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
         <Card className="lg:col-span-4">
           <CardHeader>
             <CardTitle>Revenue</CardTitle>
-            <CardDescription>Monthly revenue totals for the current year.</CardDescription>
+            <CardDescription>Monthly revenue totals for the current year from paid bookings.</CardDescription>
           </CardHeader>
           <CardContent className="pl-2">
-             <ChartContainer config={chartConfig} className="h-[300px] w-full">
+             <ChartContainer config={revenueChartConfig} className="h-[300px] w-full">
               <ResponsiveContainer>
                 <BarChart data={revenueData}>
                     <XAxis
@@ -284,21 +328,27 @@ export default function DashboardPage() {
         <Card className="lg:col-span-3">
           <CardHeader>
             <CardTitle>Bookings by Route</CardTitle>
-            <CardDescription>A breakdown of passenger bookings across different routes.</CardDescription>
+            <CardDescription>A breakdown of all passenger bookings across different routes.</CardDescription>
           </CardHeader>
           <CardContent>
-            <ChartContainer config={bookingsChartConfig} className="h-[300px] w-full">
-                <ResponsiveContainer>
-                    <PieChart>
-                        <Tooltip content={<ChartTooltipContent nameKey="name" hideLabel />} />
-                        <Pie data={bookingsData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={110} >
-                           {bookingsData.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.fill} />
-                            ))}
-                        </Pie>
-                    </PieChart>
-                </ResponsiveContainer>
-            </ChartContainer>
+             {bookingsByRouteData.length > 0 ? (
+                <ChartContainer config={bookingsChartConfig} className="h-[300px] w-full">
+                    <ResponsiveContainer>
+                        <PieChart>
+                            <Tooltip content={<ChartTooltipContent nameKey="name" hideLabel />} />
+                            <Pie data={bookingsByRouteData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={110} >
+                            {bookingsByRouteData.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                                ))}
+                            </Pie>
+                        </PieChart>
+                    </ResponsiveContainer>
+                </ChartContainer>
+             ) : (
+                <div className="flex h-[300px] items-center justify-center text-muted-foreground">
+                    No booking data available.
+                </div>
+             )}
           </CardContent>
         </Card>
       </div>
