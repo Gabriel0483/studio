@@ -26,6 +26,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import {
   collection,
@@ -34,7 +35,7 @@ import {
   runTransaction,
   updateDoc,
 } from 'firebase/firestore';
-import { BookCopy, Pencil, Search, Trash2, RefreshCw, XCircle, CreditCard } from 'lucide-react';
+import { BookCopy, Pencil, Search, Trash2, XCircle, CreditCard } from 'lucide-react';
 import { format } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -66,21 +67,22 @@ export default function BookingsPage() {
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [isPaidDialogOpen, setIsPaidDialogOpen] = useState(false);
   const [bookingToProcess, setBookingToProcess] = useState<Booking | null>(null);
-  const [refreshToggle, setRefreshToggle] = useState(false);
 
   const bookingsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return collection(firestore, 'bookings');
-  }, [firestore, refreshToggle]);
+  }, [firestore]);
 
   const { data: bookings, isLoading } = useCollection<Booking>(bookingsQuery, { idField: 'firestoreId' });
 
   const filteredBookings = useMemo(() => {
     if (!bookings) return [];
     
-    if (!search) return bookings.sort((a, b) => b.bookingDate.toMillis() - a.bookingDate.toMillis());
+    const sortedBookings = [...bookings].sort((a, b) => b.bookingDate.toMillis() - a.bookingDate.toMillis());
+    
+    if (!search) return sortedBookings;
 
-    return bookings.filter((booking) => {
+    return sortedBookings.filter((booking) => {
       const searchTerm = search.toLowerCase();
       const passengerNames = Array.isArray(booking.passengerInfo)
         ? booking.passengerInfo.map((p) => p.fullName.toLowerCase()).join(' ')
@@ -92,7 +94,7 @@ export default function BookingsPage() {
         booking.passengerEmail.toLowerCase().includes(searchTerm) ||
         booking.routeName.toLowerCase().includes(searchTerm)
       );
-    }).sort((a, b) => b.bookingDate.toMillis() - a.bookingDate.toMillis());
+    });
   }, [bookings, search]);
 
   const formatDate = (timestamp: Timestamp | undefined, dateFormat = 'PPP p') => {
@@ -132,14 +134,6 @@ export default function BookingsPage() {
     }
     setBookingToProcess(booking);
     setIsPaidDialogOpen(true);
-  };
-
-  const handleRefresh = () => {
-    setRefreshToggle(prev => !prev);
-    toast({
-        title: 'Bookings Refreshed',
-        description: 'The list of bookings has been updated.',
-    });
   };
 
   const handleDelete = async () => {
@@ -285,8 +279,8 @@ export default function BookingsPage() {
             <CardDescription>
               A real-time list of all passenger bookings.
             </CardDescription>
-            <div className="flex flex-col sm:flex-row gap-2 pt-2">
-              <div className="relative flex-1">
+            <div className="pt-2">
+              <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search by name, email, or route..."
@@ -295,115 +289,133 @@ export default function BookingsPage() {
                   onChange={(e) => setSearch(e.target.value)}
                 />
               </div>
-               <Button variant="outline" onClick={handleRefresh}>
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  Refresh
-                </Button>
             </div>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Booking Ref</TableHead>
-                  <TableHead>Passenger(s)</TableHead>
-                  <TableHead>Route</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Payment</TableHead>
-                  <TableHead>Seats</TableHead>
-                  <TableHead>Total Price</TableHead>
-                  <TableHead>Travel Date</TableHead>
-                  <TableHead>Booking Date</TableHead>
-                  <TableHead className="w-[180px] text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  <TableRow key="loading">
-                    <TableCell colSpan={10} className="text-center">
-                      Loading bookings...
-                    </TableCell>
-                  </TableRow>
-                ) : filteredBookings && filteredBookings.length > 0 ? (
-                  filteredBookings.map((booking) => (
-                    <TableRow key={booking.firestoreId}>
-                      <TableCell className="font-mono">{booking.id}</TableCell>
-                      <TableCell className="font-medium">
-                        {Array.isArray(booking.passengerInfo)
-                          ? booking.passengerInfo.map((p) => p.fullName).join(', ')
-                          : 'N/A'}
-                      </TableCell>
-                      <TableCell>{booking.routeName}</TableCell>
-                       <TableCell>
-                          <Badge variant={getStatusVariant(booking.status)}>
-                            {booking.status}
-                          </Badge>
-                       </TableCell>
-                       <TableCell>
-                          <Badge variant={getPaymentStatusVariant(booking.paymentStatus || 'Unpaid')}>
-                            {booking.paymentStatus || 'Unpaid'}
-                          </Badge>
-                       </TableCell>
-                      <TableCell>{booking.numberOfSeats}</TableCell>
-                      <TableCell>
-                        ₱{booking.totalPrice?.toFixed(2) ?? '0.00'}
-                      </TableCell>
-                      <TableCell>{formatDate(booking.travelDate, 'PPP')}</TableCell>
-                      <TableCell>{formatDate(booking.bookingDate)}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                           <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => confirmPaid(booking)}
-                            aria-label={`Mark booking ${booking.id} as paid`}
-                            disabled={booking.paymentStatus === 'Paid' || booking.status === 'Cancelled'}
-                          >
-                            <CreditCard className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleEdit(booking.id)}
-                            aria-label={`Edit booking ${booking.id}`}
-                            disabled={booking.status === 'Cancelled'}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                           <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => confirmCancel(booking)}
-                            aria-label={`Cancel booking ${booking.id}`}
-                            disabled={booking.status === 'Cancelled'}
-                          >
-                            <XCircle className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-destructive hover:text-destructive"
-                            onClick={() => confirmDelete(booking)}
-                            aria-label={`Delete booking ${booking.id}`}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
+            <TooltipProvider>
+                <Table>
+                <TableHeader>
+                    <TableRow>
+                    <TableHead>Booking Ref</TableHead>
+                    <TableHead>Passenger(s)</TableHead>
+                    <TableHead>Route</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Payment</TableHead>
+                    <TableHead>Seats</TableHead>
+                    <TableHead>Total Price</TableHead>
+                    <TableHead>Travel Date</TableHead>
+                    <TableHead>Booking Date</TableHead>
+                    <TableHead className="w-[180px] text-right">Actions</TableHead>
                     </TableRow>
-                  ))
-                ) : (
-                  <TableRow key="no-bookings">
-                    <TableCell colSpan={10} className="h-24 text-center">
-                      <div className="flex flex-col items-center gap-2">
-                        <BookCopy className="h-8 w-8 text-muted-foreground" />
-                        <p className="text-muted-foreground">No bookings found.</p>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                    {isLoading ? (
+                    <TableRow key="loading">
+                        <TableCell colSpan={10} className="text-center">
+                        Loading bookings...
+                        </TableCell>
+                    </TableRow>
+                    ) : filteredBookings && filteredBookings.length > 0 ? (
+                    filteredBookings.map((booking) => (
+                        <TableRow key={booking.firestoreId}>
+                        <TableCell className="font-mono">{booking.id}</TableCell>
+                        <TableCell className="font-medium max-w-[200px] truncate">
+                            {Array.isArray(booking.passengerInfo)
+                            ? booking.passengerInfo.map((p) => p.fullName).join(', ')
+                            : 'N/A'}
+                        </TableCell>
+                        <TableCell>{booking.routeName}</TableCell>
+                        <TableCell>
+                            <Badge variant={getStatusVariant(booking.status)}>
+                                {booking.status}
+                            </Badge>
+                        </TableCell>
+                        <TableCell>
+                            <Badge variant={getPaymentStatusVariant(booking.paymentStatus || 'Unpaid')}>
+                                {booking.paymentStatus || 'Unpaid'}
+                            </Badge>
+                        </TableCell>
+                        <TableCell>{booking.numberOfSeats}</TableCell>
+                        <TableCell>
+                            ₱{booking.totalPrice?.toFixed(2) ?? '0.00'}
+                        </TableCell>
+                        <TableCell>{formatDate(booking.travelDate, 'PPP')}</TableCell>
+                        <TableCell>{formatDate(booking.bookingDate)}</TableCell>
+                        <TableCell className="text-right">
+                            <div className="flex justify-end gap-2">
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => confirmPaid(booking)}
+                                            disabled={booking.paymentStatus === 'Paid' || booking.status === 'Cancelled'}
+                                        >
+                                            <CreditCard className="h-4 w-4" />
+                                            <span className="sr-only">Mark as Paid</span>
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Mark as Paid</TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => handleEdit(booking.id)}
+                                            disabled={booking.status === 'Cancelled'}
+                                        >
+                                            <Pencil className="h-4 w-4" />
+                                            <span className="sr-only">Edit</span>
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Edit Booking</TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => confirmCancel(booking)}
+                                            disabled={booking.status === 'Cancelled'}
+                                        >
+                                            <XCircle className="h-4 w-4" />
+                                            <span className="sr-only">Cancel</span>
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Cancel Booking</TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="text-destructive hover:text-destructive"
+                                            onClick={() => confirmDelete(booking)}
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                            <span className="sr-only">Delete</span>
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Delete Booking</TooltipContent>
+                                </Tooltip>
+                            </div>
+                        </TableCell>
+                        </TableRow>
+                    ))
+                    ) : (
+                    <TableRow key="no-bookings">
+                        <TableCell colSpan={10} className="h-24 text-center">
+                        <div className="flex flex-col items-center gap-2">
+                            <BookCopy className="h-8 w-8 text-muted-foreground" />
+                            <p className="text-muted-foreground">No bookings found.</p>
+                        </div>
+                        </TableCell>
+                    </TableRow>
+                    )}
+                </TableBody>
+                </Table>
+            </TooltipProvider>
           </CardContent>
         </Card>
       </div>
