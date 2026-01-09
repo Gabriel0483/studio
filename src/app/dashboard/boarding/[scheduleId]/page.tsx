@@ -142,7 +142,6 @@ export default function BoardingManifestPage() {
                 <TableHead>Passenger Name</TableHead>
                 <TableHead>Booking Ref</TableHead>
                 <TableHead>Age</TableHead>
-                <TableHead>Gender</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -154,7 +153,6 @@ export default function BoardingManifestPage() {
                     <TableCell className="font-medium">{passenger.fullName}</TableCell>
                     <TableCell className="font-mono">{passenger.bookingId}</TableCell>
                     <TableCell>{calculateAge(passenger.birthDate)}</TableCell>
-                    <TableCell>{passenger.gender || 'N/A'}</TableCell>
                     <TableCell>
                       <Badge variant={getStatusVariant(passenger.boardingStatus)}>
                         {passenger.boardingStatus}
@@ -175,7 +173,7 @@ export default function BoardingManifestPage() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-24 text-center">
+                  <TableCell colSpan={5} className="h-24 text-center">
                     No paid passengers booked for this trip.
                   </TableCell>
                 </TableRow>
@@ -187,3 +185,5 @@ export default function BoardingManifestPage() {
     </div>
   );
 }
+
+    

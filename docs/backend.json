@@ -286,8 +286,7 @@
             "type": "object",
             "properties": {
               "fullName": { "type": "string" },
-              "birthDate": { "type": "string", "format": "date" },
-              "gender": { "type": "string", "enum": ["Male", "Female", "Other"] }
+              "birthDate": { "type": "string", "format": "date" }
             }
           }
         },
@@ -650,3 +649,5 @@
     "reasoning": "The Firestore data structure is designed to support the TransitFlow application's requirements for managing passengers, ships, routes, schedules, bookings, and maintenance records. The structure prioritizes authorization independence to ensure secure and scalable operations. Path-based ownership is used for user-specific data (passengers), while collaborative data (if any in future) will leverage membership maps. Structural segregation is employed to maintain a homogeneous security posture within collections.\n\nAuthorization Independence: Denormalization is applied where necessary to avoid get() calls in security rules. For instance, if access to Bookings needed to be restricted to passengers who made them, the passengerId is used in the Booking document, avoiding the need to get the Passenger document in rules.\n\nQAPs Support:  Segregation ensures that list operations are secure. For example, listing ships does not require filtering based on complex rules; all documents in the /ships collection have the same basic access control requirements."
   }
 }
+
+    
