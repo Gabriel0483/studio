@@ -8,13 +8,14 @@ import { ChartConfig, ChartContainer, ChartTooltipContent } from "@/components/u
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, Timestamp } from 'firebase/firestore';
 import { format } from 'date-fns';
-import { Calendar as CalendarIcon, DollarSign, Users, Ticket, Percent } from 'lucide-react';
+import { Calendar as CalendarIcon, DollarSign, Users, Ticket, Percent, CheckCircle, Clock, CreditCard, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
-
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
 
 const chartConfig: ChartConfig = {
   total: {
@@ -39,62 +40,69 @@ const bookingsChartConfig = {
 export default function DashboardPage() {
   const firestore = useFirestore();
   const [date, setDate] = useState<Date>(new Date());
+  const [scheduleFilter, setScheduleFilter] = useState('all');
 
   const bookingsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'bookings') : null, [firestore]);
   const schedulesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'schedules') : null, [firestore]);
 
   const { data: bookings, isLoading: isLoadingBookings } = useCollection(bookingsQuery);
-  const { data: schedules, isLoading: isLoadingSchedules } = useCollection(schedulesQuery);
+  const { data: allSchedules, isLoading: isLoadingSchedules } = useCollection(schedulesQuery);
   
-  const dailyStats = useMemo(() => {
-    if (!bookings || !schedules) {
-      return { totalRevenue: 0, totalBookings: 0, totalPassengers: 0, occupancy: 0 };
+  const dailySchedules = useMemo(() => {
+    if (!allSchedules) return [];
+    const selectedDateStr = format(date, 'yyyy-MM-dd');
+    return allSchedules.filter(s => {
+        return s.tripType === 'Daily' || (s.tripType === 'Special' && s.date === selectedDateStr);
+    }).sort((a,b) => a.departureTime.localeCompare(b.departureTime));
+  }, [date, allSchedules]);
+
+  useEffect(() => {
+      setScheduleFilter('all');
+  }, [date]);
+
+  const filteredStats = useMemo(() => {
+    if (!bookings || !allSchedules) {
+      return { totalRevenue: 0, totalPassengers: 0, reserved: 0, waitlisted: 0, paid: 0, unpaid: 0 };
     }
 
     const selectedDateStr = format(date, 'yyyy-MM-dd');
 
-    const dailySchedules = schedules.filter(s => {
-        return s.tripType === 'Daily' || (s.tripType === 'Special' && s.date === selectedDateStr);
-    });
-
-    const dailyScheduleIds = dailySchedules.map(s => s.id);
-    
-    const dailyBookings = bookings.filter(b => {
+    const relevantBookings = bookings.filter(b => {
       const travelDate = b.travelDate instanceof Timestamp ? b.travelDate.toDate() : new Date(b.travelDate);
-      return format(travelDate, 'yyyy-MM-dd') === selectedDateStr;
+      if (format(travelDate, 'yyyy-MM-dd') !== selectedDateStr) {
+          return false;
+      }
+      if (scheduleFilter !== 'all' && b.scheduleId !== scheduleFilter) {
+          return false;
+      }
+      return true;
     });
 
-    const totalRevenue = dailyBookings
+    const totalRevenue = relevantBookings
       .filter(b => b.paymentStatus === 'Paid')
       .reduce((acc, b) => acc + b.totalPrice, 0);
 
-    const totalBookings = dailyBookings.length;
+    const totalPassengers = relevantBookings.reduce((acc, b) => acc + b.numberOfSeats, 0);
 
-    const totalPassengers = dailyBookings.reduce((acc, b) => acc + b.numberOfSeats, 0);
-
-    const totalCapacity = dailySchedules.reduce((acc, s) => acc + (s.availableSeats + (
-        bookings.filter(b => b.scheduleId === s.id && b.status === 'Reserved').reduce((sum, b) => sum + b.numberOfSeats, 0)
-    )), 0);
+    const reserved = relevantBookings.filter(b => b.status === 'Reserved').length;
+    const waitlisted = relevantBookings.filter(b => b.status === 'Waitlisted').length;
     
-    const totalSeatsBooked = dailyBookings
-        .filter(b => b.status === 'Reserved')
-        .reduce((acc, b) => acc + b.numberOfSeats, 0);
-
-    const occupancy = totalCapacity > 0 ? (totalSeatsBooked / totalCapacity) * 100 : 0;
+    const paid = relevantBookings.filter(b => b.paymentStatus === 'Paid').length;
+    const unpaid = relevantBookings.filter(b => b.paymentStatus !== 'Paid').length;
     
     return {
       totalRevenue,
-      totalBookings,
       totalPassengers,
-      occupancy,
+      reserved,
+      waitlisted,
+      paid,
+      unpaid,
     };
-  }, [date, bookings, schedules]);
+  }, [date, scheduleFilter, bookings, allSchedules]);
   
   const overviewCards = [
-      { title: 'Total Revenue', value: `₱${dailyStats.totalRevenue.toFixed(2)}`, description: 'Total revenue from paid bookings.', icon: DollarSign },
-      { title: 'Total Bookings', value: dailyStats.totalBookings.toString(), description: 'Total number of bookings made.', icon: Ticket },
-      { title: 'Total Passengers', value: dailyStats.totalPassengers.toString(), description: 'Total passengers for all bookings.', icon: Users },
-      { title: 'Seat Occupancy', value: `${dailyStats.occupancy.toFixed(1)}%`, description: 'Percentage of seats sold vs. available.', icon: Percent },
+      { title: 'Total Revenue', value: `₱${filteredStats.totalRevenue.toFixed(2)}`, description: 'Revenue from paid bookings.', icon: DollarSign },
+      { title: 'Total Passengers', value: filteredStats.totalPassengers.toString(), description: 'Passengers for selected scope.', icon: Users },
   ];
 
   const isLoading = isLoadingBookings || isLoadingSchedules;
@@ -106,28 +114,44 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-bold tracking-tight">Dashboard Overview</h1>
           <p className="text-muted-foreground">Here's a real-time look at your operations for the selected date.</p>
         </div>
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              variant={"outline"}
-              className={cn(
-                "w-full sm:w-[280px] justify-start text-left font-normal",
-                !date && "text-muted-foreground"
-              )}
-            >
-              <CalendarIcon className="mr-2 h-4 w-4" />
-              {date ? format(date, "PPP") : <span>Pick a date</span>}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0">
-            <Calendar
-              mode="single"
-              selected={date}
-              onSelect={(newDate) => setDate(newDate || new Date())}
-              initialFocus
-            />
-          </PopoverContent>
-        </Popover>
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+            <Popover>
+            <PopoverTrigger asChild>
+                <Button
+                variant={"outline"}
+                className={cn(
+                    "w-full sm:w-[280px] justify-start text-left font-normal",
+                    !date && "text-muted-foreground"
+                )}
+                >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {date ? format(date, "PPP") : <span>Pick a date</span>}
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0">
+                <Calendar
+                mode="single"
+                selected={date}
+                onSelect={(newDate) => setDate(newDate || new Date())}
+                initialFocus
+                />
+            </PopoverContent>
+            </Popover>
+
+             <Select value={scheduleFilter} onValueChange={setScheduleFilter}>
+                <SelectTrigger className="w-full sm:w-[280px]">
+                    <SelectValue placeholder="Filter by trip..." />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="all">All Day</SelectItem>
+                    {dailySchedules.map(schedule => (
+                        <SelectItem key={schedule.id} value={schedule.id}>
+                            {schedule.departureTime} - {schedule.arrivalTime}
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+        </div>
       </div>
 
       {isLoading ? (
@@ -149,6 +173,46 @@ export default function DashboardPage() {
                 </CardContent>
             </Card>
             ))}
+
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Booking Status</CardTitle>
+                    <Ticket className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">{filteredStats.reserved + filteredStats.waitlisted} Total</div>
+                     <div className="flex justify-between items-center text-xs text-muted-foreground">
+                        <div className="flex items-center gap-1">
+                            <CheckCircle className="h-3 w-3 text-green-500"/>
+                            <span>Reserved: {filteredStats.reserved}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                             <Clock className="h-3 w-3 text-orange-500"/>
+                            <span>Waitlisted: {filteredStats.waitlisted}</span>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+
+             <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Payment Status</CardTitle>
+                    <CreditCard className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">{filteredStats.paid + filteredStats.unpaid} Total</div>
+                     <div className="flex justify-between items-center text-xs text-muted-foreground">
+                        <div className="flex items-center gap-1">
+                            <CheckCircle className="h-3 w-3 text-green-500"/>
+                            <span>Paid: {filteredStats.paid}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                             <XCircle className="h-3 w-3 text-red-500"/>
+                            <span>Unpaid: {filteredStats.unpaid}</span>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
         </div>
       )}
 
