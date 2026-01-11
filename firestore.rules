@@ -103,6 +103,17 @@ service cloud.firestore {
     }
     
     /**
+     * @description Manages site policies. This data is safe for anyone to read.
+     *   Writes are restricted to administrators.
+     * @path /policies/{policyId}
+     */
+    match /policies/{policyId} {
+      allow get: if true;
+      allow list: if true;
+      allow write: if isAdmin();
+    }
+    
+    /**
      * @description Manages public port information. This data is safe for anyone to read,
      *   allowing the app to display available ports to all users. Writes are
      *   restricted to administrators to prevent tampering.
@@ -245,3 +256,5 @@ service cloud.firestore {
     }
   }
 }
+
+    

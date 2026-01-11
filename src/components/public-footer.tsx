@@ -7,10 +7,12 @@ export function PublicFooter() {
       <div className="container mx-auto flex flex-col sm:flex-row items-center justify-between px-4 py-6 md:px-6 gap-4">
         <Logo />
         <div className="flex gap-4 text-sm text-muted-foreground">
-            {/* The Advisories link was here */}
+            <Link href="/policies" className="hover:text-foreground">Policies</Link>
         </div>
         <p className="text-sm text-muted-foreground">&copy; {new Date().getFullYear()} Isla Konek. All rights reserved.</p>
       </div>
     </footer>
   );
 }
+
+    

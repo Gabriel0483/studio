@@ -1,4 +1,4 @@
-import { Ship, Users, LineChart, Route as RouteIcon, Anchor, BarChart, Warehouse, Ticket, BookCopy, Receipt, ClipboardCheck, Megaphone } from 'lucide-react';
+import { Ship, Users, LineChart, Route as RouteIcon, Anchor, BarChart, Warehouse, Ticket, BookCopy, Receipt, ClipboardCheck, Megaphone, FileText } from 'lucide-react';
 
 export const navLinks = [
   { href: '/dashboard', label: 'Dashboard', icon: LineChart },
@@ -6,6 +6,7 @@ export const navLinks = [
   { href: '/dashboard/boarding', label: 'Boarding', icon: ClipboardCheck },
   { href: '/dashboard/operations', label: 'Operations', icon: Anchor },
   { href: '/dashboard/announcements', label: 'Announcements', icon: Megaphone },
+  { href: '/dashboard/policies', label: 'Policies', icon: FileText },
   { href: '/dashboard/ports', label: 'Ports', icon: Warehouse },
   { href: '/dashboard/routes', label: 'Routes', icon: RouteIcon },
   { href: '/dashboard/fares', label: 'Fares', icon: Ticket },
@@ -41,3 +42,5 @@ export const passengers: { id: string; name: string; email: string; route: strin
 export const ships: { id: string; name: string; status: string; capacity: number; nextMaintenance: string }[] = [];
 
 export const staff: { id: string; name: string; role: string; assignment: string }[] = [];
+
+    
