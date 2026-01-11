@@ -30,7 +30,6 @@ const profileFormSchema = z.object({
   lastName: z.string().min(1, { message: "Last name is required." }),
   email: z.string().email(),
   phone: z.string().optional(),
-  address: z.string().optional(),
 });
 
 type ProfileFormData = z.infer<typeof profileFormSchema>;
@@ -56,7 +55,6 @@ export default function MyProfilePage() {
       lastName: "",
       email: "",
       phone: "",
-      address: "",
     },
   });
 
@@ -67,7 +65,6 @@ export default function MyProfilePage() {
         lastName: passengerData.lastName || '',
         email: passengerData.email || user?.email || '',
         phone: passengerData.phone || '',
-        address: passengerData.address || '',
       });
     } else if (user) {
         form.reset({
@@ -185,22 +182,6 @@ export default function MyProfilePage() {
                         </FormItem>
                       )}
                     />
-                     <FormField
-                        control={form.control}
-                        name="address"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Address</FormLabel>
-                            <FormControl>
-                              <Textarea
-                                placeholder="123 Main St, City, Country"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
                     <Button type="submit" size="lg" className="w-full" disabled={isSaving}>
                       {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                       Save Changes

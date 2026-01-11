@@ -282,7 +282,6 @@ export default function BookingPage() {
           lastName: data.passengers[0].fullName.split(' ').slice(1).join(' '),
           email: data.primaryEmail,
           phone: data.primaryPhone,
-          address: '',
       };
       setDocumentNonBlocking(passengerRef, passengerData, { merge: true });
 
