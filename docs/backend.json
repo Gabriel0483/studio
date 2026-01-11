@@ -75,6 +75,11 @@
           "type": "string",
           "description": "The last name of the passenger."
         },
+        "birthDate": {
+          "type": "string",
+          "format": "date",
+          "description": "The passenger's date of birth."
+        },
         "email": {
           "type": "string",
           "description": "The email address of the passenger.",

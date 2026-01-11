@@ -38,6 +38,7 @@ const familyMemberSchema = z.object({
 const profileFormSchema = z.object({
   firstName: z.string().min(1, { message: "First name is required." }),
   lastName: z.string().min(1, { message: "Last name is required." }),
+  birthDate: z.string().optional(),
   email: z.string().email(),
   phone: z.string().optional(),
   familyMembers: z.array(familyMemberSchema).optional(),
@@ -64,6 +65,7 @@ export default function MyProfilePage() {
     defaultValues: {
       firstName: "",
       lastName: "",
+      birthDate: "",
       email: "",
       phone: "",
       familyMembers: [],
@@ -77,23 +79,9 @@ export default function MyProfilePage() {
 
   useEffect(() => {
     if (passengerData) {
-      form.reset({
-        firstName: passengerData.firstName || "",
-        lastName: passengerData.lastName || "",
-        email: passengerData.email || user?.email || "",
-        phone: passengerData.phone || "",
-        familyMembers: passengerData.familyMembers || [],
-      });
-    } else if (user) {
-        form.reset({
-            firstName: "",
-            lastName: "",
-            email: user.email || "",
-            phone: "",
-            familyMembers: [],
-        });
+      form.reset(passengerData);
     }
-  }, [passengerData, user, form]);
+  }, [passengerData, form]);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -179,6 +167,19 @@ export default function MyProfilePage() {
                         )}
                       />
                     </div>
+                     <FormField
+                        control={form.control}
+                        name="birthDate"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Your Birth Date</FormLabel>
+                            <FormControl>
+                                <Input type="date" {...field} placeholder="YYYY-MM-DD" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                     <FormField
                       control={form.control}
                       name="email"
