@@ -18,8 +18,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { toast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useDoc, useFirestore, useMemoFirebase, setDocumentNonBlocking } from "@/firebase";
+import { useDoc, useFirestore, useMemoFirebase } from "@/firebase";
 import { useUser } from "@/firebase/provider";
+import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { Loader2, PlusCircle, Trash2 } from "lucide-react";
 import { PublicHeader } from "@/components/public-header";
 import { PublicFooter } from "@/components/public-footer";
@@ -94,17 +95,18 @@ export default function MyProfilePage() {
     }
   }, [passengerData, user, form]);
 
-  if (isUserLoading) {
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.replace('/login');
+    }
+  }, [isUserLoading, user, router]);
+
+  if (isUserLoading || !user) {
     return (
       <div className="flex h-screen items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     );
-  }
-
-  if (!user) {
-    router.replace('/login');
-    return null;
   }
   
   async function onSubmit(data: ProfileFormData) {
