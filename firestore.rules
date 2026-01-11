@@ -80,11 +80,10 @@ service cloud.firestore {
     }
 
     /**
-     * @description Placeholder for role-based access control.
-     * For prototyping, all signed-in users are considered admins for simplicity.
+     * @description Checks if the signed-in user is the designated superadmin.
      */
     function isAdmin() {
-      return isSignedIn();
+      return request.auth.token.email == 'rielmagpantay@gmail.com';
     }
 
     // ----------------------------------------------------------------------
