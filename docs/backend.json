@@ -83,6 +83,19 @@
         "phone": {
           "type": "string",
           "description": "The phone number of the passenger."
+        },
+        "familyMembers": {
+            "type": "array",
+            "description": "A list of family members associated with this passenger account.",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string", "description": "A unique identifier for the family member within the account." },
+                    "fullName": { "type": "string" },
+                    "birthDate": { "type": "string", "format": "date" }
+                },
+                "required": ["id", "fullName"]
+            }
         }
       },
       "required": [
@@ -318,6 +331,7 @@
           "items": {
             "type": "object",
             "properties": {
+              "id": { "type": "string" },
               "fullName": { "type": "string" },
               "birthDate": { "type": "string", "format": "date" }
             }

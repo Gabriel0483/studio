@@ -4,7 +4,7 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useFieldArray, useForm } from "react-hook-form"
 import * as z from "zod"
-import { PlusCircle, Trash2, ArrowLeft, RefreshCw } from "lucide-react"
+import { PlusCircle, Trash2, ArrowLeft, RefreshCw, UserPlus } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -27,15 +27,18 @@ import { toast } from "@/hooks/use-toast"
 import { PublicHeader } from "@/components/public-header"
 import { PublicFooter } from "@/components/public-footer"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
-import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase"
+import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from "@/firebase"
 import { collection, doc, serverTimestamp, runTransaction, Timestamp } from "firebase/firestore"
 import React, { useMemo, useState, useEffect, useRef } from "react"
 import { Separator } from "@/components/ui/separator"
 import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { format } from "date-fns"
 import { TripItinerary } from "@/components/trip-itinerary";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { nanoid } from "nanoid"
 
 const passengerSchema = z.object({
+  id: z.string(),
   fullName: z.string().min(2, { message: "Full name must be at least 2 characters." }),
   birthDate: z.string().optional(),
   fareType: z.string({ required_error: "Please select a fare type."}),
@@ -62,7 +65,6 @@ type BookingSummary = {
   totalTickets: number;
 };
 
-// This represents the final confirmed booking data
 type ConfirmedBooking = BookingFormData & {
   id: string;
   bookingDate: Date;
@@ -91,6 +93,9 @@ export default function BookingPage() {
   const [bookingSummary, setBookingSummary] = useState<BookingSummary>({ details: [], totalPrice: 0, totalTickets: 0 });
   const [confirmedBooking, setConfirmedBooking] = useState<ConfirmedBooking | null>(null);
 
+  const passengerDocRef = useMemoFirebase(() => firestore && user ? doc(firestore, 'passengers', user.uid) : null, [firestore, user]);
+  const { data: passengerData } = useDoc(passengerDocRef);
+
   const schedulesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'schedules') : null, [firestore]);
   const routesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'routes') : null, [firestore]);
   const faresQuery = useMemoFirebase(() => firestore ? collection(firestore, 'fares') : null, [firestore]);
@@ -108,11 +113,22 @@ export default function BookingPage() {
       routeId: "",
       travelDate: new Date().toISOString().split("T")[0],
       scheduleId: "",
-      passengers: [{ fullName: "", birthDate: "", fareType: "" }],
+      passengers: [{ id: nanoid(), fullName: user?.displayName || "", birthDate: "", fareType: "" }],
       primaryEmail: user?.email || "",
       primaryPhone: "",
     },
   });
+
+  useEffect(() => {
+    if (user && passengerData) {
+        form.setValue('passengers', [{ id: nanoid(), fullName: `${passengerData.firstName || ''} ${passengerData.lastName || ''}`.trim(), birthDate: "", fareType: "" }]);
+        form.setValue('primaryEmail', passengerData.email || user.email || '');
+        form.setValue('primaryPhone', passengerData.phone || '');
+    } else if (user) {
+        form.setValue('passengers', [{ id: nanoid(), fullName: user.displayName || "", birthDate: "", fareType: "" }]);
+        form.setValue('primaryEmail', user.email || '');
+    }
+  }, [user, passengerData, form]);
 
   const { fields, append, remove, replace } = useFieldArray({
     control: form.control,
@@ -160,9 +176,8 @@ export default function BookingPage() {
   
   useEffect(() => {
     form.resetField('scheduleId');
-    replace([{ fullName: "", birthDate: "", fareType: "" }]);
     setAvailableFares([]);
-  }, [watchRouteId, form, replace]);
+  }, [watchRouteId, form]);
 
 
   useEffect(() => {
@@ -244,6 +259,7 @@ export default function BookingPage() {
           id: bookingId,
           passengerId: user.uid,
           passengerInfo: data.passengers.map(p => ({
+            id: p.id,
             fullName: p.fullName,
             birthDate: p.birthDate || null,
             fareType: p.fareType,
@@ -276,14 +292,15 @@ export default function BookingPage() {
       });
 
       const passengerRef = doc(firestore, 'passengers', user.uid);
-      const passengerData = {
+      const mainPassengerName = data.passengers[0].fullName.split(' ');
+      const passengerDataToSave = {
           id: user.uid,
-          firstName: data.passengers[0].fullName.split(' ')[0],
-          lastName: data.passengers[0].fullName.split(' ').slice(1).join(' '),
+          firstName: mainPassengerName[0],
+          lastName: mainPassengerName.slice(1).join(' '),
           email: data.primaryEmail,
           phone: data.primaryPhone,
       };
-      setDocumentNonBlocking(passengerRef, passengerData, { merge: true });
+      setDocumentNonBlocking(passengerRef, passengerDataToSave, { merge: true });
 
       toast({
         title: "Booking Successful!",
@@ -322,6 +339,7 @@ export default function BookingPage() {
 
   const isLoading = isLoadingSchedules || isLoadingRoutes || isLoadingFares;
   const currentSchedule = filteredSchedules.find(s => s.id === watchScheduleId);
+  const familyMembers = passengerData?.familyMembers || [];
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -484,15 +502,44 @@ export default function BookingPage() {
                           </div>
                         </div>
                       ))}
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => append({ fullName: "", birthDate: "", fareType: "" })}
-                        disabled={!watchScheduleId}
-                      >
-                        <PlusCircle className="mr-2 h-4 w-4" /> Add Another Passenger
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => append({ id: nanoid(), fullName: "", birthDate: "", fareType: "" })}
+                          disabled={!watchScheduleId}
+                        >
+                          <PlusCircle className="mr-2 h-4 w-4" /> Add Another Passenger
+                        </Button>
+                        {familyMembers.length > 0 && (
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button type="button" variant="secondary" size="sm" disabled={!watchScheduleId}>
+                                        <UserPlus className="mr-2 h-4 w-4" /> Add Family Member
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-80">
+                                    <div className="grid gap-4">
+                                        <div className="space-y-2">
+                                            <h4 className="font-medium leading-none">Select Family Member</h4>
+                                            <p className="text-sm text-muted-foreground">Click to add a family member to this booking.</p>
+                                        </div>
+                                        <div className="grid gap-2">
+                                        {familyMembers.map((member: any) => (
+                                            <div key={member.id} className="grid grid-cols-3 items-center gap-4">
+                                                <span className="col-span-2 truncate">{member.fullName}</span>
+                                                <Button size="sm" onClick={() => append({ id: member.id, fullName: member.fullName, birthDate: member.birthDate, fareType: '' })}>
+                                                    Add
+                                                </Button>
+                                            </div>
+                                        ))}
+                                        </div>
+                                    </div>
+                                </PopoverContent>
+                            </Popover>
+                        )}
+                      </div>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                         <FormField
@@ -602,7 +649,3 @@ export default function BookingPage() {
     </div>
   )
 }
-
-    
-
-    

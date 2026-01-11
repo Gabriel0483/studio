@@ -1,3 +1,4 @@
+
 {
   "name": "nextn",
   "version": "0.1.0",
@@ -44,6 +45,7 @@
     "firebase": "^11.9.1",
     "genkit": "^1.20.0",
     "lucide-react": "^0.475.0",
+    "nanoid": "^5.0.7",
     "next": "15.5.9",
     "react": "^19.2.1",
     "react-day-picker": "^9.11.3",

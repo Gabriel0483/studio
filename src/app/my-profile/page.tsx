@@ -2,7 +2,7 @@
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { useFieldArray, useForm } from "react-hook-form";
 import * as z from "zod";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -20,16 +20,26 @@ import { toast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useDoc, useFirestore, useMemoFirebase, setDocumentNonBlocking } from "@/firebase";
 import { useUser } from "@/firebase/provider";
-import { Loader2 } from "lucide-react";
+import { Loader2, PlusCircle, Trash2 } from "lucide-react";
 import { PublicHeader } from "@/components/public-header";
 import { PublicFooter } from "@/components/public-footer";
 import { doc } from "firebase/firestore";
+import { Separator } from "@/components/ui/separator";
+import { nanoid } from 'nanoid';
+
+
+const familyMemberSchema = z.object({
+    id: z.string(),
+    fullName: z.string().min(2, { message: "Full name must be at least 2 characters." }),
+    birthDate: z.string().optional(),
+});
 
 const profileFormSchema = z.object({
   firstName: z.string().min(1, { message: "First name is required." }),
   lastName: z.string().min(1, { message: "Last name is required." }),
   email: z.string().email(),
   phone: z.string().optional(),
+  familyMembers: z.array(familyMemberSchema).optional(),
 });
 
 type ProfileFormData = z.infer<typeof profileFormSchema>;
@@ -55,7 +65,13 @@ export default function MyProfilePage() {
       lastName: "",
       email: "",
       phone: "",
+      familyMembers: [],
     },
+  });
+  
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: "familyMembers",
   });
 
   useEffect(() => {
@@ -65,6 +81,7 @@ export default function MyProfilePage() {
         lastName: passengerData.lastName || "",
         email: passengerData.email || user?.email || "",
         phone: passengerData.phone || "",
+        familyMembers: passengerData.familyMembers || [],
       });
     } else if (user) {
         form.reset({
@@ -72,6 +89,7 @@ export default function MyProfilePage() {
             lastName: "",
             email: user.email || "",
             phone: "",
+            familyMembers: [],
         });
     }
   }, [passengerData, user, form]);
@@ -119,7 +137,7 @@ export default function MyProfilePage() {
             <CardHeader>
               <CardTitle className="text-3xl font-bold tracking-tight">My Profile</CardTitle>
               <CardDescription>
-                View and update your personal information.
+                View and update your personal information and family members.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -185,6 +203,62 @@ export default function MyProfilePage() {
                         </FormItem>
                       )}
                     />
+
+                    <Separator />
+
+                    <div className="space-y-4">
+                      <h3 className="font-medium text-lg">Family Members</h3>
+                       {fields.map((field, index) => (
+                        <div key={field.id} className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end p-4 border rounded-lg relative">
+                          <FormField
+                            control={form.control}
+                            name={`familyMembers.${index}.fullName`}
+                            render={({ field }) => (
+                              <FormItem className="sm:col-span-7">
+                                <FormLabel>Full Name</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="Jane Doe" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name={`familyMembers.${index}.birthDate`}
+                            render={({ field }) => (
+                              <FormItem className="sm:col-span-4">
+                                <FormLabel>Birth Date</FormLabel>
+                                <FormControl>
+                                  <Input type="date" {...field} placeholder="YYYY-MM-DD" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <div className="sm:col-span-1">
+                            <Button
+                                type="button"
+                                variant="destructive"
+                                size="icon"
+                                onClick={() => remove(index)}
+                                className="w-full"
+                            >
+                                <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => append({ id: nanoid(), fullName: "", birthDate: "" })}
+                      >
+                        <PlusCircle className="mr-2 h-4 w-4" /> Add Family Member
+                      </Button>
+                    </div>
+
                     <Button type="submit" size="lg" className="w-full" disabled={isSaving || !form.formState.isDirty}>
                       {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                       Save Changes
