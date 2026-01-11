@@ -305,6 +305,10 @@
             "type": "string",
             "description": "The real-time status of the trip.",
             "enum": ["On Time", "Delayed", "Departed", "Arrived", "Cancelled"]
+        },
+        "baseScheduleId": {
+            "type": ["string", "null"],
+            "description": "If this is a specific instance of a daily trip, this ID points to the original 'Daily' schedule template."
         }
       },
       "required": [
