@@ -5,7 +5,7 @@ import { useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc, serverTimestamp } from 'firebase/firestore';
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
@@ -42,7 +42,7 @@ export default function SettingsPage() {
         lastUpdatedAt: serverTimestamp(),
     };
 
-    updateDocumentNonBlocking(conditionsDocRef, dataToSave);
+    updateDocumentNonBlocking(conditionsDocRef, dataToSave, { merge: true });
 
     // Give a small delay for the non-blocking update to feel like it's processing
     setTimeout(() => {
@@ -75,7 +75,7 @@ export default function SettingsPage() {
           <CardTitle>Booking Conditions</CardTitle>
           <CardDescription>
             Edit the terms and conditions that appear on the public 'Booking Conditions' page.
-            This content supports Markdown for formatting.
+            This content supports basic HTML for formatting.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
