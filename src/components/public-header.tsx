@@ -21,11 +21,11 @@ export function PublicHeader() {
             Advisories
           </Link>
           <Button asChild variant="outline">
-            <Link href="/dashboard">Login</Link>
+            <Link href="/login">Login</Link>
           </Button>
         </nav>
          <Button asChild className="md:hidden">
-            <Link href="/dashboard">Login</Link>
+            <Link href="/login">Login</Link>
         </Button>
       </div>
     </header>

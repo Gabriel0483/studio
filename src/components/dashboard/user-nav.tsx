@@ -15,45 +15,55 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { CreditCard, LifeBuoy, LogOut, Settings, User } from "lucide-react"
+import { CreditCard, LifeBuoy, LogOut, Settings, User as UserIcon } from "lucide-react"
 import { useEffect, useState } from "react";
+import { useUser } from "@/firebase";
+import { handleSignOut } from "@/firebase/auth";
+import { useRouter } from "next/navigation";
 
 export function UserNav() {
-  const [mounted, setMounted] = useState(false);
+  const { user, isUserLoading } = useUser();
+  const router = useRouter();
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const onSignOut = async () => {
+    await handleSignOut();
+    router.push('/login');
+  };
 
-  if (!mounted) {
+  if (isUserLoading) {
     return (
       <div className="h-8 w-8 rounded-full bg-secondary animate-pulse" />
     );
   }
+  
+  const getInitials = (email: string | null | undefined) => {
+    if (!email) return 'U';
+    return email.substring(0, 2).toUpperCase();
+  };
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-8 w-8 rounded-full">
           <Avatar className="h-8 w-8">
-            <AvatarImage src="https://picsum.photos/seed/user-avatar/40/40" alt="User" />
-            <AvatarFallback>JD</AvatarFallback>
+            <AvatarImage src={user?.photoURL || `https://picsum.photos/seed/${user?.uid}/40/40`} alt="User" />
+            <AvatarFallback>{getInitials(user?.email)}</AvatarFallback>
           </Avatar>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">John Doe</p>
+            <p className="text-sm font-medium leading-none">{user?.displayName || 'Administrator'}</p>
             <p className="text-xs leading-none text-muted-foreground">
-              john.doe@example.com
+              {user?.email || 'No email'}
             </p>
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
           <DropdownMenuItem>
-            <User />
+            <UserIcon />
             <span>Profile</span>
           </DropdownMenuItem>
           <DropdownMenuItem>
@@ -71,7 +81,7 @@ export function UserNav() {
           <span>Support</span>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem>
+        <DropdownMenuItem onClick={onSignOut}>
           <LogOut />
           <span>Log out</span>
         </DropdownMenuItem>

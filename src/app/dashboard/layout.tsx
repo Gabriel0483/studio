@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import React, { useEffect } from 'react';
 import {
   SidebarProvider,
   Sidebar,
@@ -18,8 +19,12 @@ import { Logo } from '@/components/logo';
 import { UserNav } from '@/components/dashboard/user-nav';
 import { navLinks } from '@/lib/data';
 import { Button } from '@/components/ui/button';
-import { Home } from 'lucide-react';
+import { Home, Loader2 } from 'lucide-react';
+import { useUser } from '@/firebase';
 
+const isAdminUser = (user: any) => {
+    return user?.email === 'rielmagpantay@gmail.com';
+};
 
 export default function DashboardLayout({
   children,
@@ -27,7 +32,31 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, isUserLoading } = useUser();
 
+  useEffect(() => {
+    // If auth state is still loading, do nothing yet.
+    if (isUserLoading) {
+      return;
+    }
+
+    // If loading is finished and there's no user, or the user is not an admin, redirect to login.
+    if (!user || !isAdminUser(user)) {
+      router.replace('/login');
+    }
+  }, [user, isUserLoading, router]);
+
+  // While checking auth, show a loading state.
+  if (isUserLoading || !user || !isAdminUser(user)) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  // If user is authenticated and is an admin, render the dashboard.
   return (
     <SidebarProvider>
       <Sidebar>
