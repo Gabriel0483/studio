@@ -62,9 +62,6 @@ export default function Home() {
                 <Button asChild size="lg">
                   <Link href="/book">Book a Seat Online</Link>
                 </Button>
-                <Button asChild variant="secondary" size="lg">
-                  <Link href="/dashboard">Access Company Dashboard</Link>
-                </Button>
               </div>
             </div>
           </div>
