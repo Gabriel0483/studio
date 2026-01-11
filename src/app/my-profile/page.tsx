@@ -53,7 +53,7 @@ export default function MyProfilePage() {
     defaultValues: {
       firstName: "",
       lastName: "",
-      email: user?.email || "",
+      email: "",
       phone: "",
     },
   });
