@@ -153,8 +153,10 @@ export default function MyBookingsPage() {
                        <Separator />
                        <div>
                             <p className="font-semibold text-muted-foreground flex items-center gap-2 mb-2"><UsersIcon className="h-4 w-4" /> Passengers</p>
-                            <ul className="list-disc list-inside text-sm">
-                                {booking.passengerInfo?.map((p: any, i: number) => <li key={i}>{p.fullName}</li>)}
+                            <ul className="list-disc list-inside text-sm space-y-1">
+                                {booking.passengerInfo?.map((p: any, i: number) => (
+                                    <li key={i}>{p.fullName} <span className="text-muted-foreground">({p.fareType})</span></li>
+                                ))}
                             </ul>
                         </div>
                     </CardContent>
