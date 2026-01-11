@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -36,18 +37,14 @@ export default function DashboardLayout({
   const { user, isUserLoading } = useUser();
 
   useEffect(() => {
-    // If auth state is still loading, do nothing yet.
     if (isUserLoading) {
       return;
     }
-
-    // If loading is finished and there's no user, or the user is not an admin, redirect to login.
     if (!user || !isAdminUser(user)) {
-      router.replace('/login');
+      router.replace('/admin/login');
     }
   }, [user, isUserLoading, router]);
 
-  // While checking auth, show a loading state.
   if (isUserLoading || !user || !isAdminUser(user)) {
     return (
       <div className="flex h-screen w-full items-center justify-center">
@@ -56,7 +53,6 @@ export default function DashboardLayout({
     );
   }
 
-  // If user is authenticated and is an admin, render the dashboard.
   return (
     <SidebarProvider>
       <Sidebar>
@@ -95,7 +91,6 @@ export default function DashboardLayout({
                 </Button>
             </div>
           <div className="w-full flex-1">
-            {/* Can add a search bar here later */}
           </div>
           <UserNav />
         </header>

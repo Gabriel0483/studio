@@ -1,11 +1,17 @@
+
 'use client';
-import { getAuth, signOut } from "firebase/auth";
+import { getAuth, signOut, createUserWithEmailAndPassword } from "firebase/auth";
+
+export const handleSignUp = async (email: string, password: string): Promise<void> => {
+    const auth = getAuth();
+    await createUserWithEmailAndPassword(auth, email, password);
+    console.log("User signed up successfully.");
+};
 
 export const handleSignOut = async () => {
     const auth = getAuth();
     try {
         await signOut(auth);
-        // You might want to redirect the user to the login page after sign out
         console.log("User signed out successfully.");
     } catch (error) {
         console.error("Error signing out: ", error);

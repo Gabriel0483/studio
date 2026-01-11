@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -16,7 +17,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { CreditCard, LifeBuoy, LogOut, Settings, User as UserIcon } from "lucide-react"
-import { useEffect, useState } from "react";
 import { useUser } from "@/firebase";
 import { handleSignOut } from "@/firebase/auth";
 import { useRouter } from "next/navigation";
@@ -27,7 +27,7 @@ export function UserNav() {
 
   const onSignOut = async () => {
     await handleSignOut();
-    router.push('/login');
+    router.push('/admin/login');
   };
 
   if (isUserLoading) {
@@ -63,26 +63,26 @@ export function UserNav() {
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
           <DropdownMenuItem>
-            <UserIcon />
+            <UserIcon className="mr-2 h-4 w-4" />
             <span>Profile</span>
           </DropdownMenuItem>
           <DropdownMenuItem>
-            <CreditCard />
+            <CreditCard className="mr-2 h-4 w-4" />
             <span>Billing</span>
           </DropdownMenuItem>
           <DropdownMenuItem>
-            <Settings />
+            <Settings className="mr-2 h-4 w-4" />
             <span>Settings</span>
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem>
-          <LifeBuoy />
+          <LifeBuoy className="mr-2 h-4 w-4" />
           <span>Support</span>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={onSignOut}>
-          <LogOut />
+          <LogOut className="mr-2 h-4 w-4" />
           <span>Log out</span>
         </DropdownMenuItem>
       </DropdownMenuContent>

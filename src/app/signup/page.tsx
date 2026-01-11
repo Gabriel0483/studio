@@ -19,48 +19,46 @@ import {
 import { Input } from "@/components/ui/input"
 import { toast } from "@/hooks/use-toast"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { useAuth } from "@/firebase"
-import { signInWithEmailAndPassword } from "firebase/auth"
+import { handleSignUp } from "@/firebase/auth"
 import { Loader2 } from "lucide-react"
 import Link from "next/link";
 import { PublicHeader } from "@/components/public-header";
 import { PublicFooter } from "@/components/public-footer";
 
-const loginFormSchema = z.object({
+const signupFormSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address." }),
-  password: z.string().min(1, { message: "Password is required." }),
+  password: z.string().min(8, { message: "Password must be at least 8 characters." }),
 });
 
-type LoginFormData = z.infer<typeof loginFormSchema>;
+type SignupFormData = z.infer<typeof signupFormSchema>;
 
-export default function PublicLoginPage() {
-  const auth = useAuth();
+export default function SignupPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
 
-  const form = useForm<LoginFormData>({
-    resolver: zodResolver(loginFormSchema),
+  const form = useForm<SignupFormData>({
+    resolver: zodResolver(signupFormSchema),
     defaultValues: {
       email: "",
       password: "",
     },
   });
 
-  async function onSubmit(data: LoginFormData) {
+  async function onSubmit(data: SignupFormData) {
     setIsLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, data.email, data.password);
+      await handleSignUp(data.email, data.password);
       toast({
-        title: "Login Successful",
-        description: "Welcome back!",
+        title: "Account Created",
+        description: "You have successfully signed up!",
       });
       router.push('/my-bookings');
     } catch (error: any) {
       console.error(error);
       let description = "An unexpected error occurred. Please try again.";
-      if (error && error.code) { 
-        if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
-          description = "Invalid email or password. Please check your credentials and try again.";
+      if (error && error.code) {
+        if (error.code === 'auth/email-already-in-use') {
+          description = "This email is already registered. Please try logging in.";
         } else {
           description = error.message;
         }
@@ -68,7 +66,7 @@ export default function PublicLoginPage() {
       
       toast({
         variant: "destructive",
-        title: "Authentication Failed",
+        title: "Signup Failed",
         description: description,
       });
     } finally {
@@ -82,9 +80,9 @@ export default function PublicLoginPage() {
         <main className="flex-1 flex items-center justify-center bg-secondary p-4">
             <Card className="mx-auto w-full max-w-sm">
                 <CardHeader className="text-center">
-                <CardTitle className="text-2xl font-bold tracking-tight">Welcome Back</CardTitle>
+                <CardTitle className="text-2xl font-bold tracking-tight">Create an Account</CardTitle>
                 <CardDescription>
-                    Sign in to your account to view your bookings.
+                    Enter your email and password to get started.
                 </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -118,12 +116,12 @@ export default function PublicLoginPage() {
                     />
                     <Button type="submit" size="lg" className="w-full" disabled={isLoading}>
                         {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Sign In
+                        Create Account
                     </Button>
                     </form>
                 </Form>
                  <p className="mt-4 text-center text-sm text-muted-foreground">
-                    Don't have an account? <Link href="/signup" className="underline hover:text-primary">Sign up</Link>.
+                    Already have an account? <Link href="/login" className="underline hover:text-primary">Log in</Link>.
                 </p>
                 </CardContent>
             </Card>

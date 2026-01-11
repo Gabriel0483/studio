@@ -1,3 +1,4 @@
+
 import Link from 'next/link';
 import Image from 'next/image';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -37,7 +38,7 @@ export default function Home() {
     <div className="flex min-h-screen flex-col">
       <PublicHeader />
       <main className="flex-1">
-        <section className="relative w-full py-20 md:py-32 lg:py-40">
+        <section className="relative w-full pt-24 pb-12 md:pt-40 md:pb-20 lg:pt-48 lg:pb-28">
            <div className="absolute inset-0 -z-10">
             {heroImage && (
               <Image
@@ -48,7 +49,7 @@ export default function Home() {
                 data-ai-hint={heroImage.imageHint}
               />
             )}
-            <div className="absolute inset-0 bg-gradient-to-t from-white via-white/80 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-transparent" />
           </div>
           <div className="container mx-auto px-4 text-center md:px-6">
             <div className="flex flex-col items-center space-y-6">
