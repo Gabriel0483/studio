@@ -25,7 +25,7 @@ export default function MyBookingsPage() {
 
   const schedulesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'schedules') : null, [firestore]);
 
-  const { data: bookings, isLoading: isLoadingBookings } = useCollection(bookingsQuery);
+  const { data: bookings, isLoading: isLoadingBookings } = useCollection(bookingsQuery, { idField: 'firestoreId' });
   const { data: schedules, isLoading: isLoadingSchedules } = useCollection(schedulesQuery);
 
   const enrichedBookings = useMemo(() => {
@@ -111,7 +111,7 @@ export default function MyBookingsPage() {
             ) : enrichedBookings && enrichedBookings.length > 0 ? (
               <div className="space-y-6">
                 {enrichedBookings.map((booking) => (
-                  <Card key={booking.id} className="overflow-hidden">
+                  <Card key={booking.firestoreId} className="overflow-hidden">
                     <CardHeader>
                       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
                         <div>
