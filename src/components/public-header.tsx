@@ -17,6 +17,9 @@ export function PublicHeader() {
            <Link href="/status" className="text-sm font-medium text-muted-foreground hover:text-foreground">
             Live Status
           </Link>
+          <Link href="/advisories" className="text-sm font-medium text-muted-foreground hover:text-foreground">
+            Advisories
+          </Link>
           <Button asChild variant="outline">
             <Link href="/dashboard">Login</Link>
           </Button>

@@ -92,6 +92,17 @@ service cloud.firestore {
     // ----------------------------------------------------------------------
     
     /**
+     * @description Manages public announcements. This data is safe for anyone to read.
+     *   Writes are restricted to administrators.
+     * @path /announcements/{announcementId}
+     */
+    match /announcements/{announcementId} {
+      allow get: if true;
+      allow list: if true;
+      allow write: if isAdmin();
+    }
+    
+    /**
      * @description Manages public port information. This data is safe for anyone to read,
      *   allowing the app to display available ports to all users. Writes are
      *   restricted to administrators to prevent tampering.

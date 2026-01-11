@@ -1,5 +1,36 @@
 {
   "entities": {
+    "Announcement": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Announcement",
+      "type": "object",
+      "description": "Represents a public advisory or announcement.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Announcement."
+        },
+        "title": {
+          "type": "string",
+          "description": "The title of the announcement."
+        },
+        "content": {
+          "type": "string",
+          "description": "The main body of the announcement."
+        },
+        "category": {
+          "type": "string",
+          "description": "The category of the announcement (e.g., 'Weather Update', 'Route Change').",
+          "enum": ["General Information", "Weather Update", "Route Change", "Fare Change", "Service Disruption"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The timestamp when the announcement was created."
+        }
+      },
+      "required": ["id", "title", "content", "category", "createdAt"]
+    },
     "Port": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Port",
@@ -498,6 +529,22 @@
   },
   "firestore": {
     "structure": [
+      {
+        "path": "/announcements/{announcementId}",
+        "definition": {
+            "entityName": "Announcement",
+            "schema": {
+                "$ref": "#/backend/entities/Announcement"
+            },
+            "description": "Stores public announcements. Read access is open to all, write access is restricted to admins.",
+            "params": [
+                {
+                    "name": "announcementId",
+                    "description": "The unique identifier of the announcement."
+                }
+            ]
+        }
+      },
       {
         "path": "/ports/{portId}",
         "definition": {
