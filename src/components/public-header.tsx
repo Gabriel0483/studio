@@ -30,6 +30,7 @@ export function PublicHeader() {
     { href: '/#features', label: 'Features' },
     { href: '/book', label: 'Book Now' },
     { href: '/status', label: 'Live Status' },
+    { href: '/advisories', label: 'Advisories' },
   ];
 
   return (
