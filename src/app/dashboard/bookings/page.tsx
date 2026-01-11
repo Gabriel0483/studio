@@ -54,8 +54,8 @@ interface Booking {
   bookingDate: Timestamp;
   numberOfSeats: number;
   totalPrice: number;
-  status: 'Reserved' | 'Waitlisted' | 'Cancelled';
-  paymentStatus: 'Paid' | 'Unpaid';
+  status: 'Confirmed' | 'Reserved' | 'Waitlisted' | 'Cancelled' | 'Refunded';
+  paymentStatus: 'Paid' | 'Unpaid' | 'Refunded';
 }
 
 export default function BookingsPage() {
@@ -78,7 +78,6 @@ export default function BookingsPage() {
   const filteredBookings = useMemo(() => {
     if (!bookings) return [];
     
-    // Create a new sorted array instead of sorting in-place
     const sortedBookings = [...bookings].sort((a, b) => {
         const dateA = a.bookingDate ? a.bookingDate.toMillis() : 0;
         const dateB = b.bookingDate ? b.bookingDate.toMillis() : 0;
@@ -117,11 +116,11 @@ export default function BookingsPage() {
   };
   
   const confirmCancel = (booking: Booking) => {
-    if (booking.status === 'Cancelled') {
+    if (booking.status === 'Cancelled' || booking.status === 'Refunded') {
       toast({
         variant: 'destructive',
-        title: 'Already Cancelled',
-        description: 'This booking has already been cancelled.',
+        title: 'Already Finalized',
+        description: 'This booking has already been cancelled or refunded.',
       });
       return;
     }
@@ -134,6 +133,14 @@ export default function BookingsPage() {
         toast({
             title: 'Already Paid',
             description: 'This booking has already been marked as paid.',
+        });
+        return;
+    }
+    if (booking.status === 'Cancelled') {
+        toast({
+            variant: 'destructive',
+            title: 'Cannot Pay',
+            description: 'This booking has been cancelled.',
         });
         return;
     }
@@ -153,7 +160,7 @@ export default function BookingsPage() {
       await runTransaction(firestore, async (transaction) => {
         const scheduleDoc = await transaction.get(scheduleRef);
 
-        if (scheduleDoc.exists() && bookingToProcess.status === 'Reserved') {
+        if (scheduleDoc.exists() && (bookingToProcess.status === 'Reserved' || bookingToProcess.status === 'Confirmed')) {
           const currentSeats = scheduleDoc.data().availableSeats || 0;
           const newSeats = currentSeats + bookingToProcess.numberOfSeats;
           transaction.update(scheduleRef, { availableSeats: newSeats });
@@ -191,8 +198,8 @@ export default function BookingsPage() {
         await runTransaction(firestore, async (transaction) => {
             const scheduleDoc = await transaction.get(scheduleRef);
 
-            // Only return seats if the booking was reserved
-            if (scheduleDoc.exists() && bookingToProcess.status === 'Reserved') {
+            // Only return seats if the booking was reserved or confirmed
+            if (scheduleDoc.exists() && (bookingToProcess.status === 'Reserved' || bookingToProcess.status === 'Confirmed')) {
                 const currentSeats = scheduleDoc.data().availableSeats || 0;
                 const newSeats = currentSeats + bookingToProcess.numberOfSeats;
                 transaction.update(scheduleRef, { availableSeats: newSeats });
@@ -225,10 +232,10 @@ export default function BookingsPage() {
     }
     const bookingRef = doc(firestore, 'bookings', bookingToProcess.firestoreId);
     try {
-      await updateDoc(bookingRef, { paymentStatus: 'Paid' });
+      await updateDoc(bookingRef, { paymentStatus: 'Paid', status: 'Confirmed' });
       toast({
-        title: 'Booking Paid',
-        description: `Booking #${bookingToProcess.id} has been marked as paid.`,
+        title: 'Booking Paid & Confirmed',
+        description: `Booking #${bookingToProcess.id} is now Paid and Confirmed.`,
       });
     } catch (e: any) {
       console.error(e);
@@ -243,26 +250,30 @@ export default function BookingsPage() {
     }
   };
 
-
-  const getStatusVariant = (status: 'Reserved' | 'Waitlisted' | 'Cancelled') => {
+  const getStatusVariant = (status: Booking['status']) => {
     switch (status) {
-      case 'Reserved':
+      case 'Confirmed':
         return 'default';
-      case 'Waitlisted':
+      case 'Reserved':
         return 'secondary';
+      case 'Waitlisted':
+        return 'outline';
       case 'Cancelled':
+      case 'Refunded':
         return 'destructive';
       default:
         return 'outline';
     }
   };
   
-  const getPaymentStatusVariant = (status: 'Paid' | 'Unpaid') => {
+  const getPaymentStatusVariant = (status: Booking['paymentStatus']) => {
     switch (status) {
         case 'Paid':
             return 'default';
         case 'Unpaid':
             return 'secondary';
+        case 'Refunded':
+             return 'destructive';
         default:
             return 'outline';
     }
@@ -354,7 +365,7 @@ export default function BookingsPage() {
                                             variant="ghost"
                                             size="icon"
                                             onClick={() => confirmPaid(booking)}
-                                            disabled={booking.paymentStatus === 'Paid' || booking.status === 'Cancelled'}
+                                            disabled={booking.paymentStatus === 'Paid' || booking.status === 'Cancelled' || booking.status === 'Refunded'}
                                         >
                                             <CreditCard className="h-4 w-4" />
                                             <span className="sr-only">Mark as Paid</span>
@@ -368,7 +379,7 @@ export default function BookingsPage() {
                                             variant="ghost"
                                             size="icon"
                                             onClick={() => handleEdit(booking.id)}
-                                            disabled={booking.status === 'Cancelled'}
+                                            disabled={booking.status === 'Cancelled' || booking.status === 'Refunded'}
                                         >
                                             <Pencil className="h-4 w-4" />
                                             <span className="sr-only">Edit</span>
@@ -382,7 +393,7 @@ export default function BookingsPage() {
                                             variant="ghost"
                                             size="icon"
                                             onClick={() => confirmCancel(booking)}
-                                            disabled={booking.status === 'Cancelled'}
+                                            disabled={booking.status === 'Cancelled' || booking.status === 'Refunded'}
                                         >
                                             <XCircle className="h-4 w-4" />
                                             <span className="sr-only">Cancel</span>
@@ -465,13 +476,13 @@ export default function BookingsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Confirm Payment</AlertDialogTitle>
             <AlertDialogDescription>
-              This will mark the booking as "Paid". This action can be reversed by editing the booking.
+              This will mark the booking as "Paid" and the status as "Confirmed". This action can be reversed by editing the booking.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Back</AlertDialogCancel>
             <AlertDialogAction onClick={handleMarkAsPaid}>
-              Mark as Paid
+              Mark as Paid & Confirmed
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

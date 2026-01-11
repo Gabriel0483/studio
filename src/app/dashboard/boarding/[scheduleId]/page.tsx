@@ -44,7 +44,7 @@ export default function BoardingManifestPage() {
     if (!bookings) return [];
     
     return bookings
-      .filter(booking => booking.status === 'Reserved' && booking.paymentStatus === 'Paid')
+      .filter(booking => booking.status === 'Confirmed')
       .flatMap(booking => 
         (booking.passengerInfo || []).map((p: any, index: number) => {
           const uniquePassengerId = `${booking.firestoreId}-${index}`;
@@ -138,7 +138,7 @@ export default function BoardingManifestPage() {
         <div className="grid gap-4 md:grid-cols-3">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Paid Passengers</CardTitle>
+              <CardTitle className="text-sm font-medium">Total Confirmed Passengers</CardTitle>
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
@@ -214,7 +214,7 @@ export default function BoardingManifestPage() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={5} className="h-24 text-center">
-                    No paid passengers booked for this trip.
+                    No confirmed passengers for this trip.
                   </TableCell>
                 </TableRow>
               )}

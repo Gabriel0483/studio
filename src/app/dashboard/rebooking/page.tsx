@@ -94,14 +94,14 @@ export default function RebookingPage() {
             const scheduleDoc = await transaction.get(scheduleRef);
             
             const updateData: any = {
-                status: 'Cancelled', // Always set status to Cancelled on refund
+                status: 'Refunded',
+                paymentStatus: 'Refunded',
                 refundStatus: 'Refunded',
                 refundAmount: finalRefundAmount,
                 cancellationFee: cancellationFee,
             };
 
-            // If the booking was reserved, return the seats to the schedule.
-            if (searchedBooking.status === 'Reserved' && scheduleDoc.exists()) {
+            if ((searchedBooking.status === 'Reserved' || searchedBooking.status === 'Confirmed') && scheduleDoc.exists()) {
                 const currentSeats = scheduleDoc.data().availableSeats || 0;
                 transaction.update(scheduleRef, { availableSeats: currentSeats + searchedBooking.numberOfSeats });
             }
@@ -112,7 +112,8 @@ export default function RebookingPage() {
         // Refresh booking state locally after transaction
         setSearchedBooking((prev: any) => ({
             ...prev,
-            status: 'Cancelled',
+            status: 'Refunded',
+            paymentStatus: 'Refunded',
             refundStatus: 'Refunded',
             refundAmount: finalRefundAmount,
             cancellationFee: cancellationFee,
@@ -120,7 +121,7 @@ export default function RebookingPage() {
 
         toast({
             title: "Refund Processed",
-            description: `Refund for booking #${searchedBooking.id} has been processed and status is now Cancelled.`,
+            description: `Refund for booking #${searchedBooking.id} has been processed and status is now Refunded.`,
         });
 
     } catch (error) {
@@ -148,7 +149,7 @@ export default function RebookingPage() {
     return format(timestamp.toDate(), dateFormat);
   };
   
-  const isRefundable = searchedBooking?.paymentStatus === 'Paid' && searchedBooking?.refundStatus !== 'Refunded';
+  const isRefundable = searchedBooking?.paymentStatus === 'Paid' && searchedBooking?.status !== 'Refunded';
 
   return (
     <>
@@ -213,7 +214,7 @@ export default function RebookingPage() {
                         </div>
                          <div>
                             <p className="font-semibold text-muted-foreground">Booking Status</p>
-                            <div><Badge variant={searchedBooking.status === 'Cancelled' ? 'destructive' : 'default'}>{searchedBooking.status}</Badge></div>
+                            <div><Badge variant={searchedBooking.status === 'Cancelled' || searchedBooking.status === 'Refunded' ? 'destructive' : 'default'}>{searchedBooking.status}</Badge></div>
                         </div>
                         <div>
                             <p className="font-semibold text-muted-foreground">Payment Status</p>
@@ -251,7 +252,7 @@ export default function RebookingPage() {
                 <Button variant="secondary" onClick={() => setIsRefundDialogOpen(true)} disabled={!isRefundable || isLoading}>
                     Process Refund
                 </Button>
-                <Button onClick={handleRebook} disabled={isLoading}>
+                <Button onClick={handleRebook} disabled={isLoading || searchedBooking.status === 'Cancelled' || searchedBooking.status === 'Refunded'}>
                     Rebook
                 </Button>
             </CardFooter>
