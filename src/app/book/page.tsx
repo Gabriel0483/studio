@@ -99,10 +99,12 @@ export default function BookingPage() {
   const schedulesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'schedules') : null, [firestore]);
   const routesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'routes') : null, [firestore]);
   const faresQuery = useMemoFirebase(() => firestore ? collection(firestore, 'fares') : null, [firestore]);
+  const shipsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'ships') : null, [firestore]);
   
   const { data: allSchedules, isLoading: isLoadingSchedules } = useCollection(schedulesQuery);
   const { data: routes, isLoading: isLoadingRoutes } = useCollection(routesQuery);
   const { data: allFares, isLoading: isLoadingFares } = useCollection(faresQuery);
+  const { data: allShips, isLoading: isLoadingShips } = useCollection(shipsQuery);
 
   const [availableFares, setAvailableFares] = useState<any[]>([]);
   const [filteredSchedules, setFilteredSchedules] = useState<any[]>([]);
@@ -121,7 +123,7 @@ export default function BookingPage() {
 
   useEffect(() => {
     if (user && passengerData) {
-        form.setValue('passengers', [{ id: nanoid(), fullName: `${passengerData.firstName || ''} ${passengerData.lastName || ''}`.trim(), birthDate: "", fareType: "" }]);
+        form.setValue('passengers', [{ id: nanoid(), fullName: `${passengerData.firstName || ''} ${passengerData.lastName || ''}`.trim(), birthDate: passengerData.birthDate || "", fareType: "" }]);
         form.setValue('primaryEmail', passengerData.email || user.email || '');
         form.setValue('primaryPhone', passengerData.phone || '');
     } else if (user) {
@@ -141,7 +143,7 @@ export default function BookingPage() {
   const watchPassengers = form.watch('passengers');
 
   useEffect(() => {
-    if (watchRouteId && watchTravelDate && allSchedules) {
+    if (watchRouteId && watchTravelDate && allSchedules && allShips) {
       const selectedDate = new Date(watchTravelDate);
       selectedDate.setHours(0, 0, 0, 0);
       
@@ -152,27 +154,37 @@ export default function BookingPage() {
       const now = new Date();
       const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
 
-      const relatedSchedules = allSchedules.filter(s => {
-        if (s.routeId !== watchRouteId) return false;
+      const relatedSchedules = allSchedules.map(s => {
+        if (s.routeId !== watchRouteId) return null;
 
         const isDailyTrip = s.tripType === 'Daily';
         const isSpecialTripOnDate = s.tripType === 'Special' && s.date && format(new Date(s.date), 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd');
         
         if (!isDailyTrip && !isSpecialTripOnDate) {
-          return false;
+          return null;
         }
         
         if (isToday) {
-            return s.departureTime > currentTime;
+          if(s.departureTime <= currentTime) return null;
+          return s; // Use original schedule data for today
+        } else {
+          // For future dates, daily trips should show full capacity
+          if (isDailyTrip) {
+            const ship = allShips.find(ship => ship.id === s.shipId);
+            return {
+              ...s,
+              availableSeats: ship?.capacity || s.availableSeats, // Use full capacity
+            };
+          }
+          return s; // For special trips, the availableSeats should be correct
         }
+      }).filter(s => s !== null) as any[];
 
-        return true;
-      });
       setFilteredSchedules(relatedSchedules);
     } else {
       setFilteredSchedules([]);
     }
-  }, [watchRouteId, watchTravelDate, allSchedules]);
+  }, [watchRouteId, watchTravelDate, allSchedules, allShips]);
   
   useEffect(() => {
     form.resetField('scheduleId');
@@ -181,7 +193,7 @@ export default function BookingPage() {
 
 
   useEffect(() => {
-    const selectedSchedule = allSchedules?.find(s => s.id === watchScheduleId);
+    const selectedSchedule = filteredSchedules?.find(s => s.id === watchScheduleId);
     if (selectedSchedule && routes && allFares) {
       const route = routes.find(r => r.id === selectedSchedule.routeId);
       const routeFares = allFares.filter(f => f.routeId === route?.id);
@@ -189,7 +201,7 @@ export default function BookingPage() {
     } else {
       setAvailableFares([]);
     }
-  }, [watchScheduleId, allSchedules, routes, allFares]);
+  }, [watchScheduleId, filteredSchedules, routes, allFares]);
 
   const totalSeats = watchPassengers.length;
   
@@ -245,7 +257,15 @@ export default function BookingPage() {
         const bookingId = generateBookingReference();
 
         const scheduleData = scheduleDoc.data();
-        const currentAvailableSeats = scheduleData.availableSeats || 0;
+        let currentAvailableSeats = scheduleData.availableSeats || 0;
+
+        const isFutureDailyTrip = scheduleData.tripType === 'Daily' && format(new Date(data.travelDate), 'yyyy-MM-dd') > format(new Date(), 'yyyy-MM-dd');
+
+        if (isFutureDailyTrip && allShips) {
+            const ship = allShips.find(ship => ship.id === scheduleData.shipId);
+            if(ship) currentAvailableSeats = ship.capacity;
+        }
+
         let status: 'Reserved' | 'Waitlisted' = 'Reserved';
 
         if (currentAvailableSeats >= totalSeats) {
@@ -337,7 +357,7 @@ export default function BookingPage() {
     setConfirmedBooking(null);
   };
 
-  const isLoading = isLoadingSchedules || isLoadingRoutes || isLoadingFares;
+  const isLoading = isLoadingSchedules || isLoadingRoutes || isLoadingFares || isLoadingShips;
   const currentSchedule = filteredSchedules.find(s => s.id === watchScheduleId);
   const familyMembers = passengerData?.familyMembers || [];
 
