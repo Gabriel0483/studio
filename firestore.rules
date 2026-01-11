@@ -2,7 +2,7 @@
 /**
  * @title Firebase Security Rules for Isla Konek (Prototyping Mode)
  * @author Firebase Security Rules Architect
- * @version 1.7
+ * @version 1.8
  *
  * @description
  * This ruleset is designed for the Isla Konek application during its prototyping phase.
@@ -98,16 +98,6 @@ service cloud.firestore {
      * @path /announcements/{announcementId}
      */
     match /announcements/{announcementId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-    
-    /**
-     * @description Manages site policies. This data is safe for anyone to read.
-     *   Writes are restricted to administrators.
-     * @path /policies/{policyId}
-     */
-    match /policies/{policyId} {
       allow read: if true;
       allow write: if isAdmin();
     }
@@ -247,5 +237,3 @@ service cloud.firestore {
     }
   }
 }
-
-    

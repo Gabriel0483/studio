@@ -6,7 +6,6 @@ export const navLinks = [
   { href: '/dashboard/boarding', label: 'Boarding', icon: ClipboardCheck },
   { href: '/dashboard/operations', label: 'Operations', icon: Anchor },
   { href: '/dashboard/announcements', label: 'Announcements', icon: Megaphone },
-  { href: '/dashboard/policies', label: 'Policies', icon: FileText },
   { href: '/dashboard/ports', label: 'Ports', icon: Warehouse },
   { href: '/dashboard/routes', label: 'Routes', icon: RouteIcon },
   { href: '/dashboard/fares', label: 'Fares', icon: Ticket },

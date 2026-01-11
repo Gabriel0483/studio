@@ -32,37 +32,6 @@
       },
       "required": ["id", "title", "content", "category", "createdAt"]
     },
-    "Policy": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Policy",
-      "type": "object",
-      "description": "Represents a legal or informational policy document for the site.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Policy."
-        },
-        "title": {
-          "type": "string",
-          "description": "The title of the policy document (e.g., 'Privacy Policy')."
-        },
-        "content": {
-          "type": "string",
-          "description": "The full content of the policy."
-        },
-        "category": {
-          "type": "string",
-          "description": "The category of the policy.",
-          "enum": ["Booking Policy", "Terms of Service", "Privacy Policy", "General"]
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "The timestamp when the policy was created or last updated."
-        }
-      },
-      "required": ["id", "title", "content", "category", "createdAt"]
-    },
     "Port": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Port",
@@ -593,22 +562,6 @@
         }
       },
       {
-        "path": "/policies/{policyId}",
-        "definition": {
-          "entityName": "Policy",
-          "schema": {
-            "$ref": "#/backend/entities/Policy"
-          },
-          "description": "Stores site policies like Terms of Service or Privacy Policy. Read access is open to all, write access is restricted to admins.",
-          "params": [
-            {
-              "name": "policyId",
-              "description": "The unique identifier of the policy."
-            }
-          ]
-        }
-      },
-      {
         "path": "/ports/{portId}",
         "definition": {
           "entityName": "Port",
@@ -772,5 +725,3 @@
     "reasoning": "The Firestore data structure is designed to support the TransitFlow application's requirements for managing passengers, ships, routes, schedules, bookings, and maintenance records. The structure prioritizes authorization independence to ensure secure and scalable operations. Path-based ownership is used for user-specific data (passengers), while collaborative data (if any in future) will leverage membership maps. Structural segregation is employed to maintain a homogeneous security posture within collections.\n\nAuthorization Independence: Denormalization is applied where necessary to avoid get() calls in security rules. For instance, if access to Bookings needed to be restricted to passengers who made them, the passengerId is used in the Booking document, avoiding the need to get the Passenger document in rules.\n\nQAPs Support:  Segregation ensures that list operations are secure. For example, listing ships does not require filtering based on complex rules; all documents in the /ships collection have the same basic access control requirements."
   }
 }
-
-    
