@@ -123,7 +123,7 @@ export default function MyProfilePage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {isLoadingPassenger ? (
+              {isLoadingPassenger && !passengerData ? (
                  <div className="flex h-64 w-full items-center justify-center">
                     <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                     <p className="ml-2">Loading your profile...</p>
@@ -185,7 +185,7 @@ export default function MyProfilePage() {
                         </FormItem>
                       )}
                     />
-                    <Button type="submit" size="lg" className="w-full" disabled={isSaving}>
+                    <Button type="submit" size="lg" className="w-full" disabled={isSaving || !form.formState.isDirty}>
                       {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                       Save Changes
                     </Button>
