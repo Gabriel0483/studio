@@ -6,15 +6,24 @@ import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/logo';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Menu, User, LogOut } from 'lucide-react';
-import { useUser } from '@/firebase';
+import { useUser, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
 import { handleSignOut } from '@/firebase/auth';
 import { useRouter } from 'next/navigation';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { doc } from 'firebase/firestore';
 
 export function PublicHeader() {
   const { user, isUserLoading } = useUser();
+  const firestore = useFirestore();
   const router = useRouter();
+
+  const passengerDocRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, 'passengers', user.uid);
+  }, [firestore, user]);
+
+  const { data: passengerData } = useDoc(passengerDocRef);
 
   const onSignOut = async () => {
     await handleSignOut();
@@ -25,6 +34,14 @@ export function PublicHeader() {
     if (!email) return 'U';
     return email.substring(0, 2).toUpperCase();
   };
+  
+  const getDisplayName = () => {
+    if (passengerData?.firstName) {
+        return `${passengerData.firstName} ${passengerData.lastName || ''}`.trim();
+    }
+    return 'Passenger';
+  };
+
 
   const navLinks = [
     { href: '/#features', label: 'Features' },
@@ -64,7 +81,7 @@ export function PublicHeader() {
                   <DropdownMenuContent className="w-56" align="end" forceMount>
                     <DropdownMenuLabel className="font-normal">
                       <div className="flex flex-col space-y-1">
-                        <p className="text-sm font-medium leading-none">Passenger</p>
+                        <p className="text-sm font-medium leading-none">{getDisplayName()}</p>
                         <p className="text-xs leading-none text-muted-foreground">
                           {user?.email}
                         </p>
