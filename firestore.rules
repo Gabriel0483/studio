@@ -98,8 +98,7 @@ service cloud.firestore {
      * @path /announcements/{announcementId}
      */
     match /announcements/{announcementId} {
-      allow get: if true;
-      allow list: if true;
+      allow read: if true;
       allow write: if isAdmin();
     }
     
@@ -109,8 +108,7 @@ service cloud.firestore {
      * @path /policies/{policyId}
      */
     match /policies/{policyId} {
-      allow get: if true;
-      allow list: if true;
+      allow read: if true;
       allow write: if isAdmin();
     }
     
@@ -124,8 +122,7 @@ service cloud.firestore {
      * @principle Implements a "Public Read with Admin-Only Writes" pattern.
      */
     match /ports/{portId} {
-      allow get: if true;
-      allow list: if true;
+      allow read: if true;
       allow write: if isAdmin();
     }
 
@@ -156,8 +153,7 @@ service cloud.firestore {
      * @principle Enforces strict Role-Based Access Control (RBAC) for sensitive data.
      */
     match /ships/{shipId} {
-      allow get: if isAdmin();
-      allow list: if isAdmin();
+      allow read: if isAdmin();
       allow write: if isAdmin();
     }
     
@@ -167,8 +163,7 @@ service cloud.firestore {
      * @path /staff/{staffId}
      */
     match /staff/{staffId} {
-      allow get: if isAdmin();
-      allow list: if isAdmin();
+      allow read: if isAdmin();
       allow write: if isAdmin();
     }
 
@@ -182,8 +177,7 @@ service cloud.firestore {
      * @principle Implements a "Public Read with Admin-Only Writes" pattern.
      */
     match /routes/{routeId} {
-      allow get: if true;
-      allow list: if true;
+      allow read: if true;
       allow write: if isAdmin();
     }
 
@@ -193,8 +187,7 @@ service cloud.firestore {
      * @path /fares/{fareId}
      */
     match /fares/{fareId} {
-      allow get: if true;
-      allow list: if true;
+      allow read: if true;
       allow write: if isAdmin();
     }
 
@@ -207,8 +200,7 @@ service cloud.firestore {
      * @principle Implements a "Public Read with Admin-Only Writes" pattern.
      */
     match /schedules/{scheduleId} {
-      allow get: if true;
-      allow list: if true;
+      allow read: if true;
       allow write: if isAdmin();
     }
 
@@ -240,8 +232,7 @@ service cloud.firestore {
      * @principle Enforces strict Role-Based Access Control (RBAC) for sensitive data.
      */
     match /maintenanceRecords/{maintenanceRecordId} {
-      allow get: if isAdmin();
-      allow list: if isAdmin();
+      allow read: if isAdmin();
       allow write: if isAdmin();
     }
     
@@ -251,9 +242,10 @@ service cloud.firestore {
      * @path /boarding/{boardingId}
      */
     match /boarding/{boardingId} {
-        allow get: if isAdmin();
-        allow list: if isAdmin();
+        allow read: if isAdmin();
         allow write: if isAdmin();
     }
   }
 }
+
+    
