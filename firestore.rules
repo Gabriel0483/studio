@@ -47,6 +47,7 @@
  *   authorization (e.g., ownership IDs).
  */
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -242,6 +243,5 @@ service cloud.firestore {
         allow list: if isAdmin();
         allow write: if isAdmin();
     }
-
   }
 }
