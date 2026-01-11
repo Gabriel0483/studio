@@ -22,7 +22,7 @@ export default function MyBookingsPage() {
     return query(collection(firestore, 'bookings'), where('passengerId', '==', user.uid));
   }, [firestore, user]);
 
-  const { data: bookings, isLoading } = useCollection(bookingsQuery);
+  const { data: bookings, isLoading } = useCollection(bookingsQuery, { idField: 'firestoreId' });
 
   const sortedBookings = useMemo(() => {
     if (!bookings) return [];
@@ -83,7 +83,7 @@ export default function MyBookingsPage() {
             ) : sortedBookings && sortedBookings.length > 0 ? (
               <div className="space-y-6">
                 {sortedBookings.map((booking) => (
-                  <Card key={booking.id} className="overflow-hidden">
+                  <Card key={booking.firestoreId} className="overflow-hidden">
                     <CardHeader>
                       <div className="flex items-center justify-between gap-4">
                         <CardTitle className="text-xl tracking-tight">{booking.routeName}</CardTitle>
