@@ -18,12 +18,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { toast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useDoc, useFirestore, useMemoFirebase, useUser, setDocumentNonBlocking } from "@/firebase";
+import { useDoc, useFirestore, useMemoFirebase, setDocumentNonBlocking } from "@/firebase";
+import { useUser } from "@/firebase/provider";
 import { Loader2 } from "lucide-react";
 import { PublicHeader } from "@/components/public-header";
 import { PublicFooter } from "@/components/public-footer";
 import { doc } from "firebase/firestore";
-import { Textarea } from "@/components/ui/textarea";
 
 const profileFormSchema = z.object({
   firstName: z.string().min(1, { message: "First name is required." }),
@@ -53,7 +53,7 @@ export default function MyProfilePage() {
     defaultValues: {
       firstName: "",
       lastName: "",
-      email: "",
+      email: user?.email || "",
       phone: "",
     },
   });
@@ -61,14 +61,17 @@ export default function MyProfilePage() {
   useEffect(() => {
     if (passengerData) {
       form.reset({
-        firstName: passengerData.firstName || '',
-        lastName: passengerData.lastName || '',
-        email: passengerData.email || user?.email || '',
-        phone: passengerData.phone || '',
+        firstName: passengerData.firstName || "",
+        lastName: passengerData.lastName || "",
+        email: passengerData.email || user?.email || "",
+        phone: passengerData.phone || "",
       });
     } else if (user) {
         form.reset({
-            email: user.email || '',
+            firstName: "",
+            lastName: "",
+            email: user.email || "",
+            phone: "",
         });
     }
   }, [passengerData, user, form]);
