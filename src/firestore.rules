@@ -1,7 +1,8 @@
+
 /**
  * @title Firebase Security Rules for Isla Konek (Prototyping Mode)
  * @author Firebase Security Rules Architect
- * @version 1.5
+ * @version 1.6
  *
  * @description
  * This ruleset is designed for the Isla Konek application during its prototyping phase.
@@ -256,3 +257,5 @@ service cloud.firestore {
     }
   }
 }
+
+    
