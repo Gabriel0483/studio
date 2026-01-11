@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useMemo } from 'react';
@@ -27,7 +28,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import {
   collection,
   Timestamp,
@@ -60,6 +61,7 @@ interface Booking {
 
 export default function BookingsPage() {
   const firestore = useFirestore();
+  const { isUserLoading } = useUser();
   const router = useRouter();
   const { toast } = useToast();
   const [search, setSearch] = useState('');
@@ -69,9 +71,9 @@ export default function BookingsPage() {
   const [bookingToProcess, setBookingToProcess] = useState<Booking | null>(null);
 
   const bookingsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || isUserLoading) return null; // Wait for user auth to be resolved
     return collection(firestore, 'bookings');
-  }, [firestore]);
+  }, [firestore, isUserLoading]);
 
   const { data: bookings, isLoading } = useCollection<Booking>(bookingsQuery, { idField: 'firestoreId' });
 
@@ -136,7 +138,7 @@ export default function BookingsPage() {
         });
         return;
     }
-    if (booking.status === 'Cancelled') {
+    if (booking.status === 'Cancelled' || booking.status === 'Refunded') {
         toast({
             variant: 'destructive',
             title: 'Cannot Pay',
@@ -325,7 +327,7 @@ export default function BookingsPage() {
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {isLoading ? (
+                    {isLoading || isUserLoading ? (
                     <TableRow key="loading">
                         <TableCell colSpan={10} className="text-center">
                         Loading bookings...
