@@ -77,6 +77,7 @@ interface Schedule {
   arrivalTime: string;
   availableSeats: number;
   tripType: 'Daily' | 'Special';
+  status?: 'On Time' | 'Delayed' | 'Departed' | 'Arrived' | 'Cancelled';
 }
 
 const ScheduleForm = ({
@@ -151,6 +152,7 @@ const ScheduleForm = ({
       arrivalTime,
       availableSeats: seatsNum,
       tripType: date ? 'Special' : 'Daily',
+      status: schedule?.status || 'On Time',
     };
 
     if (schedule) {
@@ -292,6 +294,16 @@ export default function SchedulesPage() {
     }
   };
   
+  const handleStatusChange = (scheduleId: string, status: string) => {
+    if (!firestore) return;
+    const scheduleRef = doc(firestore, 'schedules', scheduleId);
+    updateDocumentNonBlocking(scheduleRef, { status });
+    toast({
+        title: 'Status Updated',
+        description: 'The trip status has been updated.',
+    });
+  };
+  
   const formatTime = (timeString: string) => {
     if (!timeString) return "Not set";
     try {
@@ -328,6 +340,8 @@ export default function SchedulesPage() {
         return 'outline';
     }
   };
+
+  const statusOptions = ['On Time', 'Delayed', 'Departed', 'Arrived', 'Cancelled'];
 
   return (
     <div className="space-y-6">
@@ -377,10 +391,9 @@ export default function SchedulesPage() {
               <TableRow>
                 <TableHead>Route</TableHead>
                 <TableHead>Date</TableHead>
-                <TableHead>Ship</TableHead>
                 <TableHead>Trip Type</TableHead>
                 <TableHead>Departure</TableHead>
-                <TableHead>Arrival</TableHead>
+                <TableHead>Live Status</TableHead>
                 <TableHead>Seats</TableHead>
                 <TableHead className="w-[100px] text-right">Actions</TableHead>
               </TableRow>
@@ -388,7 +401,7 @@ export default function SchedulesPage() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center">
+                  <TableCell colSpan={7} className="text-center">
                     Loading schedules...
                   </TableCell>
                 </TableRow>
@@ -397,14 +410,22 @@ export default function SchedulesPage() {
                   <TableRow key={schedule.id}>
                     <TableCell className="font-medium">{getRouteName(schedule.routeId)}</TableCell>
                     <TableCell>{formatDate(schedule.date)}</TableCell>
-                    <TableCell>{schedule.shipName || 'Unassigned'}</TableCell>
                     <TableCell>
                       <Badge variant={getTripTypeVariant(schedule.tripType) as any}>
                         {schedule.tripType}
                       </Badge>
                     </TableCell>
                     <TableCell>{formatTime(schedule.departureTime)}</TableCell>
-                    <TableCell>{formatTime(schedule.arrivalTime)}</TableCell>
+                    <TableCell>
+                      <Select defaultValue={schedule.status || 'On Time'} onValueChange={(value) => handleStatusChange(schedule.id, value)}>
+                          <SelectTrigger className="w-[120px] h-8 text-xs">
+                              <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                              {statusOptions.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+                          </SelectContent>
+                      </Select>
+                    </TableCell>
                     <TableCell>{schedule.availableSeats}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
@@ -432,7 +453,7 @@ export default function SchedulesPage() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={8} className="h-24 text-center">
+                  <TableCell colSpan={7} className="h-24 text-center">
                     <div className="flex flex-col items-center gap-2">
                         <CalendarIcon className="h-8 w-8 text-muted-foreground" />
                         <p className="text-muted-foreground">No schedules found.</p>

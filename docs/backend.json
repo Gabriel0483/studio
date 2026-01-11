@@ -254,6 +254,11 @@
           "type": "string",
           "description": "The type of trip (e.g., 'Daily', 'Special').",
           "enum": ["Daily", "Special"]
+        },
+        "status": {
+            "type": "string",
+            "description": "The real-time status of the trip.",
+            "enum": ["On Time", "Delayed", "Departed", "Arrived", "Cancelled"]
         }
       },
       "required": [
