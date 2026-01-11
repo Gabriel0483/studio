@@ -255,8 +255,8 @@ export default function EditBookingPage() {
             // --- WRITES AFTER ---
             let newStatus = booking.status;
 
-            // Step 1: Restore seats to the old schedule if it's changing and was reserved
-            if (booking.scheduleId !== data.scheduleId && oldScheduleDoc.exists() && booking.status === 'Reserved') {
+            // Step 1: Restore seats to the old schedule if it's changing and was reserved/confirmed
+            if (booking.scheduleId !== data.scheduleId && oldScheduleDoc.exists() && (booking.status === 'Reserved' || booking.status === 'Confirmed')) {
               const oldSeatsCount = oldScheduleDoc.data().availableSeats || 0;
               transaction.update(oldScheduleRef, { availableSeats: oldSeatsCount + booking.numberOfSeats });
             }
@@ -265,14 +265,14 @@ export default function EditBookingPage() {
             let currentAvailableSeats = newScheduleDoc.data().availableSeats || 0;
             
             // If not changing schedule, add back original seats to calculate new availability accurately
-            if (booking.scheduleId === data.scheduleId && booking.status === 'Reserved') {
+            if (booking.scheduleId === data.scheduleId && (booking.status === 'Reserved' || booking.status === 'Confirmed')) {
               currentAvailableSeats += booking.numberOfSeats;
             }
 
             // Step 3: Determine new status and update seats
             if (currentAvailableSeats >= newSeats) {
                 currentAvailableSeats -= newSeats;
-                newStatus = 'Reserved';
+                newStatus = (data.paymentStatus === 'Paid') ? 'Confirmed' : 'Reserved';
             } else {
                 newStatus = 'Waitlisted';
             }
@@ -714,5 +714,3 @@ export default function EditBookingPage() {
     </div>
   );
 }
-
-    
