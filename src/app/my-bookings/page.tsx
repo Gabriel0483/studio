@@ -5,12 +5,13 @@ import React, { useMemo } from 'react';
 import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { collection, query, where, Timestamp } from 'firebase/firestore';
 import { format } from 'date-fns';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Loader2, BookCopy } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
+import { Loader2, BookCopy, Ship, Users as UsersIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { PublicHeader } from '@/components/public-header';
 import { PublicFooter } from '@/components/public-footer';
 import { useRouter } from 'next/navigation';
+import { Separator } from '@/components/ui/separator';
 
 export default function MyBookingsPage() {
   const firestore = useFirestore();
@@ -22,12 +23,27 @@ export default function MyBookingsPage() {
     return query(collection(firestore, 'bookings'), where('passengerId', '==', user.uid));
   }, [firestore, user]);
 
-  const { data: bookings, isLoading } = useCollection(bookingsQuery, { idField: 'firestoreId' });
+  const schedulesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'schedules') : null, [firestore]);
 
-  const sortedBookings = useMemo(() => {
-    if (!bookings) return [];
-    return [...bookings].sort((a, b) => b.bookingDate.toMillis() - a.bookingDate.toMillis());
-  }, [bookings]);
+  const { data: bookings, isLoading: isLoadingBookings } = useCollection(bookingsQuery);
+  const { data: schedules, isLoading: isLoadingSchedules } = useCollection(schedulesQuery);
+
+  const enrichedBookings = useMemo(() => {
+    if (!bookings || !schedules) return [];
+    return bookings.map(booking => {
+      const schedule = schedules.find(s => s.id === booking.scheduleId);
+      return {
+        ...booking,
+        departureTime: schedule?.departureTime,
+        arrivalTime: schedule?.arrivalTime,
+        shipName: schedule?.shipName || 'TBA',
+      };
+    }).sort((a, b) => {
+        const dateA = a.bookingDate ? a.bookingDate.toMillis() : 0;
+        const dateB = b.bookingDate ? b.bookingDate.toMillis() : 0;
+        return dateB - dateA;
+    });
+  }, [bookings, schedules]);
 
   if (isUserLoading) {
     return (
@@ -57,10 +73,22 @@ export default function MyBookingsPage() {
     }
   };
 
-  const formatDate = (timestamp: Timestamp | undefined) => {
+  const formatDate = (timestamp: Timestamp | undefined, dateFormat = 'PPP') => {
     if (!timestamp) return 'N/A';
-    return format(timestamp.toDate(), 'PPP');
+    return format(timestamp.toDate(), dateFormat);
   };
+  
+   const formatTime = (timeString: string | undefined) => {
+    if (!timeString) return "N/A";
+    try {
+        const date = new Date(`1970-01-01T${timeString}`);
+        return format(date, 'p');
+    } catch {
+        return "Invalid Time";
+    }
+  };
+
+  const isLoading = isLoadingBookings || isLoadingSchedules;
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -80,39 +108,62 @@ export default function MyBookingsPage() {
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 <p className="ml-2">Loading your bookings...</p>
               </div>
-            ) : sortedBookings && sortedBookings.length > 0 ? (
+            ) : enrichedBookings && enrichedBookings.length > 0 ? (
               <div className="space-y-6">
-                {sortedBookings.map((booking) => (
-                  <Card key={booking.firestoreId} className="overflow-hidden">
+                {enrichedBookings.map((booking) => (
+                  <Card key={booking.id} className="overflow-hidden">
                     <CardHeader>
-                      <div className="flex items-center justify-between gap-4">
-                        <CardTitle className="text-xl tracking-tight">{booking.routeName}</CardTitle>
-                        <Badge variant={getStatusVariant(booking.status)}>{booking.status}</Badge>
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                        <div>
+                            <CardTitle className="text-xl tracking-tight">{booking.routeName}</CardTitle>
+                            <CardDescription>Travel Date: {formatDate(booking.travelDate)}</CardDescription>
+                        </div>
+                        <Badge variant={getStatusVariant(booking.status)} className="w-fit">{booking.status}</Badge>
                       </div>
-                      <CardDescription>Travel Date: {formatDate(booking.travelDate)}</CardDescription>
                     </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-2 gap-4 text-sm">
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-6 text-sm sm:grid-cols-3">
                         <div>
                           <p className="font-semibold text-muted-foreground">Booking Ref</p>
                           <p className="font-mono">{booking.id}</p>
+                        </div>
+                        <div>
+                          <p className="font-semibold text-muted-foreground">Departure</p>
+                          <p>{formatTime(booking.departureTime)}</p>
+                        </div>
+                        <div>
+                          <p className="font-semibold text-muted-foreground">Arrival (Est.)</p>
+                          <p>{formatTime(booking.arrivalTime)}</p>
                         </div>
                          <div>
                           <p className="font-semibold text-muted-foreground">Passengers</p>
                           <p>{booking.numberOfSeats}</p>
                         </div>
                          <div>
-                          <p className="font-semibold text-muted-foreground">Total Price</p>
-                          <p>₱{booking.totalPrice.toFixed(2)}</p>
+                          <p className="font-semibold text-muted-foreground">Ship</p>
+                          <p className="flex items-center gap-2"><Ship className="h-4 w-4" /> {booking.shipName}</p>
                         </div>
                         <div>
-                          <p className="font-semibold text-muted-foreground">Payment Status</p>
-                          <Badge variant={booking.paymentStatus === 'Paid' ? 'default' : 'secondary'}>
+                          <p className="font-semibold text-muted-foreground">Payment</p>
+                          <Badge variant={booking.paymentStatus === 'Paid' ? 'default' : 'secondary'} className="mt-1">
                             {booking.paymentStatus}
                           </Badge>
                         </div>
                       </div>
+                       <Separator />
+                       <div>
+                            <p className="font-semibold text-muted-foreground flex items-center gap-2 mb-2"><UsersIcon className="h-4 w-4" /> Passengers</p>
+                            <ul className="list-disc list-inside text-sm">
+                                {booking.passengerInfo?.map((p: any, i: number) => <li key={i}>{p.fullName}</li>)}
+                            </ul>
+                        </div>
                     </CardContent>
+                    <CardFooter className="bg-muted/50 px-6 py-3">
+                         <div className="flex w-full items-center justify-between text-sm">
+                            <span className="text-muted-foreground">Total Price</span>
+                            <span className="font-bold text-lg">₱{booking.totalPrice.toFixed(2)}</span>
+                        </div>
+                    </CardFooter>
                   </Card>
                 ))}
               </div>
