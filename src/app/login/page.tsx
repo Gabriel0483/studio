@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input"
 import { toast } from "@/hooks/use-toast"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useAuth } from "@/firebase"
-import { signInWithEmailAndPassword } from "firebase/auth"
+import { signInWithEmailAndPassword, FirebaseError } from "firebase/auth"
 import { Loader2 } from "lucide-react"
 import { Logo } from "@/components/logo";
 import Link from "next/link";
@@ -55,10 +55,19 @@ export default function LoginPage() {
       router.push('/dashboard');
     } catch (error: any) {
       console.error(error);
+      let description = "An unexpected error occurred. Please try again.";
+      if (error instanceof FirebaseError) {
+        if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+          description = "Invalid email or password. Please check your credentials and try again.";
+        } else {
+          description = error.message;
+        }
+      }
+      
       toast({
         variant: "destructive",
         title: "Authentication Failed",
-        description: error.message || "Invalid email or password. Please try again.",
+        description: description,
       });
     } finally {
         setIsLoading(false);
