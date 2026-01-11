@@ -242,17 +242,6 @@ service cloud.firestore {
         allow list: if isAdmin();
         allow write: if isAdmin();
     }
-    
-    /**
-     * @description Manages general site content like terms and conditions. Publicly readable.
-     * Writes are restricted to administrators.
-     * @path /siteContent/{contentId}
-     */
-    match /siteContent/{contentId} {
-        allow get: if true;
-        allow list: if true;
-        allow write: if isAdmin();
-    }
 
   }
 }

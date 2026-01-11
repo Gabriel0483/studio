@@ -11,7 +11,6 @@ export const navLinks = [
   { href: '/dashboard/fares', label: 'Fares', icon: Ticket },
   { href: '/dashboard/rebooking', label: 'Rebooking & Refunds', icon: Receipt },
   { href: '/dashboard/reports', label: 'Reports', icon: BarChart },
-  { href: '/dashboard/settings', label: 'Settings', icon: Settings },
 ];
 
 export const revenueData: { name: string; total: number }[] = [

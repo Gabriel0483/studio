@@ -520,24 +520,6 @@
         "scheduleId",
         "status"
       ]
-    },
-    "SiteContent": {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "title": "SiteContent",
-        "type": "object",
-        "description": "A singleton entity for storing site-wide content like booking conditions.",
-        "properties": {
-            "content": {
-                "type": "string",
-                "description": "The main content, can be Markdown."
-            },
-            "lastUpdatedAt": {
-                "type": "string",
-                "format": "date-time",
-                "description": "The timestamp when the content was last updated."
-            }
-        },
-        "required": ["content", "lastUpdatedAt"]
     }
   },
   "auth": {
@@ -720,22 +702,6 @@
                 {
                     "name": "boardingId",
                     "description": "The unique identifier of the boarding record."
-                }
-            ]
-        }
-      },
-      {
-        "path": "/siteContent/{contentId}",
-        "definition": {
-            "entityName": "SiteContent",
-            "schema": {
-                "$ref": "#/backend/entities/SiteContent"
-            },
-            "description": "Stores singleton documents for general site content, like booking conditions. Publicly readable, admin write access.",
-            "params": [
-                {
-                    "name": "contentId",
-                    "description": "The unique identifier of the content document (e.g., 'booking-conditions')."
                 }
             ]
         }
