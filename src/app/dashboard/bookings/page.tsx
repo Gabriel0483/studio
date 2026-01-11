@@ -36,7 +36,7 @@ import {
   runTransaction,
   updateDoc,
 } from 'firebase/firestore';
-import { BookCopy, Pencil, Search, Trash2, XCircle, CreditCard } from 'lucide-react';
+import { BookCopy, Pencil, Search, Trash2, XCircle, CreditCard, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -59,9 +59,15 @@ interface Booking {
   paymentStatus: 'Paid' | 'Unpaid' | 'Refunded';
 }
 
+// A simple check to see if the user appears to be an admin.
+// In a real app, this should be based on custom claims.
+const isAdminUser = (user: any) => {
+  return user?.email === 'rielmagpantay@gmail.com';
+};
+
 export default function BookingsPage() {
   const firestore = useFirestore();
-  const { isUserLoading } = useUser();
+  const { user, isUserLoading } = useUser();
   const router = useRouter();
   const { toast } = useToast();
   const [search, setSearch] = useState('');
@@ -69,17 +75,20 @@ export default function BookingsPage() {
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [isPaidDialogOpen, setIsPaidDialogOpen] = useState(false);
   const [bookingToProcess, setBookingToProcess] = useState<Booking | null>(null);
+  
+  const isAllowedToFetch = !isUserLoading && isAdminUser(user);
 
   const bookingsQuery = useMemoFirebase(() => {
-    if (!firestore || isUserLoading) return null; // Wait for user auth to be resolved
+    if (!firestore || !isAllowedToFetch) return null; // Only fetch if admin
     return collection(firestore, 'bookings');
-  }, [firestore, isUserLoading]);
+  }, [firestore, isAllowedToFetch]);
 
-  const { data: bookings, isLoading } = useCollection<Booking>(bookingsQuery, { idField: 'firestoreId' });
+  const { data: bookings, isLoading: isLoadingBookings } = useCollection<Booking>(bookingsQuery, { idField: 'firestoreId' });
 
   const filteredBookings = useMemo(() => {
     if (!bookings) return [];
     
+    // Create a mutable copy for sorting
     const sortedBookings = [...bookings].sort((a, b) => {
         const dateA = a.bookingDate ? a.bookingDate.toMillis() : 0;
         const dateB = b.bookingDate ? b.bookingDate.toMillis() : 0;
@@ -280,6 +289,8 @@ export default function BookingsPage() {
             return 'outline';
     }
   };
+  
+  const isLoading = isUserLoading || (isAllowedToFetch && isLoadingBookings);
 
   return (
     <>
@@ -327,10 +338,19 @@ export default function BookingsPage() {
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {isLoading || isUserLoading ? (
+                    {isLoading ? (
                     <TableRow key="loading">
-                        <TableCell colSpan={10} className="text-center">
-                        Loading bookings...
+                        <TableCell colSpan={10} className="text-center h-24">
+                          <div className="flex items-center justify-center">
+                            <Loader2 className="mr-2 h-6 w-6 animate-spin" />
+                            Loading bookings...
+                          </div>
+                        </TableCell>
+                    </TableRow>
+                    ) : !isAllowedToFetch ? (
+                       <TableRow key="unauthorized">
+                        <TableCell colSpan={10} className="text-center h-24">
+                          You do not have permission to view bookings.
                         </TableCell>
                     </TableRow>
                     ) : filteredBookings && filteredBookings.length > 0 ? (
@@ -492,3 +512,5 @@ export default function BookingsPage() {
     </>
   );
 }
+
+    
