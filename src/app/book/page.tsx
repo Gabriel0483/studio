@@ -1,3 +1,4 @@
+
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -72,10 +73,10 @@ type ConfirmedBooking = BookingFormData & {
   totalPrice: number;
 };
 
-const generateBookingReference = (length: number) => {
+const generateBookingReference = () => {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let result = '';
-  for (let i = 0; i < length; i++) {
+  for (let i = 0; i < 6; i++) {
     result += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return result;
@@ -226,7 +227,7 @@ export default function BookingPage() {
         if (!scheduleDoc.exists()) throw new Error("Schedule does not exist!");
 
         const newBookingRef = doc(collection(firestore, 'bookings'));
-        const bookingId = generateBookingReference(6);
+        const bookingId = generateBookingReference();
 
         const scheduleData = scheduleDoc.data();
         const currentAvailableSeats = scheduleData.availableSeats || 0;
@@ -602,5 +603,7 @@ export default function BookingPage() {
     </div>
   )
 }
+
+    
 
     
