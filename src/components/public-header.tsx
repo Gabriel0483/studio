@@ -72,6 +72,10 @@ export function PublicHeader() {
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     <DropdownMenuGroup>
+                      <DropdownMenuItem onClick={() => router.push('/my-profile')}>
+                        <User className="mr-2 h-4 w-4" />
+                        <span>My Profile</span>
+                      </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => router.push('/my-bookings')}>
                         <User className="mr-2 h-4 w-4" />
                         <span>My Bookings</span>
@@ -119,6 +123,7 @@ export function PublicHeader() {
                   {!isUserLoading && (
                     user ? (
                       <>
+                        <Button variant="outline" onClick={() => router.push('/my-profile')}>My Profile</Button>
                         <Button variant="outline" onClick={() => router.push('/my-bookings')}>My Bookings</Button>
                         <Button variant="secondary" onClick={onSignOut}>Log Out</Button>
                       </>
