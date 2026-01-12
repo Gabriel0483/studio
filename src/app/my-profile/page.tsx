@@ -102,14 +102,6 @@ export default function MyProfilePage() {
     }
   }, [isUserLoading, user, router]);
 
-  if (isUserLoading || !user) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    );
-  }
-  
   async function onSubmit(data: ProfileFormData) {
     if (!firestore || !user) return;
 
@@ -135,6 +127,20 @@ export default function MyProfilePage() {
   
   const isLoading = isLoadingPassenger || isUserLoading;
 
+  if (isUserLoading || isLoadingPassenger) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+         <p className="ml-2">Loading your profile...</p>
+      </div>
+    );
+  }
+  
+  if (!user) {
+    router.replace('/login');
+    return null;
+  }
+
   return (
     <div className="flex min-h-screen flex-col">
       <PublicHeader />
@@ -148,144 +154,137 @@ export default function MyProfilePage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {isLoading ? (
-                 <div className="flex h-64 w-full items-center justify-center">
-                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                    <p className="ml-2">Loading your profile...</p>
-                </div>
-              ) : (
-                <Form {...form}>
-                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                      <FormField
-                        control={form.control}
-                        name="firstName"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>First Name</FormLabel>
-                            <FormControl>
-                              <Input placeholder="John" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="lastName"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Last Name</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Doe" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                     <FormField
-                        control={form.control}
-                        name="birthDate"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Your Birth Date</FormLabel>
-                            <FormControl>
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                  <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                    <FormField
+                      control={form.control}
+                      name="firstName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>First Name</FormLabel>
+                          <FormControl>
+                            <Input placeholder="John" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="lastName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Last Name</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Doe" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                    <FormField
+                      control={form.control}
+                      name="birthDate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Your Birth Date</FormLabel>
+                          <FormControl>
+                              <Input type="date" {...field} placeholder="YYYY-MM-DD" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  <FormField
+                    control={form.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email Address</FormLabel>
+                        <FormControl>
+                          <Input placeholder="you@example.com" {...field} disabled />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="phone"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Phone Number</FormLabel>
+                        <FormControl>
+                          <Input placeholder="e.g., 09171234567" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <Separator />
+
+                  <div className="space-y-4">
+                    <h3 className="font-medium text-lg">Family Members</h3>
+                      {fields.map((field, index) => (
+                      <div key={field.id} className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end p-4 border rounded-lg relative">
+                        <FormField
+                          control={form.control}
+                          name={`familyMembers.${index}.fullName`}
+                          render={({ field }) => (
+                            <FormItem className="sm:col-span-7">
+                              <FormLabel>Full Name</FormLabel>
+                              <FormControl>
+                                <Input placeholder="Jane Doe" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name={`familyMembers.${index}.birthDate`}
+                          render={({ field }) => (
+                            <FormItem className="sm:col-span-4">
+                              <FormLabel>Birth Date</FormLabel>
+                              <FormControl>
                                 <Input type="date" {...field} placeholder="YYYY-MM-DD" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    <FormField
-                      control={form.control}
-                      name="email"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Email Address</FormLabel>
-                          <FormControl>
-                            <Input placeholder="you@example.com" {...field} disabled />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="phone"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Phone Number</FormLabel>
-                          <FormControl>
-                            <Input placeholder="e.g., 09171234567" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <Separator />
-
-                    <div className="space-y-4">
-                      <h3 className="font-medium text-lg">Family Members</h3>
-                       {fields.map((field, index) => (
-                        <div key={field.id} className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end p-4 border rounded-lg relative">
-                          <FormField
-                            control={form.control}
-                            name={`familyMembers.${index}.fullName`}
-                            render={({ field }) => (
-                              <FormItem className="sm:col-span-7">
-                                <FormLabel>Full Name</FormLabel>
-                                <FormControl>
-                                  <Input placeholder="Jane Doe" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={form.control}
-                            name={`familyMembers.${index}.birthDate`}
-                            render={({ field }) => (
-                              <FormItem className="sm:col-span-4">
-                                <FormLabel>Birth Date</FormLabel>
-                                <FormControl>
-                                  <Input type="date" {...field} placeholder="YYYY-MM-DD" />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <div className="sm:col-span-1">
-                            <Button
-                                type="button"
-                                variant="destructive"
-                                size="icon"
-                                onClick={() => remove(index)}
-                                className="w-full"
-                            >
-                                <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <div className="sm:col-span-1">
+                          <Button
+                              type="button"
+                              variant="destructive"
+                              size="icon"
+                              onClick={() => remove(index)}
+                              className="w-full"
+                          >
+                              <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
-                      ))}
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => append({ id: nanoid(), fullName: "", birthDate: "" })}
-                      >
-                        <PlusCircle className="mr-2 h-4 w-4" /> Add Family Member
-                      </Button>
-                    </div>
-
-                    <Button type="submit" size="lg" className="w-full" disabled={isSaving || !form.formState.isDirty}>
-                      {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                      Save Changes
+                      </div>
+                    ))}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => append({ id: nanoid(), fullName: "", birthDate: "" })}
+                    >
+                      <PlusCircle className="mr-2 h-4 w-4" /> Add Family Member
                     </Button>
-                  </form>
-                </Form>
-              )}
+                  </div>
+
+                  <Button type="submit" size="lg" className="w-full" disabled={isSaving || !form.formState.isDirty}>
+                    {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    Save Changes
+                  </Button>
+                </form>
+              </Form>
             </CardContent>
           </Card>
         </div>
@@ -294,5 +293,3 @@ export default function MyProfilePage() {
     </div>
   );
 }
-
-    
