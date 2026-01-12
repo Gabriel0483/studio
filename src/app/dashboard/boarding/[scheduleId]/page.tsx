@@ -47,11 +47,12 @@ export default function BoardingManifestPage() {
       .filter(booking => booking.status === 'Confirmed')
       .flatMap(booking => 
         (booking.passengerInfo || []).map((p: any, index: number) => {
-          const uniquePassengerId = `${booking.firestoreId}-${index}`;
+          // Use the passenger's own unique ID for the check
+          const uniquePassengerId = `${booking.firestoreId}-${p.id}`;
           const boardingRecord = boardingRecords?.find(br => br.passengerId === uniquePassengerId);
           return {
             ...p,
-            id: uniquePassengerId,
+            id: uniquePassengerId, // This is now the composite ID
             bookingId: booking.id,
             firestoreBookingId: booking.firestoreId,
             bookingStatus: booking.status,
@@ -73,7 +74,7 @@ export default function BoardingManifestPage() {
     if (!firestore) return;
     const boardingCol = collection(firestore, 'boarding');
     addDocumentNonBlocking(boardingCol, {
-        passengerId: passenger.id,
+        passengerId: passenger.id, // Use the composite ID
         passengerName: passenger.fullName,
         bookingId: passenger.firestoreBookingId,
         scheduleId,
@@ -225,3 +226,5 @@ export default function BoardingManifestPage() {
     </div>
   );
 }
+
+    

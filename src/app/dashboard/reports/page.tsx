@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { Calendar as CalendarIcon, Download, Loader2, DollarSign, RefreshCw, TrendingUp, TrendingDown, BookCopy } from 'lucide-react';
+import { Calendar as CalendarIcon, Download, Loader2, DollarSign, RefreshCw, TrendingUp, TrendingDown, BookCopy, PlaneTakeoff } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { DateRange } from 'react-day-picker';
@@ -18,13 +18,22 @@ interface Booking {
   firestoreId: string;
   id: string;
   passengerEmail: string;
-  passengerInfo?: { fullName: string }[];
+  passengerInfo?: { fullName: string, fareType: string }[];
+  fareDetails?: { passengerType: string, pricePerTicket: number }[];
   routeName: string;
   travelDate: Timestamp;
   bookingDate: Timestamp;
   totalPrice: number;
   paymentStatus: 'Paid' | 'Unpaid' | 'Refunded';
   refundAmount?: number;
+}
+
+interface BoardingRecord {
+    id: string;
+    bookingId: string; // firestoreId of the booking
+    passengerId: string; // unique passenger ID from booking
+    scheduleId: string;
+    boardingTime: Timestamp;
 }
 
 export default function ReportsPage() {
@@ -39,18 +48,27 @@ export default function ReportsPage() {
     if (!firestore) return null;
     return collection(firestore, 'bookings');
   }, [firestore]);
+  
+  const boardingQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'boarding');
+  }, [firestore]);
 
-  const { data: bookings, isLoading } = useCollection<Booking>(bookingsQuery, { idField: 'firestoreId' });
+  const { data: bookings, isLoading: isLoadingBookings } = useCollection<Booking>(bookingsQuery, { idField: 'firestoreId' });
+  const { data: boardingRecords, isLoading: isLoadingBoarding } = useCollection<BoardingRecord>(boardingQuery);
+
 
   const filteredData = useMemo(() => {
-    if (!bookings || !dateRange?.from || !dateRange?.to) {
-      return {
-        transactions: [],
-        grossRevenue: 0,
-        totalRefunds: 0,
-        netRevenue: 0,
-        totalBookings: 0,
-      };
+    const defaultData = {
+      transactions: [],
+      grossRevenue: 0,
+      totalRefunds: 0,
+      netRevenue: 0,
+      earnedRevenue: 0,
+      totalBookings: 0,
+    };
+    if (!bookings || !boardingRecords || !dateRange?.from || !dateRange?.to) {
+      return defaultData;
     }
 
     const transactions = bookings.filter(b => {
@@ -68,14 +86,43 @@ export default function ReportsPage() {
 
     const netRevenue = grossRevenue - totalRefunds;
 
+    const earnedRevenue = boardingRecords.reduce((acc, board) => {
+        const boardingTime = board.boardingTime?.toDate();
+        if (!boardingTime || !isWithinInterval(boardingTime, { start: dateRange.from!, end: dateRange.to! })) {
+            return acc;
+        }
+
+        const booking = bookings.find(b => b.firestoreId === board.bookingId);
+        if (!booking || booking.paymentStatus !== 'Paid') {
+            return acc;
+        }
+
+        const passengerInfo = booking.passengerInfo?.find(p => `${booking.firestoreId}-${p.id}` === board.passengerId);
+        if (!passengerInfo) {
+            // Fallback for older data that might not have the new passenger unique ID format
+            const passengerIndex = parseInt(board.passengerId.split('-').pop() || '0', 10);
+            const legacyPassenger = booking.passengerInfo?.[passengerIndex];
+            if (legacyPassenger) {
+                 const fareDetail = booking.fareDetails?.find(f => f.passengerType === legacyPassenger.fareType);
+                 return acc + (fareDetail?.pricePerTicket || 0);
+            }
+            return acc;
+        }
+
+        const fareDetail = booking.fareDetails?.find(f => f.passengerType === passengerInfo.fareType);
+        return acc + (fareDetail?.pricePerTicket || 0);
+
+    }, 0);
+
     return {
       transactions: transactions.sort((a,b) => b.bookingDate.toMillis() - a.bookingDate.toMillis()),
       grossRevenue,
       totalRefunds,
       netRevenue,
+      earnedRevenue,
       totalBookings: transactions.length,
     };
-  }, [bookings, dateRange]);
+  }, [bookings, boardingRecords, dateRange]);
 
   const exportToCSV = () => {
     const headers = ['Booking Ref', 'Booking Date', 'Passenger', 'Route', 'Total Price', 'Payment Status', 'Refund Amount'];
@@ -116,6 +163,8 @@ export default function ReportsPage() {
             return 'outline';
     }
   };
+
+  const isLoading = isLoadingBookings || isLoadingBoarding;
 
   return (
     <div className="space-y-6">
@@ -167,7 +216,7 @@ export default function ReportsPage() {
         </div>
       </div>
       
-       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Gross Revenue</CardTitle>
@@ -175,7 +224,17 @@ export default function ReportsPage() {
                 </CardHeader>
                 <CardContent>
                     <div className="text-2xl font-bold">₱{filteredData.grossRevenue.toFixed(2)}</div>
-                    <p className="text-xs text-muted-foreground">Total revenue from paid bookings.</p>
+                    <p className="text-xs text-muted-foreground">Total revenue from paid bookings in period.</p>
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Earned Revenue</CardTitle>
+                    <PlaneTakeoff className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">₱{filteredData.earnedRevenue.toFixed(2)}</div>
+                    <p className="text-xs text-muted-foreground">Revenue from passengers who boarded in period.</p>
                 </CardContent>
             </Card>
             <Card>
@@ -185,7 +244,7 @@ export default function ReportsPage() {
                 </CardHeader>
                 <CardContent>
                     <div className="text-2xl font-bold text-destructive">- ₱{filteredData.totalRefunds.toFixed(2)}</div>
-                    <p className="text-xs text-muted-foreground">Total amount refunded to customers.</p>
+                    <p className="text-xs text-muted-foreground">Total amount refunded in period.</p>
                 </CardContent>
             </Card>
             <Card>
@@ -205,7 +264,7 @@ export default function ReportsPage() {
                 </CardHeader>
                 <CardContent>
                     <div className="text-2xl font-bold">{filteredData.totalBookings}</div>
-                    <p className="text-xs text-muted-foreground">Total bookings in the period.</p>
+                    <p className="text-xs text-muted-foreground">Total bookings made in the period.</p>
                 </CardContent>
             </Card>
         </div>
@@ -268,3 +327,5 @@ export default function ReportsPage() {
     </div>
   );
 }
+
+    
