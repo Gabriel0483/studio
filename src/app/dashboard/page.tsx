@@ -8,7 +8,7 @@ import { ChartConfig, ChartContainer, ChartTooltipContent } from "@/components/u
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, Timestamp } from 'firebase/firestore';
 import { format, getMonth, getYear } from 'date-fns';
-import { Calendar as CalendarIcon, DollarSign, Users, Ticket, CheckCircle, Clock, CreditCard, XCircle, ClipboardCheck, Ban, Check } from 'lucide-react';
+import { Calendar as CalendarIcon, DollarSign, Users, Ticket, CheckCircle, Clock, CreditCard, XCircle, ClipboardCheck, Ban, Check, Bot, Ship, BarChart as BarChartIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -22,6 +22,29 @@ const chartColors = [
   "hsl(var(--chart-3))",
   "hsl(var(--chart-4))",
   "hsl(var(--chart-5))",
+];
+
+const features = [
+  {
+    icon: <Bot className="h-10 w-10 text-primary" />,
+    title: 'Automated Scheduling',
+    description: 'AI-powered creation of optimized routes considering passenger numbers, ship availability, and timing.',
+  },
+  {
+    icon: <Ship className="h-10 w-10 text-primary" />,
+    title: 'Operational Management',
+    description: 'Handle ship maintenance schedules, staffing, and daily operations with ease.',
+  },
+  {
+    icon: <Users className="h-10 w-10 text-primary" />,
+    title: 'Passenger Management',
+    description: 'A user-friendly interface for passengers to book seats and for you to manage their journey.',
+  },
+  {
+    icon: <BarChartIcon className="h-10 w-10 text-primary" />,
+    title: 'Real-Time Analytics',
+    description: 'Monitor operations, track passenger data, and generate insightful reports in real-time.',
+  },
 ];
 
 export default function DashboardPage() {
@@ -257,7 +280,7 @@ export default function DashboardPage() {
                     <Ticket className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                    <div className="text-2xl font-bold">{filteredStats.reserved + filteredStats.waitlisted + filteredStats.confirmed + filteredStats.refunded} Total Bookings</div>
+                    <div className="text-2xl font-bold">{filteredStats.reserved + filteredStats.confirmed + filteredStats.waitlisted + filteredStats.refunded} Total Bookings</div>
                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground mt-1">
                         <div className="flex items-center gap-1">
                             <Check className="h-3 w-3 text-sky-500"/>
@@ -377,8 +400,32 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+       <div className="w-full bg-background py-10">
+          <div className="container mx-auto px-4 md:px-6">
+            <div className="mb-12 text-center">
+              <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">Core Platform Features</h2>
+              <p className="mt-4 max-w-2xl mx-auto text-lg text-muted-foreground">
+                An overview of the key capabilities at your disposal.
+              </p>
+            </div>
+            <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+              {features.map((feature) => (
+                <Card key={feature.title} className="text-center">
+                  <CardHeader>
+                    <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-primary/10">
+                      {feature.icon}
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <h3 className="text-xl font-semibold">{feature.title}</h3>
+                    <p className="mt-2 text-muted-foreground">{feature.description}</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        </div>
     </div>
   );
 }
-
-    
