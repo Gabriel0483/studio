@@ -245,110 +245,116 @@ export default function EditBookingPage() {
       return;
     }
     setIsSubmitting(true);
-    
+
     const newSeats = data.passengers.length;
+    const newTemplateSchedule = allSchedules.find(s => s.id === data.scheduleId);
+    if (!newTemplateSchedule) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Selected schedule could not be found.' });
+      setIsSubmitting(false);
+      return;
+    }
+
+    const travelDateStr = format(new Date(data.travelDate), 'yyyy-MM-dd');
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const isFutureDailyTrip = newTemplateSchedule.tripType === 'Daily' && !newTemplateSchedule.date && travelDateStr > todayStr;
+
+    let existingInstanceId: string | null = null;
+    if (isFutureDailyTrip) {
+        const schedulesCol = collection(firestore, 'schedules');
+        const q = query(schedulesCol, where("baseScheduleId", "==", data.scheduleId), where("date", "==", travelDateStr));
+        const existingInstancesSnapshot = await getDocs(q);
+        if (!existingInstancesSnapshot.empty) {
+            existingInstanceId = existingInstancesSnapshot.docs[0].id;
+        }
+    }
 
     try {
-        await runTransaction(firestore, async (transaction) => {
-            const bookingRef = doc(firestore, 'bookings', booking.firestoreId);
-            const oldScheduleRef = doc(firestore, 'schedules', booking.scheduleId);
-            const newTemplateScheduleRef = doc(firestore, 'schedules', data.scheduleId);
-            
-            // --- ALL READS FIRST ---
-            const oldScheduleDoc = await transaction.get(oldScheduleRef);
-            const newTemplateScheduleDoc = await transaction.get(newTemplateScheduleRef);
-            if (!newTemplateScheduleDoc.exists()) throw new Error("New schedule template does not exist!");
+      await runTransaction(firestore, async (transaction) => {
+        const bookingRef = doc(firestore, 'bookings', booking.firestoreId);
+        const oldScheduleRef = doc(firestore, 'schedules', booking.scheduleId);
+        const newTemplateScheduleRef = doc(firestore, 'schedules', data.scheduleId);
 
-            const newTemplateScheduleData = newTemplateScheduleDoc.data();
-            const travelDateStr = format(new Date(data.travelDate), 'yyyy-MM-dd');
-            const isFutureDailyTrip = newTemplateScheduleData.tripType === 'Daily' && !newTemplateScheduleData.date && travelDateStr > format(new Date(), 'yyyy-MM-dd');
-            
-            let finalScheduleRef;
-            let existingInstanceDoc;
+        // --- ALL READS FIRST ---
+        const oldScheduleDoc = await transaction.get(oldScheduleRef);
+        const newTemplateScheduleDoc = await transaction.get(newTemplateScheduleRef);
+        if (!newTemplateScheduleDoc.exists()) throw new Error("New schedule template does not exist!");
 
-            // If it's a future daily trip, we need to check if an instance for that day already exists.
-            // This is a read operation that depends on other data, so we do it outside the transaction for simplicity,
-            // or we must structure the transaction very carefully. Here we will do a pre-read.
-            let instanceId: string | null = null;
-            if (isFutureDailyTrip) {
-                const schedulesCol = collection(firestore, 'schedules');
-                const q = query(schedulesCol, where("baseScheduleId", "==", data.scheduleId), where("date", "==", travelDateStr));
-                const existingInstancesSnapshot = await getDocs(q); // This is outside transaction
-                if (!existingInstancesSnapshot.empty) {
-                    instanceId = existingInstancesSnapshot.docs[0].id;
-                }
-            }
+        let finalScheduleRef;
+        let existingInstanceDoc = null;
+        if (existingInstanceId) {
+          finalScheduleRef = doc(firestore, 'schedules', existingInstanceId);
+          existingInstanceDoc = await transaction.get(finalScheduleRef);
+        } else {
+          finalScheduleRef = isFutureDailyTrip ? doc(collection(firestore, 'schedules')) : newTemplateScheduleRef;
+          if (!isFutureDailyTrip) {
+            existingInstanceDoc = newTemplateScheduleDoc;
+          }
+        }
+        
+        // --- ALL WRITES AFTER THIS POINT ---
+        
+        // 1. Restore old seats
+        if (oldScheduleDoc.exists() && (booking.status === 'Reserved' || booking.status === 'Confirmed')) {
+          transaction.update(oldScheduleRef, { availableSeats: oldScheduleDoc.data().availableSeats + booking.numberOfSeats });
+        }
 
-            // --- NOW PERFORM READS WITHIN TRANSACTION ---
-            if (instanceId) {
-                finalScheduleRef = doc(firestore, 'schedules', instanceId);
-                existingInstanceDoc = await transaction.get(finalScheduleRef);
-            } else {
-                finalScheduleRef = isFutureDailyTrip ? doc(collection(firestore, 'schedules')) : newTemplateScheduleRef;
-                existingInstanceDoc = isFutureDailyTrip ? null : newTemplateScheduleDoc; // Will be the template doc if not a future daily trip
-            }
+        // 2. Create new schedule instance if it doesn't exist
+        const newTemplateScheduleData = newTemplateScheduleDoc.data();
+        if (isFutureDailyTrip && !existingInstanceDoc) {
+          const ship = allShips.find(ship => ship.id === newTemplateScheduleData.shipId);
+          const newCapacity = ship ? ship.capacity : newTemplateScheduleData.availableSeats;
+          transaction.set(finalScheduleRef, {
+            ...newTemplateScheduleData,
+            tripType: 'Special',
+            date: travelDateStr,
+            availableSeats: newCapacity,
+            baseScheduleId: data.scheduleId,
+            status: 'On Time',
+          });
+        }
+        
+        // 3. Deduct seats from the new/correct schedule
+        // To get the most up-to-date seat count, we need to read the document we might have just created.
+        // We'll read it again. This is safe because it's still a read before the final writes.
+        const newScheduleDocForUpdate = await transaction.get(finalScheduleRef);
+        if (!newScheduleDocForUpdate.exists()) throw new Error("Target schedule does not exist after creation attempt.");
+        const newScheduleDataForUpdate = newScheduleDocForUpdate.data();
 
-            // --- ALL WRITES AFTER THIS POINT ---
-
-            // 1. Restore old seats
-            if (oldScheduleDoc.exists() && (booking.status === 'Reserved' || booking.status === 'Confirmed')) {
-                transaction.update(oldScheduleRef, { availableSeats: oldScheduleDoc.data().availableSeats + booking.numberOfSeats });
-            }
-            
-            // 2. Create new schedule instance if it doesn't exist
-            if (isFutureDailyTrip && !existingInstanceDoc) {
-                const ship = allShips.find(ship => ship.id === newTemplateScheduleData.shipId);
-                transaction.set(finalScheduleRef, {
-                    ...newTemplateScheduleData,
-                    tripType: 'Special',
-                    date: travelDateStr,
-                    availableSeats: ship ? ship.capacity : newTemplateScheduleData.availableSeats,
-                    baseScheduleId: data.scheduleId,
-                    status: 'On Time',
-                });
-            }
-
-            // 3. Deduct seats from the new/correct schedule
-            const newScheduleData = existingInstanceDoc ? existingInstanceDoc.data() : newTemplateScheduleData;
-            const shipForCapacity = allShips.find(s => s.id === newScheduleData.shipId);
-            const initialCapacity = shipForCapacity ? shipForCapacity.capacity : newScheduleData.availableSeats;
-            const currentAvailableSeats = existingInstanceDoc ? newScheduleData.availableSeats : initialCapacity;
-
-            let newStatus = booking.status;
-            if (currentAvailableSeats >= newSeats) {
-                transaction.update(finalScheduleRef, { availableSeats: currentAvailableSeats - newSeats });
-                newStatus = (data.paymentStatus === 'Paid' || booking.paymentStatus === 'Paid') ? 'Confirmed' : 'Reserved';
-            } else {
-                newStatus = 'Waitlisted';
-            }
-
-            // 4. Update the booking document
-            const fareDetails = data.passengers.map((p) => {
-                const fareInfo = availableFares.find(f => f.passengerType === p.fareType);
-                return { fareId: fareInfo?.id || null, passengerType: p.fareType, count: 1, pricePerTicket: fareInfo?.price || 0 };
-            });
-            
-            const newRebookingHistory = [...(booking.rebookingHistory || [])];
-            if (rebookingFee > 0) {
-                newRebookingHistory.push({ fee: rebookingFee, date: new Date().toISOString(), reason: rebookingReason || 'Rebooking Fee' });
-            }
-
-            transaction.update(bookingRef, {
-                passengerInfo: data.passengers.map((p) => ({ fullName: p.fullName, birthDate: p.birthDate || null, fareType: p.fareType })),
-                passengerEmail: data.primaryEmail,
-                passengerPhone: data.primaryPhone,
-                scheduleId: finalScheduleRef.id,
-                fareDetails,
-                travelDate: new Date(data.travelDate),
-                numberOfSeats: newSeats,
-                totalPrice: bookingSummary.totalPrice,
-                routeName: getRouteName(newTemplateScheduleData.routeId),
-                status: newStatus,
-                paymentStatus: data.paymentStatus,
-                rebookingHistory: newRebookingHistory,
-                noShowFee: data.noShowFee > 0 ? data.noShowFee : null,
-            });
+        let newStatus = booking.status;
+        if (newScheduleDataForUpdate.availableSeats >= newSeats) {
+            transaction.update(finalScheduleRef, { availableSeats: newScheduleDataForUpdate.availableSeats - newSeats });
+            newStatus = (data.paymentStatus === 'Paid' || booking.paymentStatus === 'Paid') ? 'Confirmed' : 'Reserved';
+        } else {
+            newStatus = 'Waitlisted';
+        }
+        
+        // 4. Update the booking document
+        const fareDetails = data.passengers.map((p) => {
+          const fareInfo = availableFares.find(f => f.passengerType === p.fareType);
+          return { fareId: fareInfo?.id || null, passengerType: p.fareType, count: 1, pricePerTicket: fareInfo?.price || 0 };
         });
+
+        const newRebookingHistory = [...(booking.rebookingHistory || [])];
+        if (rebookingFee > 0) {
+          newRebookingHistory.push({ fee: rebookingFee, date: new Date().toISOString(), reason: rebookingReason || 'Rebooking Fee' });
+        }
+
+        transaction.update(bookingRef, {
+          passengerInfo: data.passengers.map((p) => ({ fullName: p.fullName, birthDate: p.birthDate || null, fareType: p.fareType })),
+          passengerEmail: data.primaryEmail,
+          passengerPhone: data.primaryPhone,
+          scheduleId: finalScheduleRef.id,
+          fareDetails,
+          travelDate: new Date(data.travelDate),
+          numberOfSeats: newSeats,
+          totalPrice: bookingSummary.totalPrice,
+          routeName: getRouteName(newTemplateScheduleData.routeId),
+          status: newStatus,
+          paymentStatus: data.paymentStatus,
+          rebookingHistory: newRebookingHistory,
+          noShowFee: data.noShowFee > 0 ? data.noShowFee : null,
+        });
+      });
 
       toast({
         title: 'Booking Updated!',
