@@ -80,9 +80,14 @@ export default function BookingsPage() {
             return;
         }
 
-        const idTokenResult = await user.getIdTokenResult();
-        const isAdmin = idTokenResult.claims.admin === true || user.email === 'rielmagpantay@gmail.com';
-        setIsAllowedToFetch(isAdmin);
+        try {
+            const idTokenResult = await user.getIdTokenResult();
+            const isAdmin = idTokenResult.claims.admin === true || user.email === 'rielmagpantay@gmail.com';
+            setIsAllowedToFetch(isAdmin);
+        } catch (error) {
+            console.error("Error fetching user token:", error);
+            setIsAllowedToFetch(false);
+        }
     }
     checkAdminStatus();
   }, [user, isUserLoading]);
