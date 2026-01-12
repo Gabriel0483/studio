@@ -23,8 +23,15 @@ import { Button } from '@/components/ui/button';
 import { Home, Loader2 } from 'lucide-react';
 import { useUser } from '@/firebase';
 
-const isAdminUser = (user: any) => {
-    return user?.email === 'rielmagpantay@gmail.com';
+const isAdminUser = async (user: any) => {
+  if (!user) return false;
+  // This is the primary check. It relies on custom claims.
+  const idTokenResult = await user.getIdTokenResult();
+  if (idTokenResult.claims.admin === true) {
+    return true;
+  }
+  // This is a fallback for the hardcoded superadmin during development.
+  return user.email === 'rielmagpantay@gmail.com';
 };
 
 export default function DashboardLayout({
@@ -40,12 +47,20 @@ export default function DashboardLayout({
     if (isUserLoading) {
       return;
     }
-    if (!user || !isAdminUser(user)) {
+    if (!user) {
       router.replace('/admin/login');
+      return;
     }
+    
+    isAdminUser(user).then(isAdmin => {
+        if (!isAdmin) {
+            router.replace('/admin/login');
+        }
+    });
+
   }, [user, isUserLoading, router]);
 
-  if (isUserLoading || !user || !isAdminUser(user)) {
+  if (isUserLoading || !user) {
     return (
       <div className="flex h-screen w-full items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />

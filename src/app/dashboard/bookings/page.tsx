@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Card,
   CardContent,
@@ -59,11 +59,6 @@ interface Booking {
   paymentStatus: 'Paid' | 'Unpaid' | 'Refunded';
 }
 
-// A simple check to see if the user appears to be an admin.
-// In a real app, this should be based on custom claims.
-const isAdminUser = (user: any) => {
-  return user?.email === 'rielmagpantay@gmail.com';
-};
 
 export default function BookingsPage() {
   const firestore = useFirestore();
@@ -75,11 +70,26 @@ export default function BookingsPage() {
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [isPaidDialogOpen, setIsPaidDialogOpen] = useState(false);
   const [bookingToProcess, setBookingToProcess] = useState<Booking | null>(null);
-  
-  const isAllowedToFetch = !isUserLoading && isAdminUser(user);
+  const [isAllowedToFetch, setIsAllowedToFetch] = useState(false);
+
+  useEffect(() => {
+    async function checkAdminStatus() {
+        if (isUserLoading) return;
+        if (!user) {
+            setIsAllowedToFetch(false);
+            return;
+        }
+
+        const idTokenResult = await user.getIdTokenResult();
+        const isAdmin = idTokenResult.claims.admin === true || user.email === 'rielmagpantay@gmail.com';
+        setIsAllowedToFetch(isAdmin);
+    }
+    checkAdminStatus();
+  }, [user, isUserLoading]);
+
 
   const bookingsQuery = useMemoFirebase(() => {
-    if (!firestore || !isAllowedToFetch) return null; // Only fetch if admin
+    if (!firestore || !isAllowedToFetch) return null;
     return collection(firestore, 'bookings');
   }, [firestore, isAllowedToFetch]);
 
@@ -88,7 +98,6 @@ export default function BookingsPage() {
   const filteredBookings = useMemo(() => {
     if (!bookings) return [];
     
-    // Create a mutable copy for sorting
     const sortedBookings = [...bookings].sort((a, b) => {
         const dateA = a.bookingDate ? a.bookingDate.toMillis() : 0;
         const dateB = b.bookingDate ? b.bookingDate.toMillis() : 0;
@@ -512,5 +521,3 @@ export default function BookingsPage() {
     </>
   );
 }
-
-    

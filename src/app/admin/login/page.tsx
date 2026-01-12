@@ -48,12 +48,25 @@ export default function AdminLoginPage() {
   async function onSubmit(data: LoginFormData) {
     setIsLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, data.email, data.password);
-      toast({
-        title: "Login Successful",
-        description: "Redirecting you to the dashboard...",
-      });
-      router.push('/dashboard');
+      const userCredential = await signInWithEmailAndPassword(auth, data.email, data.password);
+      const idTokenResult = await userCredential.user.getIdTokenResult();
+      
+      // Check for admin custom claim OR the hardcoded email
+      if (idTokenResult.claims.admin === true || data.email === 'rielmagpantay@gmail.com') {
+        toast({
+          title: "Login Successful",
+          description: "Redirecting you to the dashboard...",
+        });
+        router.push('/dashboard');
+      } else {
+        await auth.signOut();
+        toast({
+          variant: "destructive",
+          title: "Access Denied",
+          description: "You do not have permission to access the admin dashboard.",
+        });
+      }
+
     } catch (error: any) {
       console.error(error);
       let description = "An unexpected error occurred. Please try again.";
