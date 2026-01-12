@@ -158,24 +158,20 @@ export default function BookingPage() {
       const relatedSchedules = allSchedules.map(s => {
         if (s.routeId !== watchRouteId) return null;
 
-        // An "instanced" schedule for the selected date.
         if (s.date === formattedTravelDate) {
           if (isToday && s.departureTime <= currentTime) return null;
           return s;
         }
 
-        // A "Daily" schedule template
         if (s.tripType === 'Daily' && !s.date) {
-            // If it's for today, only show trips that haven't departed.
             if (isToday && s.departureTime <= currentTime) {
               return null;
             }
-            // For future dates, daily trips should show full capacity from the ship
             if (!isToday) {
                 const ship = allShips.find(ship => ship.id === s.shipId);
                 return { ...s, availableSeats: ship?.capacity || s.availableSeats };
             }
-            return s; // Use original schedule data for today's daily trips
+            return s;
         }
 
         return null;
@@ -258,37 +254,41 @@ export default function BookingPage() {
         let finalScheduleRef: any;
         let finalScheduleId: string;
         
-        const isFutureDailyTrip = templateScheduleData.tripType === 'Daily' && !templateScheduleData.date && format(new Date(data.travelDate), 'yyyy-MM-dd') > format(new Date(), 'yyyy-MM-dd');
+        const travelDateObj = new Date(data.travelDate);
+        travelDateObj.setHours(0,0,0,0);
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        
+        const isFutureDailyTrip = templateScheduleData.tripType === 'Daily' && !templateScheduleData.date && travelDateObj > today;
 
         if (isFutureDailyTrip) {
-            // Find if an instance already exists for this date
             const schedulesCol = collection(firestore, 'schedules');
-            const q = query(schedulesCol, where("baseScheduleId", "==", scheduleId), where("date", "==", format(new Date(data.travelDate), 'yyyy-MM-dd')));
-            const existingInstances = await getDocs(q);
+            const q = query(schedulesCol, where("baseScheduleId", "==", scheduleId), where("date", "==", format(travelDateObj, 'yyyy-MM-dd')));
+            
+            const querySnapshot = await getDocs(q);
 
-            if (!existingInstances.empty) {
-                // Instance exists, use it
-                finalScheduleRef = existingInstances.docs[0].ref;
-                finalScheduleId = existingInstances.docs[0].id;
+            if (!querySnapshot.empty) {
+                finalScheduleRef = querySnapshot.docs[0].ref;
+                finalScheduleId = querySnapshot.docs[0].id;
             } else {
-                // No instance, create one
                 const ship = allShips.find(ship => ship.id === templateScheduleData.shipId);
                 if (!ship) throw new Error("Assigned ship not found for schedule.");
 
+                finalScheduleRef = doc(collection(firestore, 'schedules')); 
+                finalScheduleId = finalScheduleRef.id;
+
                 const newInstanceData = {
                     ...templateScheduleData,
-                    tripType: 'Special', // The instance is for a special, specific date
-                    date: format(new Date(data.travelDate), 'yyyy-MM-dd'),
+                    tripType: 'Special',
+                    date: format(travelDateObj, 'yyyy-MM-dd'),
                     availableSeats: ship.capacity,
-                    baseScheduleId: scheduleId, // Link back to the daily template
+                    baseScheduleId: scheduleId,
                     status: 'On Time'
                 };
-                finalScheduleRef = doc(collection(firestore, 'schedules')); // Create a new doc ref
+                delete newInstanceData.id;
                 transaction.set(finalScheduleRef, newInstanceData);
-                finalScheduleId = finalScheduleRef.id;
             }
         } else {
-            // Not a future daily trip, use the original schedule document
             finalScheduleRef = templateScheduleRef;
             finalScheduleId = scheduleId;
         }
@@ -321,7 +321,7 @@ export default function BookingPage() {
           })),
           passengerEmail: data.primaryEmail,
           passengerPhone: data.primaryPhone,
-          scheduleId: finalScheduleId, // IMPORTANT: Use the final schedule ID
+          scheduleId: finalScheduleId,
           fareDetails: summary.details.map(d => {
             const fareInfo = availableFares.find(f => f.passengerType === d.fareType);
             return {
