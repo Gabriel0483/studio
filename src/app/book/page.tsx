@@ -28,7 +28,7 @@ import { PublicHeader } from "@/components/public-header"
 import { PublicFooter } from "@/components/public-footer"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from "@/firebase"
-import { collection, doc, serverTimestamp, runTransaction, Timestamp, where, query, getDocs, addDoc } from "firebase/firestore"
+import { collection, doc, serverTimestamp, runTransaction, Timestamp, where, query, getDocs, addDoc, getDoc } from "firebase/firestore"
 import React, { useMemo, useState, useEffect, useRef } from "react"
 import { Separator } from "@/components/ui/separator"
 import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
@@ -169,7 +169,7 @@ export default function BookingPage() {
             }
             if (!isToday) {
                 const ship = allShips.find(ship => ship.id === s.shipId);
-                return { ...s, availableSeats: ship?.capacity || s.availableSeats };
+                return { ...s, availableSeats: ship ? ship.capacity : s.availableSeats };
             }
             return s;
         }
@@ -243,6 +243,29 @@ export default function BookingPage() {
     
     const { scheduleId } = data;
     const summary = calculateBookingSummary(data);
+    
+    const templateSchedule = allSchedules?.find(s => s.id === scheduleId);
+    if(!templateSchedule) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Selected schedule not found.' });
+        return;
+    }
+
+    const travelDateObj = new Date(data.travelDate);
+    travelDateObj.setHours(0,0,0,0);
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    
+    const isFutureDailyTrip = templateSchedule.tripType === 'Daily' && !templateSchedule.date && travelDateObj > today;
+    
+    let existingInstanceId: string | null = null;
+    if (isFutureDailyTrip) {
+        const schedulesCol = collection(firestore, 'schedules');
+        const q = query(schedulesCol, where("baseScheduleId", "==", scheduleId), where("date", "==", format(travelDateObj, 'yyyy-MM-dd')));
+        const querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+            existingInstanceId = querySnapshot.docs[0].id;
+        }
+    }
 
     try {
       const { status: bookingStatus, bookingId, finalScheduleId } = await runTransaction(firestore, async (transaction) => {
@@ -250,51 +273,37 @@ export default function BookingPage() {
         const templateScheduleDoc = await transaction.get(templateScheduleRef);
         if (!templateScheduleDoc.exists()) throw new Error("Schedule template does not exist!");
 
-        const templateScheduleData = templateScheduleDoc.data();
-        let finalScheduleRef: any;
-        let finalScheduleId: string;
-        
-        const travelDateObj = new Date(data.travelDate);
-        travelDateObj.setHours(0,0,0,0);
-        const today = new Date();
-        today.setHours(0,0,0,0);
-        
-        const isFutureDailyTrip = templateScheduleData.tripType === 'Daily' && !templateScheduleData.date && travelDateObj > today;
-
-        if (isFutureDailyTrip) {
-            const schedulesCol = collection(firestore, 'schedules');
-            const q = query(schedulesCol, where("baseScheduleId", "==", scheduleId), where("date", "==", format(travelDateObj, 'yyyy-MM-dd')));
-            
-            const querySnapshot = await getDocs(q);
-
-            if (!querySnapshot.empty) {
-                finalScheduleRef = querySnapshot.docs[0].ref;
-                finalScheduleId = querySnapshot.docs[0].id;
+        let finalScheduleRef;
+        if(isFutureDailyTrip) {
+            if(existingInstanceId) {
+                finalScheduleRef = doc(firestore, 'schedules', existingInstanceId);
             } else {
-                const ship = allShips.find(ship => ship.id === templateScheduleData.shipId);
-                
-                finalScheduleRef = doc(collection(firestore, 'schedules')); 
-                finalScheduleId = finalScheduleRef.id;
-
-                const newInstanceData = {
-                    ...templateScheduleData,
-                    tripType: 'Special',
-                    date: format(travelDateObj, 'yyyy-MM-dd'),
-                    availableSeats: ship ? ship.capacity : templateScheduleData.availableSeats,
-                    baseScheduleId: scheduleId,
-                    status: 'On Time'
-                };
-                delete newInstanceData.id;
-                transaction.set(finalScheduleRef, newInstanceData);
+                finalScheduleRef = doc(collection(firestore, 'schedules'));
             }
         } else {
             finalScheduleRef = templateScheduleRef;
-            finalScheduleId = scheduleId;
+        }
+
+        const finalScheduleDoc = await transaction.get(finalScheduleRef);
+        const templateScheduleData = templateScheduleDoc.data();
+
+        if (isFutureDailyTrip && !finalScheduleDoc.exists()) {
+            const ship = allShips.find(ship => ship.id === templateScheduleData.shipId);
+            const newInstanceData = {
+                ...templateScheduleData,
+                tripType: 'Special',
+                date: format(travelDateObj, 'yyyy-MM-dd'),
+                availableSeats: ship ? ship.capacity : templateScheduleData.availableSeats,
+                baseScheduleId: scheduleId,
+                status: 'On Time'
+            };
+            delete newInstanceData.id;
+            transaction.set(finalScheduleRef, newInstanceData);
         }
 
         const scheduleDocForUpdate = await transaction.get(finalScheduleRef);
         if (!scheduleDocForUpdate.exists()) throw new Error("Target schedule does not exist!");
-
+        
         const scheduleDataForUpdate = scheduleDocForUpdate.data();
         const currentAvailableSeats = scheduleDataForUpdate.availableSeats || 0;
 
@@ -320,7 +329,7 @@ export default function BookingPage() {
           })),
           passengerEmail: data.primaryEmail,
           passengerPhone: data.primaryPhone,
-          scheduleId: finalScheduleId,
+          scheduleId: finalScheduleRef.id,
           fareDetails: summary.details.map(d => {
             const fareInfo = availableFares.find(f => f.passengerType === d.fareType);
             return {
@@ -342,7 +351,7 @@ export default function BookingPage() {
         };
 
         transaction.set(newBookingRef, bookingData);
-        return { status, bookingId, finalScheduleId };
+        return { status, bookingId, finalScheduleId: finalScheduleRef.id };
       });
 
       const passengerRef = doc(firestore, 'passengers', user.uid);
@@ -361,7 +370,9 @@ export default function BookingPage() {
         description: `Your booking is now ${bookingStatus}. Check your itinerary for details.`,
       });
 
-      const currentSchedule = allSchedules?.find(s => s.id === finalScheduleId) || allSchedules?.find(s => s.id === scheduleId);
+      const currentScheduleDoc = await getDoc(doc(firestore, 'schedules', finalScheduleId));
+      const currentSchedule = currentScheduleDoc.data();
+
       setConfirmedBooking({
         ...data,
         scheduleId: finalScheduleId,
