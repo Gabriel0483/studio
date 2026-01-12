@@ -166,7 +166,7 @@ export default function BookingPage() {
       const dailyTrips = allSchedules.filter(s => {
         if (s.routeId !== watchRouteId || s.tripType !== 'Daily' || s.date) return false;
         
-        const hasSpecialInstance = specialInstances.some(inst => inst.baseScheduleId === s.id);
+        const hasSpecialInstance = specialInstances.some(inst => inst.baseScheduleId === s.id && inst.date === formattedTravelDate);
         if (hasSpecialInstance) return false;
 
         if (isToday) {
@@ -252,7 +252,7 @@ export default function BookingPage() {
       toast({ variant: 'destructive', title: 'Error', description: 'Could not connect. Please try again later.' });
       return;
     }
-
+  
     setIsReserving(true);
   
     const { scheduleId } = data;
@@ -267,15 +267,17 @@ export default function BookingPage() {
   
     const travelDateObj = new Date(data.travelDate);
     travelDateObj.setHours(0, 0, 0, 0);
+    const travelDateStr = format(travelDateObj, 'yyyy-MM-dd');
     const today = new Date();
     today.setHours(0, 0, 0, 0);
   
-    const isFutureDailyTrip = templateSchedule.tripType === 'Daily' && !templateSchedule.date && travelDateObj > today;
+    const isFutureDailyTrip = templateSchedule.tripType === 'Daily' && !templateSchedule.date && travelDateStr > format(today, 'yyyy-MM-dd');
     
+    // --- Pre-transaction read ---
     let existingInstanceId: string | null = null;
     if (isFutureDailyTrip) {
       const schedulesCol = collection(firestore, 'schedules');
-      const q = query(schedulesCol, where("baseScheduleId", "==", scheduleId), where("date", "==", format(travelDateObj, 'yyyy-MM-dd')));
+      const q = query(schedulesCol, where("baseScheduleId", "==", scheduleId), where("date", "==", travelDateStr));
       try {
         const querySnapshot = await getDocs(q);
         if (!querySnapshot.empty) {
@@ -294,6 +296,7 @@ export default function BookingPage() {
         let finalScheduleRef;
         let scheduleDataForUpdate;
 
+        // Determine the correct schedule document to read and update
         if (isFutureDailyTrip) {
             if (existingInstanceId) {
                 finalScheduleRef = doc(firestore, 'schedules', existingInstanceId);
@@ -301,23 +304,21 @@ export default function BookingPage() {
                 if (!finalScheduleDoc.exists()) throw new Error("Schedule instance does not exist!");
                 scheduleDataForUpdate = finalScheduleDoc.data();
             } else {
-                // This is a new instance of a daily trip, it must be created.
-                finalScheduleRef = doc(collection(firestore, 'schedules'));
+                finalScheduleRef = doc(collection(firestore, 'schedules')); // Ref for the new instance
                 const ship = allShips?.find(ship => ship.id === templateSchedule.shipId);
                 const newInstanceData = {
                     ...templateSchedule,
                     tripType: 'Special',
-                    date: format(travelDateObj, 'yyyy-MM-dd'),
+                    date: travelDateStr,
                     availableSeats: ship ? ship.capacity : templateSchedule.availableSeats,
                     baseScheduleId: scheduleId,
                     status: 'On Time'
                 };
-                delete newInstanceData.id;
+                delete newInstanceData.id; 
                 transaction.set(finalScheduleRef, newInstanceData);
                 scheduleDataForUpdate = newInstanceData;
             }
         } else {
-            // Not a future daily trip, so use the selected schedule directly.
             finalScheduleRef = doc(firestore, 'schedules', scheduleId);
             const finalScheduleDoc = await transaction.get(finalScheduleRef);
             if (!finalScheduleDoc.exists()) throw new Error("Selected schedule does not exist!");
@@ -359,7 +360,7 @@ export default function BookingPage() {
             };
           }),
           bookingDate: serverTimestamp(),
-          travelDate: new Date(data.travelDate),
+          travelDate: Timestamp.fromDate(new Date(data.travelDate)),
           numberOfSeats: totalSeats,
           totalPrice: summary.totalPrice,
           routeName: getRouteName(scheduleDataForUpdate.routeId),

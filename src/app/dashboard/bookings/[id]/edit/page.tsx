@@ -241,137 +241,148 @@ export default function EditBookingPage() {
 
   async function handleUpdateBooking(data: BookingFormData) {
     if (!firestore || !booking || !allSchedules || !allShips) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Could not connect. Please try again.' });
-      return;
+        toast({ variant: 'destructive', title: 'Error', description: 'Could not connect. Please try again.' });
+        return;
     }
     setIsSubmitting(true);
 
     const newSeats = data.passengers.length;
     const newTemplateSchedule = allSchedules.find(s => s.id === data.scheduleId);
     if (!newTemplateSchedule) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Selected schedule could not be found.' });
-      setIsSubmitting(false);
-      return;
+        toast({ variant: 'destructive', title: 'Error', description: 'Selected schedule could not be found.' });
+        setIsSubmitting(false);
+        return;
     }
 
     const travelDateStr = format(new Date(data.travelDate), 'yyyy-MM-dd');
     const todayStr = format(new Date(), 'yyyy-MM-dd');
     const isFutureDailyTrip = newTemplateSchedule.tripType === 'Daily' && !newTemplateSchedule.date && travelDateStr > todayStr;
 
+    // --- Pre-transaction read ---
     let existingInstanceId: string | null = null;
     if (isFutureDailyTrip) {
         const schedulesCol = collection(firestore, 'schedules');
         const q = query(schedulesCol, where("baseScheduleId", "==", data.scheduleId), where("date", "==", travelDateStr));
-        const existingInstancesSnapshot = await getDocs(q);
-        if (!existingInstancesSnapshot.empty) {
-            existingInstanceId = existingInstancesSnapshot.docs[0].id;
+        try {
+            const existingInstancesSnapshot = await getDocs(q);
+            if (!existingInstancesSnapshot.empty) {
+                existingInstanceId = existingInstancesSnapshot.docs[0].id;
+            }
+        } catch (e) {
+            console.error("Failed to query for existing schedule instances:", e);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not verify schedule availability. Please try again.' });
+            setIsSubmitting(false);
+            return;
         }
     }
 
     try {
-      await runTransaction(firestore, async (transaction) => {
-        const bookingRef = doc(firestore, 'bookings', booking.firestoreId);
-        const oldScheduleRef = doc(firestore, 'schedules', booking.scheduleId);
-        const newTemplateScheduleRef = doc(firestore, 'schedules', data.scheduleId);
+        await runTransaction(firestore, async (transaction) => {
+            const bookingRef = doc(firestore, 'bookings', booking.firestoreId);
+            const oldScheduleRef = doc(firestore, 'schedules', booking.scheduleId);
+            const newTemplateScheduleRef = doc(firestore, 'schedules', data.scheduleId);
 
-        // --- ALL READS FIRST ---
-        const oldScheduleDoc = await transaction.get(oldScheduleRef);
-        const newTemplateScheduleDoc = await transaction.get(newTemplateScheduleRef);
-        if (!newTemplateScheduleDoc.exists()) throw new Error("New schedule template does not exist!");
+            // --- ALL READS FIRST ---
+            const oldScheduleDoc = await transaction.get(oldScheduleRef);
+            const newTemplateScheduleDoc = await transaction.get(newTemplateScheduleRef);
+            if (!newTemplateScheduleDoc.exists()) throw new Error("New schedule template does not exist!");
+            
+            const newTemplateScheduleData = newTemplateScheduleDoc.data();
 
-        let finalScheduleRef;
-        let existingInstanceDoc = null;
-        if (existingInstanceId) {
-          finalScheduleRef = doc(firestore, 'schedules', existingInstanceId);
-          existingInstanceDoc = await transaction.get(finalScheduleRef);
-        } else {
-          finalScheduleRef = isFutureDailyTrip ? doc(collection(firestore, 'schedules')) : newTemplateScheduleRef;
-          if (!isFutureDailyTrip) {
-            existingInstanceDoc = newTemplateScheduleDoc;
-          }
-        }
-        
-        // --- ALL WRITES AFTER THIS POINT ---
-        
-        // 1. Restore old seats
-        if (oldScheduleDoc.exists() && (booking.status === 'Reserved' || booking.status === 'Confirmed')) {
-          transaction.update(oldScheduleRef, { availableSeats: oldScheduleDoc.data().availableSeats + booking.numberOfSeats });
-        }
+            let finalScheduleRef;
+            let newScheduleDocForUpdate;
 
-        // 2. Create new schedule instance if it doesn't exist
-        const newTemplateScheduleData = newTemplateScheduleDoc.data();
-        if (isFutureDailyTrip && !existingInstanceDoc) {
-          const ship = allShips.find(ship => ship.id === newTemplateScheduleData.shipId);
-          const newCapacity = ship ? ship.capacity : newTemplateScheduleData.availableSeats;
-          transaction.set(finalScheduleRef, {
-            ...newTemplateScheduleData,
-            tripType: 'Special',
-            date: travelDateStr,
-            availableSeats: newCapacity,
-            baseScheduleId: data.scheduleId,
-            status: 'On Time',
-          });
-        }
-        
-        // 3. Deduct seats from the new/correct schedule
-        // To get the most up-to-date seat count, we need to read the document we might have just created.
-        // We'll read it again. This is safe because it's still a read before the final writes.
-        const newScheduleDocForUpdate = await transaction.get(finalScheduleRef);
-        if (!newScheduleDocForUpdate.exists()) throw new Error("Target schedule does not exist after creation attempt.");
-        const newScheduleDataForUpdate = newScheduleDocForUpdate.data();
+            if (isFutureDailyTrip) {
+                if (existingInstanceId) {
+                    finalScheduleRef = doc(firestore, 'schedules', existingInstanceId);
+                } else {
+                    finalScheduleRef = doc(collection(firestore, 'schedules'));
+                }
+            } else {
+                finalScheduleRef = newTemplateScheduleRef;
+            }
+            newScheduleDocForUpdate = await transaction.get(finalScheduleRef);
+            
+            // --- ALL WRITES AFTER THIS POINT ---
+            
+            // 1. Restore old seats
+            if (oldScheduleDoc.exists() && (booking.status === 'Reserved' || booking.status === 'Confirmed')) {
+                transaction.update(oldScheduleRef, { availableSeats: oldScheduleDoc.data().availableSeats + booking.numberOfSeats });
+            }
 
-        let newStatus = booking.status;
-        if (newScheduleDataForUpdate.availableSeats >= newSeats) {
-            transaction.update(finalScheduleRef, { availableSeats: newScheduleDataForUpdate.availableSeats - newSeats });
-            newStatus = (data.paymentStatus === 'Paid' || booking.paymentStatus === 'Paid') ? 'Confirmed' : 'Reserved';
-        } else {
-            newStatus = 'Waitlisted';
-        }
-        
-        // 4. Update the booking document
-        const fareDetails = data.passengers.map((p) => {
-          const fareInfo = availableFares.find(f => f.passengerType === p.fareType);
-          return { fareId: fareInfo?.id || null, passengerType: p.fareType, count: 1, pricePerTicket: fareInfo?.price || 0 };
+            let finalScheduleData;
+            // 2. Create new schedule instance if it doesn't exist
+            if (isFutureDailyTrip && !newScheduleDocForUpdate.exists()) {
+                const ship = allShips.find(ship => ship.id === newTemplateScheduleData.shipId);
+                const newCapacity = ship ? ship.capacity : newTemplateScheduleData.availableSeats;
+                finalScheduleData = {
+                    ...newTemplateScheduleData,
+                    tripType: 'Special',
+                    date: travelDateStr,
+                    availableSeats: newCapacity,
+                    baseScheduleId: data.scheduleId,
+                    status: 'On Time',
+                };
+                transaction.set(finalScheduleRef, finalScheduleData);
+            } else {
+                finalScheduleData = newScheduleDocForUpdate.data();
+            }
+            if (!finalScheduleData) throw new Error("Target schedule data is not available.");
+            
+            // 3. Deduct seats from the new/correct schedule
+            let newStatus = booking.status;
+            if (finalScheduleData.availableSeats >= newSeats) {
+                transaction.update(finalScheduleRef, { availableSeats: finalScheduleData.availableSeats - newSeats });
+                newStatus = (data.paymentStatus === 'Paid' || booking.paymentStatus === 'Paid') ? 'Confirmed' : 'Reserved';
+            } else {
+                newStatus = 'Waitlisted';
+            }
+            
+            // 4. Update the booking document
+            const fareDetails = data.passengers.map((p) => {
+                const fareInfo = availableFares.find(f => f.passengerType === p.fareType);
+                return { fareId: fareInfo?.id || null, passengerType: p.fareType, count: 1, pricePerTicket: fareInfo?.price || 0 };
+            });
+
+            const newRebookingHistory = [...(booking.rebookingHistory || [])];
+            if (rebookingFee > 0) {
+                newRebookingHistory.push({ fee: rebookingFee, date: new Date().toISOString(), reason: rebookingReason || 'Rebooking Fee' });
+            }
+
+            transaction.update(bookingRef, {
+                passengerInfo: data.passengers.map((p) => ({ fullName: p.fullName, birthDate: p.birthDate || null, fareType: p.fareType })),
+                passengerEmail: data.primaryEmail,
+                passengerPhone: data.primaryPhone,
+                scheduleId: finalScheduleRef.id,
+                fareDetails,
+                travelDate: Timestamp.fromDate(new Date(data.travelDate)),
+                numberOfSeats: newSeats,
+                totalPrice: bookingSummary.totalPrice,
+                routeName: getRouteName(newTemplateScheduleData.routeId),
+                status: newStatus,
+                paymentStatus: data.paymentStatus,
+                rebookingHistory: newRebookingHistory,
+                noShowFee: data.noShowFee > 0 ? data.noShowFee : null,
+            });
         });
 
-        const newRebookingHistory = [...(booking.rebookingHistory || [])];
-        if (rebookingFee > 0) {
-          newRebookingHistory.push({ fee: rebookingFee, date: new Date().toISOString(), reason: rebookingReason || 'Rebooking Fee' });
-        }
-
-        transaction.update(bookingRef, {
-          passengerInfo: data.passengers.map((p) => ({ fullName: p.fullName, birthDate: p.birthDate || null, fareType: p.fareType })),
-          passengerEmail: data.primaryEmail,
-          passengerPhone: data.primaryPhone,
-          scheduleId: finalScheduleRef.id,
-          fareDetails,
-          travelDate: new Date(data.travelDate),
-          numberOfSeats: newSeats,
-          totalPrice: bookingSummary.totalPrice,
-          routeName: getRouteName(newTemplateScheduleData.routeId),
-          status: newStatus,
-          paymentStatus: data.paymentStatus,
-          rebookingHistory: newRebookingHistory,
-          noShowFee: data.noShowFee > 0 ? data.noShowFee : null,
+        toast({
+            title: 'Booking Updated!',
+            description: 'The booking has been successfully updated.',
         });
-      });
-
-      toast({
-        title: 'Booking Updated!',
-        description: 'The booking has been successfully updated.',
-      });
-      router.push('/dashboard/bookings');
+        router.push('/dashboard/bookings');
     } catch (e: any) {
-      console.error(e);
-      toast({
-        variant: 'destructive',
-        title: 'Uh oh! Something went wrong.',
-        description: e.message || 'Could not update the booking.',
-      });
+        console.error(e);
+        toast({
+            variant: 'destructive',
+            title: 'Uh oh! Something went wrong.',
+            description: e.message || 'Could not update the booking.',
+        });
     } finally {
-      setIsSubmitting(false);
+        setIsSubmitting(false);
     }
   }
+
 
   const isLoading =
     isLoadingSchedules || isLoadingRoutes || isLoadingFares || isLoadingBooking || isLoadingShips;
