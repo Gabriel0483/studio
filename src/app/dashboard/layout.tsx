@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   SidebarProvider,
   Sidebar,
@@ -22,9 +22,9 @@ import { navLinks } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import { Home, Loader2 } from 'lucide-react';
 import { useUser } from '@/firebase';
+import type { User } from 'firebase/auth';
 
-const isAdminUser = async (user: any) => {
-  if (!user) return false;
+const isAdminUser = async (user: User): Promise<boolean> => {
   // This is the primary check. It relies on custom claims.
   const idTokenResult = await user.getIdTokenResult();
   if (idTokenResult.claims.admin === true) {
@@ -42,10 +42,11 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const router = useRouter();
   const { user, isUserLoading } = useUser();
+  const [isAuthorized, setIsAuthorized] = useState(false);
 
   useEffect(() => {
     if (isUserLoading) {
-      return;
+      return; // Wait until user state is resolved
     }
     if (!user) {
       router.replace('/admin/login');
@@ -53,17 +54,20 @@ export default function DashboardLayout({
     }
     
     isAdminUser(user).then(isAdmin => {
-        if (!isAdmin) {
-            router.replace('/admin/login');
-        }
+      if (!isAdmin) {
+        router.replace('/admin/login');
+      } else {
+        setIsAuthorized(true);
+      }
     });
 
   }, [user, isUserLoading, router]);
 
-  if (isUserLoading || !user) {
+  if (isUserLoading || !isAuthorized) {
     return (
       <div className="flex h-screen w-full items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
+        <p className="ml-2">Verifying access...</p>
       </div>
     );
   }
