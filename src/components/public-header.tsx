@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/logo';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from '@/components/ui/sheet';
-import { Menu, User, LogOut } from 'lucide-react';
+import { Menu, User, LogOut, BookCopy } from 'lucide-react';
 import { useUser, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
 import { handleSignOut } from '@/firebase/auth';
 import { useRouter } from 'next/navigation';
@@ -93,7 +93,7 @@ export function PublicHeader() {
                         <span>My Profile</span>
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => router.push('/my-bookings')}>
-                        <User className="mr-2 h-4 w-4" />
+                        <BookCopy className="mr-2 h-4 w-4" />
                         <span>My Bookings</span>
                       </DropdownMenuItem>
                     </DropdownMenuGroup>
