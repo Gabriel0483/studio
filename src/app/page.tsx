@@ -29,10 +29,10 @@ export default function Home() {
           <div className="container mx-auto px-4 text-center md:px-6">
             <div className="flex flex-col items-center space-y-6">
               <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl md:text-6xl">
-                Streamline Your Shipping Operations with Isla Konek
+                Your Island Adventure Awaits
               </h1>
               <p className="max-w-3xl text-lg text-muted-foreground md:text-xl">
-                From passenger reservations to daily operations, our all-in-one web application automates the entire process, saving you time, money, and headaches.
+                Effortless ferry bookings with Isla Konek. Book your tickets in minutes and enjoy real-time trip updates for a stress-free journey.
               </p>
               <div className="flex flex-col gap-4 sm:flex-row">
                 <Button asChild size="lg">
