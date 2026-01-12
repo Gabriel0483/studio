@@ -266,14 +266,12 @@ export default function BookingPage() {
     }
   
     const travelDateObj = new Date(data.travelDate);
-    travelDateObj.setHours(0, 0, 0, 0);
     const travelDateStr = format(travelDateObj, 'yyyy-MM-dd');
     const today = new Date();
     today.setHours(0, 0, 0, 0);
   
     const isFutureDailyTrip = templateSchedule.tripType === 'Daily' && !templateSchedule.date && travelDateStr > format(today, 'yyyy-MM-dd');
     
-    // --- Pre-transaction read ---
     let existingInstanceId: string | null = null;
     if (isFutureDailyTrip) {
       const schedulesCol = collection(firestore, 'schedules');
@@ -296,21 +294,21 @@ export default function BookingPage() {
         let finalScheduleRef;
         let scheduleDataForUpdate;
 
-        // Determine the correct schedule document to read and update
         if (isFutureDailyTrip) {
-            if (existingInstanceId) {
-                finalScheduleRef = doc(firestore, 'schedules', existingInstanceId);
-                const finalScheduleDoc = await transaction.get(finalScheduleRef);
-                if (!finalScheduleDoc.exists()) throw new Error("Schedule instance does not exist!");
+            finalScheduleRef = existingInstanceId ? doc(firestore, 'schedules', existingInstanceId) : doc(collection(firestore, 'schedules'));
+            const finalScheduleDoc = await transaction.get(finalScheduleRef);
+            
+            if (finalScheduleDoc.exists()) {
                 scheduleDataForUpdate = finalScheduleDoc.data();
             } else {
-                finalScheduleRef = doc(collection(firestore, 'schedules')); // Ref for the new instance
                 const ship = allShips?.find(ship => ship.id === templateSchedule.shipId);
+                const initialCapacity = ship ? ship.capacity : (templateSchedule.availableSeats || 0);
+
                 const newInstanceData = {
                     ...templateSchedule,
                     tripType: 'Special',
                     date: travelDateStr,
-                    availableSeats: ship ? ship.capacity : templateSchedule.availableSeats,
+                    availableSeats: initialCapacity,
                     baseScheduleId: scheduleId,
                     status: 'On Time'
                 };
@@ -360,7 +358,7 @@ export default function BookingPage() {
             };
           }),
           bookingDate: serverTimestamp(),
-          travelDate: Timestamp.fromDate(new Date(data.travelDate)),
+          travelDate: Timestamp.fromDate(travelDateObj),
           numberOfSeats: totalSeats,
           totalPrice: summary.totalPrice,
           routeName: getRouteName(scheduleDataForUpdate.routeId),
@@ -738,3 +736,5 @@ export default function BookingPage() {
     </div>
   )
 }
+
+    

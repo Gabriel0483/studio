@@ -79,7 +79,11 @@ export default function MyProfilePage() {
 
   useEffect(() => {
     if (passengerData) {
-      form.reset(passengerData);
+      form.reset({
+        ...passengerData,
+        birthDate: passengerData.birthDate || "",
+        familyMembers: passengerData.familyMembers ? passengerData.familyMembers.map((fm: any) => ({...fm, birthDate: fm.birthDate || ''})) : []
+      });
     }
   }, [passengerData, form]);
 
@@ -106,6 +110,8 @@ export default function MyProfilePage() {
     const profileData = {
       id: user.uid,
       ...data,
+      birthDate: data.birthDate || null,
+      familyMembers: data.familyMembers ? data.familyMembers.map(fm => ({...fm, birthDate: fm.birthDate || null})) : [],
     };
     
     setDocumentNonBlocking(passengerRef, profileData, { merge: true });
@@ -277,3 +283,5 @@ export default function MyProfilePage() {
     </div>
   );
 }
+
+    
