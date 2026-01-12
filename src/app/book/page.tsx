@@ -272,8 +272,7 @@ export default function BookingPage() {
                 finalScheduleId = querySnapshot.docs[0].id;
             } else {
                 const ship = allShips.find(ship => ship.id === templateScheduleData.shipId);
-                if (!ship) throw new Error("Assigned ship not found for schedule.");
-
+                
                 finalScheduleRef = doc(collection(firestore, 'schedules')); 
                 finalScheduleId = finalScheduleRef.id;
 
@@ -281,7 +280,7 @@ export default function BookingPage() {
                     ...templateScheduleData,
                     tripType: 'Special',
                     date: format(travelDateObj, 'yyyy-MM-dd'),
-                    availableSeats: ship.capacity,
+                    availableSeats: ship ? ship.capacity : templateScheduleData.availableSeats,
                     baseScheduleId: scheduleId,
                     status: 'On Time'
                 };
