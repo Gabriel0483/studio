@@ -25,13 +25,14 @@ import { useUser } from '@/firebase';
 import type { User } from 'firebase/auth';
 
 const isAdminUser = async (user: User): Promise<boolean> => {
-  // This is the primary check. It relies on custom claims.
-  const idTokenResult = await user.getIdTokenResult();
-  if (idTokenResult.claims.admin === true) {
-    return true;
+  try {
+    const idTokenResult = await user.getIdTokenResult();
+    return idTokenResult.claims.admin === true || user.email === 'rielmagpantay@gmail.com';
+  } catch (error) {
+    console.error('Error getting user token for admin check:', error);
+    // Fallback to email check if token fails for some reason
+    return user.email === 'rielmagpantay@gmail.com';
   }
-  // This is a fallback for the hardcoded superadmin during development.
-  return user.email === 'rielmagpantay@gmail.com';
 };
 
 export default function DashboardLayout({
@@ -43,6 +44,7 @@ export default function DashboardLayout({
   const router = useRouter();
   const { user, isUserLoading } = useUser();
   const [isAuthorized, setIsAuthorized] = useState(false);
+  const [authCheckCompleted, setAuthCheckCompleted] = useState(false);
 
   useEffect(() => {
     if (isUserLoading) {
@@ -54,16 +56,17 @@ export default function DashboardLayout({
     }
     
     isAdminUser(user).then(isAdmin => {
-      if (!isAdmin) {
-        router.replace('/admin/login');
-      } else {
+      if (isAdmin) {
         setIsAuthorized(true);
+      } else {
+        router.replace('/admin/login');
       }
+      setAuthCheckCompleted(true);
     });
 
   }, [user, isUserLoading, router]);
 
-  if (isUserLoading || !isAuthorized) {
+  if (!authCheckCompleted || !isAuthorized) {
     return (
       <div className="flex h-screen w-full items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
