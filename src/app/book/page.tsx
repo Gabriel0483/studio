@@ -92,6 +92,7 @@ export default function BookingPage() {
   const [step, setStep] = useState<'form' | 'summary' | 'confirmation'>('form');
   const [bookingSummary, setBookingSummary] = useState<BookingSummary>({ details: [], totalPrice: 0, totalTickets: 0 });
   const [confirmedBooking, setConfirmedBooking] = useState<ConfirmedBooking | null>(null);
+  const [isReserving, setIsReserving] = useState(false);
 
   const passengerDocRef = useMemoFirebase(() => firestore && user ? doc(firestore, 'passengers', user.uid) : null, [firestore, user]);
   const { data: passengerData } = useDoc(passengerDocRef);
@@ -147,39 +148,48 @@ export default function BookingPage() {
       const selectedDate = new Date(watchTravelDate);
       selectedDate.setHours(0, 0, 0, 0);
       const formattedTravelDate = format(selectedDate, 'yyyy-MM-dd');
-
+  
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-
+  
       const isToday = selectedDate.getTime() === today.getTime();
       const now = new Date();
       const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
       
-      const relatedSchedules = allSchedules.map(s => {
-        if (s.routeId !== watchRouteId) return null;
+      const specialInstances = allSchedules.filter(s =>
+        s.routeId === watchRouteId &&
+        s.tripType === 'Special' &&
+        s.date === formattedTravelDate &&
+        (!isToday || s.departureTime > currentTime)
+      );
 
-        if (s.tripType === 'Special' && s.date === formattedTravelDate) {
-          if (isToday && s.departureTime <= currentTime) return null;
-          return s;
+      const dailyTrips = allSchedules.filter(s => {
+        if (s.routeId !== watchRouteId || s.tripType !== 'Daily' || s.date) return false;
+        
+        const hasSpecialInstance = specialInstances.some(inst => inst.baseScheduleId === s.id);
+        if (hasSpecialInstance) return false;
+
+        if (isToday) {
+          return s.departureTime > currentTime;
         }
 
-        if (s.tripType === 'Daily' && !s.date) {
-            if (isToday) {
-                // For today, check departure time and use current available seats
-                if (s.departureTime <= currentTime) return null;
-                return s;
-            } else {
-                // For a future date, it's a template. Reset available seats to full capacity.
-                const ship = allShips.find(ship => ship.id === s.shipId);
-                const capacity = ship ? ship.capacity : s.availableSeats;
-                return { ...s, availableSeats: capacity };
-            }
-        }
+        return true;
+      });
 
-        return null;
-      }).filter(s => s !== null) as any[];
+      const finalSchedules = [
+        ...specialInstances,
+        ...dailyTrips.map(s => {
+          if (isToday) return s;
+          const ship = allShips.find(ship => ship.id === s.shipId);
+          return {
+            ...s,
+            availableSeats: ship ? ship.capacity : s.availableSeats,
+          };
+        })
+      ];
+      
+      setFilteredSchedules(finalSchedules);
 
-      setFilteredSchedules(relatedSchedules);
     } else {
       setFilteredSchedules([]);
     }
@@ -242,6 +252,8 @@ export default function BookingPage() {
       toast({ variant: 'destructive', title: 'Error', description: 'Could not connect. Please try again later.' });
       return;
     }
+
+    setIsReserving(true);
   
     const { scheduleId } = data;
     const summary = calculateBookingSummary(data);
@@ -249,6 +261,7 @@ export default function BookingPage() {
     const templateSchedule = allSchedules.find(s => s.id === scheduleId);
     if (!templateSchedule) {
       toast({ variant: 'destructive', title: 'Error', description: 'Selected schedule not found.' });
+      setIsReserving(false);
       return;
     }
   
@@ -263,9 +276,16 @@ export default function BookingPage() {
     if (isFutureDailyTrip) {
       const schedulesCol = collection(firestore, 'schedules');
       const q = query(schedulesCol, where("baseScheduleId", "==", scheduleId), where("date", "==", format(travelDateObj, 'yyyy-MM-dd')));
-      const querySnapshot = await getDocs(q);
-      if (!querySnapshot.empty) {
-        existingInstanceId = querySnapshot.docs[0].id;
+      try {
+        const querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+          existingInstanceId = querySnapshot.docs[0].id;
+        }
+      } catch (e) {
+          console.error("Failed to query for existing schedule instances:", e);
+          toast({ variant: 'destructive', title: 'Error', description: 'Could not verify schedule availability. Please try again.' });
+          setIsReserving(false);
+          return;
       }
     }
   
@@ -393,6 +413,8 @@ export default function BookingPage() {
         title: "Uh oh! Something went wrong.",
         description: e.message || "Could not complete your booking.",
       });
+    } finally {
+        setIsReserving(false);
     }
   }
 
@@ -686,7 +708,8 @@ export default function BookingPage() {
                     <Button variant="outline" size="lg" className="w-full sm:w-auto" onClick={() => setStep('form')}>
                         <ArrowLeft className="mr-2 h-4 w-4" /> Edit Details
                     </Button>
-                    <Button onClick={() => handleFinalReserve(form.getValues())} size="lg" className="w-full sm:w-auto flex-1">
+                    <Button onClick={() => handleFinalReserve(form.getValues())} size="lg" className="w-full sm:w-auto flex-1" disabled={isReserving}>
+                        {isReserving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         Reserve Now
                     </Button>
                 </CardFooter>
@@ -714,5 +737,3 @@ export default function BookingPage() {
     </div>
   )
 }
-
-    
