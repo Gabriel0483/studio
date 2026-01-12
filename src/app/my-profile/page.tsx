@@ -84,8 +84,17 @@ export default function MyProfilePage() {
         birthDate: passengerData.birthDate || "",
         familyMembers: passengerData.familyMembers ? passengerData.familyMembers.map((fm: any) => ({...fm, birthDate: fm.birthDate || ''})) : []
       });
+    } else if (user) {
+        form.reset({
+            firstName: '',
+            lastName: '',
+            birthDate: '',
+            email: user.email || '',
+            phone: '',
+            familyMembers: []
+        });
     }
-  }, [passengerData, form]);
+  }, [passengerData, user, form]);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -123,6 +132,8 @@ export default function MyProfilePage() {
 
     setIsSaving(false);
   }
+  
+  const isLoading = isLoadingPassenger || isUserLoading;
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -137,7 +148,7 @@ export default function MyProfilePage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {isLoadingPassenger && !passengerData ? (
+              {isLoading ? (
                  <div className="flex h-64 w-full items-center justify-center">
                     <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                     <p className="ml-2">Loading your profile...</p>
