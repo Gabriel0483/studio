@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -72,7 +73,7 @@ export default function DashboardPage() {
       return true;
     });
     
-    const paidReservedBookings = relevantBookings.filter(b => b.paymentStatus === 'Paid' && b.status === 'Reserved');
+    const paidReservedBookings = relevantBookings.filter(b => b.paymentStatus === 'Paid' && (b.status === 'Reserved' || b.status === 'Confirmed'));
     const paidPassengers = paidReservedBookings.reduce((acc, b) => acc + b.numberOfSeats, 0);
 
     const relevantBoardingRecords = (boardingRecords || []).filter(br => {
@@ -272,7 +273,7 @@ export default function DashboardPage() {
                         </div>
                          <div className="flex items-center gap-1">
                              <Ban className="h-3 w-3 text-red-500"/>
-                            <span>Refunded: {filteredStats.refunded}</span>
+                            <span>Refunded/Cancelled: {filteredStats.refunded}</span>
                         </div>
                     </div>
                 </CardContent>
@@ -308,7 +309,7 @@ export default function DashboardPage() {
                         {filteredStats.boarded} / {filteredStats.paidPassengers}
                     </div>
                     <p className="text-xs text-muted-foreground">
-                        {filteredStats.boarded} of {filteredStats.paidPassengers} paid passengers have boarded for the selected scope.
+                        {filteredStats.boarded} of {filteredStats.paidPassengers} confirmed passengers have boarded for the selected scope.
                     </p>
                 </CardContent>
             </Card>
@@ -379,3 +380,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+    
