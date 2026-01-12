@@ -44,7 +44,6 @@ export function PublicHeader() {
 
 
   const navLinks = [
-    { href: '/#features', label: 'Features' },
     { href: '/book', label: 'Book Now' },
     { href: '/status', label: 'Live Status' },
     { href: '/advisories', label: 'Advisories' },
