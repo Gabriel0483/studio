@@ -7,7 +7,7 @@ import { ChartConfig, ChartContainer, ChartTooltipContent } from "@/components/u
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, Timestamp } from 'firebase/firestore';
 import { format, getMonth, getYear } from 'date-fns';
-import { Calendar as CalendarIcon, DollarSign, Users, Ticket, CheckCircle, Clock, CreditCard, XCircle, ClipboardCheck } from 'lucide-react';
+import { Calendar as CalendarIcon, DollarSign, Users, Ticket, CheckCircle, Clock, CreditCard, XCircle, ClipboardCheck, Ban, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -49,8 +49,14 @@ export default function DashboardPage() {
   }, [date]);
 
   const filteredStats = useMemo(() => {
+    const defaultStats = {
+        totalRevenue: 0, totalPassengers: 0,
+        reserved: 0, confirmed: 0, waitlisted: 0, refunded: 0,
+        paid: 0, unpaid: 0, boarded: 0, paidPassengers: 0
+    };
+
     if (!bookings || !allSchedules) {
-      return { totalRevenue: 0, totalPassengers: 0, reserved: 0, waitlisted: 0, paid: 0, unpaid: 0, boarded: 0, paidPassengers: 0 };
+      return defaultStats;
     }
 
     const selectedDateStr = format(date, 'yyyy-MM-dd');
@@ -89,18 +95,28 @@ export default function DashboardPage() {
       .reduce((acc, b) => acc + b.totalPrice, 0);
 
     const totalPassengers = relevantBookings.reduce((acc, b) => acc + b.numberOfSeats, 0);
-
-    const reserved = relevantBookings.filter(b => b.status === 'Reserved').length;
-    const waitlisted = relevantBookings.filter(b => b.status === 'Waitlisted').length;
     
+    const statusCounts = relevantBookings.reduce((acc, b) => {
+        const status = b.status || 'Reserved';
+        if (status === 'Cancelled' || status === 'Refunded') {
+            acc.refunded = (acc.refunded || 0) + 1;
+        } else if (status === 'Confirmed') {
+            acc.confirmed = (acc.confirmed || 0) + 1;
+        } else if (status === 'Reserved') {
+            acc.reserved = (acc.reserved || 0) + 1;
+        } else if (status === 'Waitlisted') {
+            acc.waitlisted = (acc.waitlisted || 0) + 1;
+        }
+        return acc;
+    }, { reserved: 0, confirmed: 0, waitlisted: 0, refunded: 0 });
+
     const paid = relevantBookings.filter(b => b.paymentStatus === 'Paid').length;
     const unpaid = relevantBookings.filter(b => b.paymentStatus !== 'Paid').length;
     
     return {
       totalRevenue,
       totalPassengers,
-      reserved,
-      waitlisted,
+      ...statusCounts,
       paid,
       unpaid,
       boarded: relevantBoardingRecords.length,
@@ -234,21 +250,29 @@ export default function DashboardPage() {
             </Card>
             ))}
 
-            <Card>
+            <Card className="md:col-span-2">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Booking Status</CardTitle>
                     <Ticket className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                    <div className="text-2xl font-bold">{filteredStats.reserved + filteredStats.waitlisted} Total</div>
-                     <div className="flex justify-between items-center text-xs text-muted-foreground">
+                    <div className="text-2xl font-bold">{filteredStats.reserved + filteredStats.waitlisted + filteredStats.confirmed + filteredStats.refunded} Total Bookings</div>
+                     <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground mt-1">
                         <div className="flex items-center gap-1">
-                            <CheckCircle className="h-3 w-3 text-green-500"/>
+                            <Check className="h-3 w-3 text-sky-500"/>
                             <span>Reserved: {filteredStats.reserved}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                             <CheckCircle className="h-3 w-3 text-green-500"/>
+                            <span>Confirmed: {filteredStats.confirmed}</span>
                         </div>
                         <div className="flex items-center gap-1">
                              <Clock className="h-3 w-3 text-orange-500"/>
                             <span>Waitlisted: {filteredStats.waitlisted}</span>
+                        </div>
+                         <div className="flex items-center gap-1">
+                             <Ban className="h-3 w-3 text-red-500"/>
+                            <span>Refunded: {filteredStats.refunded}</span>
                         </div>
                     </div>
                 </CardContent>
