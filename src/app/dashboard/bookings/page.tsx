@@ -289,7 +289,7 @@ export default function BookingsPage() {
     }
   };
   
-  const isLoading = isUserLoading || isLoadingBookings;
+  const isLoading = isUserLoading || (isAdmin && isLoadingBookings);
 
   return (
     <>
