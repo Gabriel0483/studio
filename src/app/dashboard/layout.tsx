@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   SidebarProvider,
   Sidebar,
@@ -27,6 +27,7 @@ import type { User } from 'firebase/auth';
 const isAdminUser = async (user: User): Promise<boolean> => {
   try {
     const idTokenResult = await user.getIdTokenResult(true);
+    // Use a fallback admin email for development purposes
     return idTokenResult.claims.admin === true || user.email === 'rielmagpantay@gmail.com';
   } catch (error) {
     console.error('Error getting user token for admin check:', error);
@@ -45,6 +46,7 @@ export default function DashboardLayout({
   const [authStatus, setAuthStatus] = useState<'checking' | 'authorized' | 'unauthorized'>('checking');
 
   useEffect(() => {
+    // We should not proceed until the user loading state is settled.
     if (isUserLoading) {
       setAuthStatus('checking');
       return;
@@ -55,12 +57,14 @@ export default function DashboardLayout({
         if (isAdmin) {
           setAuthStatus('authorized');
         } else {
+          // User is logged in but is not an admin.
           console.warn('User is not an admin. Redirecting to login.');
           setAuthStatus('unauthorized');
           router.replace('/admin/login');
         }
       });
     } else {
+      // No user is logged in.
       console.log('No user found. Redirecting to login.');
       setAuthStatus('unauthorized');
       router.replace('/admin/login');
