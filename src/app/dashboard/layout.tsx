@@ -47,8 +47,8 @@ export default function DashboardLayout({
   const [authStatus, setAuthStatus] = useState<'checking' | 'authorized' | 'unauthorized'>('checking');
 
   useEffect(() => {
-    // Wait until the initial authentication check is complete and the user object is available.
-    if (!isAuthReady || isUserLoading) {
+    // Wait until the initial authentication check is complete.
+    if (!isAuthReady) {
       setAuthStatus('checking');
       return;
     }
@@ -69,7 +69,7 @@ export default function DashboardLayout({
       setAuthStatus('unauthorized');
       router.replace('/admin/login');
     }
-  }, [user, isUserLoading, isAuthReady, router]);
+  }, [user, isAuthReady, router]);
 
   if (authStatus !== 'authorized') {
     return (
