@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -26,8 +25,7 @@ import type { User } from 'firebase/auth';
 
 const isAdminUser = async (user: User): Promise<boolean> => {
   try {
-    // Force a refresh of the ID token to get the latest custom claims.
-    const idTokenResult = await user.getIdTokenResult(true);
+    const idTokenResult = await user.getIdTokenResult(true); // Force refresh
     return idTokenResult.claims.admin === true || user.email === 'rielmagpantay@gmail.com';
   } catch (error) {
     console.error('Error getting user token for admin check:', error);
@@ -47,8 +45,7 @@ export default function DashboardLayout({
   const [authStatus, setAuthStatus] = useState<'checking' | 'authorized' | 'unauthorized'>('checking');
 
   useEffect(() => {
-    // Wait until the initial authentication check is complete.
-    if (!isAuthReady) {
+    if (!isAuthReady || isUserLoading) {
       setAuthStatus('checking');
       return;
     }
@@ -64,12 +61,11 @@ export default function DashboardLayout({
         }
       });
     } else {
-      // No user is signed in.
       console.log('No user found. Redirecting to login.');
       setAuthStatus('unauthorized');
       router.replace('/admin/login');
     }
-  }, [user, isAuthReady, router]);
+  }, [user, isAuthReady, isUserLoading, router]);
 
   if (authStatus !== 'authorized') {
     return (
