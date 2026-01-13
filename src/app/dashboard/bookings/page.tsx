@@ -73,13 +73,11 @@ export default function BookingsPage() {
 
   const isAdmin = useMemo(() => {
     if (isUserLoading || !user) return false;
-    // This check should align with your security rules `isAdmin` function.
-    // Assuming you have a custom claim `admin: true` or a fallback email.
     return user.email === 'rielmagpantay@gmail.com';
   }, [user, isUserLoading]);
 
   const bookingsQuery = useMemoFirebase(() => {
-    if (!firestore || !isAdmin) return null; // Only create query if user is an admin
+    if (!firestore || !isAdmin) return null;
     return collection(firestore, 'bookings');
   }, [firestore, isAdmin]);
 
