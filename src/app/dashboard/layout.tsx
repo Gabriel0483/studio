@@ -25,13 +25,11 @@ import { useUser } from '@/firebase';
 import type { User } from 'firebase/auth';
 
 const isAdminUser = async (user: User): Promise<boolean> => {
-  // Always check the hardcoded email first as a reliable fallback.
   if (user.email === 'rielmagpantay@gmail.com') {
     return true;
   }
   try {
-    const idTokenResult = await user.getIdTokenResult();
-    // Check for the admin custom claim.
+    const idTokenResult = await user.getIdTokenResult(true); // Force refresh
     return idTokenResult.claims.admin === true;
   } catch (error) {
     console.error('Error getting user token for admin check:', error);
@@ -51,29 +49,24 @@ export default function DashboardLayout({
   const [authCheckCompleted, setAuthCheckCompleted] = useState(false);
 
   useEffect(() => {
-    // Only perform the check once the user object is available.
     if (!isUserLoading) {
       if (user) {
         isAdminUser(user).then(isAdmin => {
           if (isAdmin) {
             setIsAuthorized(true);
           } else {
-            // If not an admin, deny access.
             router.replace('/admin/login');
           }
           setAuthCheckCompleted(true);
         });
       } else {
-        // If no user is logged in, redirect to login.
         router.replace('/admin/login');
         setAuthCheckCompleted(true);
       }
     }
   }, [user, isUserLoading, router]);
 
-  // While checking for authorization, show a loading screen.
-  // This prevents any child components from rendering prematurely.
-  if (!authCheckCompleted || !isAuthorized) {
+  if (!authCheckCompleted) {
     return (
       <div className="flex h-screen w-full items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -82,7 +75,17 @@ export default function DashboardLayout({
     );
   }
 
-  // Only render the dashboard if the user is authorized.
+  if (!isAuthorized) {
+    // This will show the loading spinner briefly before the redirect to login happens.
+    // Or you can render a dedicated "Access Denied" component here.
+    return (
+       <div className="flex h-screen w-full items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+        <p className="ml-2">Redirecting to login...</p>
+      </div>
+    );
+  }
+
   return (
     <SidebarProvider>
       <Sidebar>

@@ -70,8 +70,6 @@ export default function BookingsPage() {
   const [isPaidDialogOpen, setIsPaidDialogOpen] = useState(false);
   const [bookingToProcess, setBookingToProcess] = useState<Booking | null>(null);
 
-  // Since the layout now protects this route, we can assume the user is an admin
-  // and directly query the collection.
   const bookingsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return collection(firestore, 'bookings');
