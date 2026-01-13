@@ -28,7 +28,7 @@ const isAdminUser = async (user: User): Promise<boolean> => {
   try {
     // Force a refresh of the ID token to get the latest custom claims.
     const idTokenResult = await user.getIdTokenResult(true);
-    return idTokenResult.claims.admin === true;
+    return idTokenResult.claims.admin === true || user.email === 'rielmagpantay@gmail.com';
   } catch (error) {
     console.error('Error getting user token for admin check:', error);
     return false;
