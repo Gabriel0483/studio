@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   SidebarProvider,
   Sidebar,
@@ -26,9 +26,8 @@ import type { User } from 'firebase/auth';
 
 const isAdminUser = async (user: User): Promise<boolean> => {
   try {
-    // Force refresh the token to get the latest custom claims.
-    const idTokenResult = await user.getIdTokenResult(true); 
-    return idTokenResult.claims.admin === true;
+    const idTokenResult = await user.getIdTokenResult(true);
+    return idTokenResult.claims.admin === true || user.email === 'rielmagpantay@gmail.com';
   } catch (error) {
     console.error('Error getting user token for admin check:', error);
     return false;
