@@ -3,7 +3,7 @@
 
 import React, { useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useCollection, useDoc, useFirestore, useMemoFirebase, useUser } from '@/firebase';
+import { useCollection, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, doc, query, where, serverTimestamp } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -20,7 +20,6 @@ export default function BoardingManifestPage() {
   const router = useRouter();
   const { toast } = useToast();
   const scheduleId = params.scheduleId as string;
-  const { isUserLoading } = useUser();
 
   const scheduleRef = useMemoFirebase(() => {
     if (!firestore || !scheduleId) return null;
@@ -28,14 +27,14 @@ export default function BoardingManifestPage() {
   }, [firestore, scheduleId]);
 
   const bookingsQuery = useMemoFirebase(() => {
-    if (isUserLoading || !firestore || !scheduleId) return null;
+    if (!firestore || !scheduleId) return null;
     return query(collection(firestore, 'bookings'), where('scheduleId', '==', scheduleId));
-  }, [firestore, scheduleId, isUserLoading]);
+  }, [firestore, scheduleId]);
 
   const boardingRecordsQuery = useMemoFirebase(() => {
-    if (isUserLoading || !firestore || !scheduleId) return null;
+    if (!firestore || !scheduleId) return null;
     return query(collection(firestore, 'boarding'), where('scheduleId', '==', scheduleId));
-  }, [firestore, scheduleId, isUserLoading]);
+  }, [firestore, scheduleId]);
   
   const { data: schedule, isLoading: isLoadingSchedule } = useDoc(scheduleRef);
   const { data: bookings, isLoading: isLoadingBookings } = useCollection(bookingsQuery, { idField: 'firestoreId' });
@@ -113,7 +112,7 @@ export default function BoardingManifestPage() {
     }
   };
 
-  const isLoading = isLoadingSchedule || isLoadingBookings || isLoadingRoute || isLoadingBoarding || isUserLoading;
+  const isLoading = isLoadingSchedule || isLoadingBookings || isLoadingRoute || isLoadingBoarding;
 
   if (isLoading) {
     return (

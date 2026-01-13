@@ -29,7 +29,7 @@ const isAdminUser = async (user: User): Promise<boolean> => {
     return true;
   }
   try {
-    const idTokenResult = await user.getIdTokenResult(true);
+    const idTokenResult = await user.getIdTokenResult(true); // Force refresh
     return idTokenResult.claims.admin === true;
   } catch (error) {
     console.error('Error getting user token for admin check:', error);
@@ -48,34 +48,41 @@ export default function DashboardLayout({
   const [authStatus, setAuthStatus] = useState<'checking' | 'authorized' | 'unauthorized'>('checking');
 
   useEffect(() => {
+    // Only run the check when the user loading state is finalized.
     if (!isUserLoading) {
       if (user) {
         isAdminUser(user).then(isAdmin => {
           if (isAdmin) {
             setAuthStatus('authorized');
           } else {
+            console.warn('User is not an admin. Redirecting.');
             setAuthStatus('unauthorized');
             router.replace('/admin/login');
           }
         });
       } else {
+        // No user found, redirect to login.
+        console.log('No user found. Redirecting to login.');
         setAuthStatus('unauthorized');
         router.replace('/admin/login');
       }
     }
+    // Dependency array ensures this effect runs only when user or loading state changes.
   }, [user, isUserLoading, router]);
 
+  // While checking, show a loading screen. Do not render children.
   if (authStatus !== 'authorized') {
     return (
-      <div className="flex h-screen w-full items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
-        <p className="ml-2">
+      <div className="flex h-screen w-full items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="ml-3 text-muted-foreground">
             {authStatus === 'checking' ? 'Verifying access...' : 'Redirecting...'}
         </p>
       </div>
     );
   }
 
+  // Only render the dashboard layout and its children if authorized.
   return (
     <SidebarProvider>
       <Sidebar>

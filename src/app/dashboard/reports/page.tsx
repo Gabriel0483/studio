@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, Timestamp } from 'firebase/firestore';
 import { format, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -39,7 +39,6 @@ interface BoardingRecord {
 
 export default function ReportsPage() {
   const firestore = useFirestore();
-  const { isUserLoading } = useUser();
 
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: startOfMonth(new Date()),
@@ -47,14 +46,14 @@ export default function ReportsPage() {
   });
 
   const bookingsQuery = useMemoFirebase(() => {
-    if (isUserLoading || !firestore) return null;
+    if (!firestore) return null;
     return collection(firestore, 'bookings');
-  }, [firestore, isUserLoading]);
+  }, [firestore]);
   
   const boardingQuery = useMemoFirebase(() => {
-    if (isUserLoading || !firestore) return null;
+    if (!firestore) return null;
     return collection(firestore, 'boarding');
-  }, [firestore, isUserLoading]);
+  }, [firestore]);
 
   const { data: bookings, isLoading: isLoadingBookings } = useCollection<Booking>(bookingsQuery, { idField: 'firestoreId' });
   const { data: boardingRecords, isLoading: isLoadingBoarding } = useCollection<BoardingRecord>(boardingQuery);
@@ -166,7 +165,7 @@ export default function ReportsPage() {
     }
   };
 
-  const isLoading = isLoadingBookings || isLoadingBoarding || isUserLoading;
+  const isLoading = isLoadingBookings || isLoadingBoarding;
 
   return (
     <div className="space-y-6">

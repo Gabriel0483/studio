@@ -2,8 +2,8 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
-import { collection, query, where } from 'firebase/firestore';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,15 +14,14 @@ import { useRouter } from 'next/navigation';
 export default function BoardingPage() {
   const firestore = useFirestore();
   const router = useRouter();
-  const { isUserLoading } = useUser();
 
   const schedulesQuery = useMemoFirebase(() => {
-    if (isUserLoading || !firestore) return null;
+    if (!firestore) return null;
     return collection(firestore, 'schedules');
-  }, [firestore, isUserLoading]);
+  }, [firestore]);
 
   const { data: schedules, isLoading: isLoadingSchedules } = useCollection(schedulesQuery);
-  const { data: routes, isLoading: isLoadingRoutes } = useCollection(useMemoFirebase(() => (isUserLoading || !firestore) ? null : collection(firestore, 'routes'), [firestore, isUserLoading]));
+  const { data: routes, isLoading: isLoadingRoutes } = useCollection(useMemoFirebase(() => (firestore) ? collection(firestore, 'routes') : null, [firestore]));
 
   const todaySchedules = useMemo(() => {
     if (!schedules) return [];
@@ -48,7 +47,7 @@ export default function BoardingPage() {
 
   const getRouteName = (routeId: string) => routes?.find(r => r.id === routeId)?.name || 'Unknown Route';
 
-  const isLoading = isLoadingSchedules || isLoadingRoutes || isUserLoading;
+  const isLoading = isLoadingSchedules || isLoadingRoutes;
 
   if (isLoading) {
     return (

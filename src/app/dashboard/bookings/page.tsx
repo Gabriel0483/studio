@@ -72,6 +72,7 @@ export default function BookingsPage() {
 
   const bookingsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
+    // With the layout ensuring the user is an admin, we can safely query the collection.
     return collection(firestore, 'bookings');
   }, [firestore]);
 
