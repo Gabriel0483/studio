@@ -18,8 +18,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { toast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useDoc, useFirestore, useMemoFirebase } from "@/firebase";
-import { useUser } from "@/firebase/provider";
+import { useDoc, useFirestore, useMemoFirebase, useUser, useAuthContext } from "@/firebase";
 import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { Loader2, PlusCircle, Trash2 } from "lucide-react";
 import { PublicHeader } from "@/components/public-header";
@@ -48,6 +47,7 @@ type ProfileFormData = z.infer<typeof profileFormSchema>;
 
 export default function MyProfilePage() {
   const { user, isUserLoading } = useUser();
+  const { isAuthReady } = useAuthContext();
   const firestore = useFirestore();
   const router = useRouter();
 
@@ -97,10 +97,10 @@ export default function MyProfilePage() {
   }, [passengerData, user, form]);
 
   useEffect(() => {
-    if (!isUserLoading && !user) {
+    if (isAuthReady && !user) {
       router.replace('/login');
     }
-  }, [isUserLoading, user, router]);
+  }, [isAuthReady, user, router]);
 
   async function onSubmit(data: ProfileFormData) {
     if (!firestore || !user) return;
@@ -125,9 +125,9 @@ export default function MyProfilePage() {
     setIsSaving(false);
   }
   
-  const isLoading = isLoadingPassenger || isUserLoading;
+  const isLoading = isLoadingPassenger || isUserLoading || !isAuthReady;
 
-  if (isUserLoading || isLoadingPassenger) {
+  if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -137,7 +137,6 @@ export default function MyProfilePage() {
   }
   
   if (!user) {
-    router.replace('/login');
     return null;
   }
 
