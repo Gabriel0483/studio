@@ -25,12 +25,14 @@ import { useUser } from '@/firebase';
 import type { User } from 'firebase/auth';
 
 const isAdminUser = async (user: User): Promise<boolean> => {
+  // Always grant access to the fallback admin email.
   if (user.email === 'rielmagpantay@gmail.com') {
     return true;
   }
   try {
     // Force refresh the token to get the latest custom claims.
     const idTokenResult = await user.getIdTokenResult(true);
+    // Check if the 'admin' claim is explicitly true.
     return idTokenResult.claims.admin === true;
   } catch (error) {
     console.error('Error getting user token for admin check:', error);
@@ -49,34 +51,33 @@ export default function DashboardLayout({
   const [authStatus, setAuthStatus] = useState<'checking' | 'authorized' | 'unauthorized'>('checking');
 
   useEffect(() => {
-    // This effect should only run when the user loading state changes.
+    // Wait until the initial user loading is complete.
     if (isUserLoading) {
-      // If we are still loading user data, keep showing the loading screen.
       setAuthStatus('checking');
       return;
     }
 
     if (user) {
-      // User object is available, now we can safely check for admin status.
+      // Once the user object is available, verify their admin status.
       isAdminUser(user).then(isAdmin => {
         if (isAdmin) {
           setAuthStatus('authorized');
         } else {
-          // User is logged in but is not an admin.
-          console.warn('User is not an admin. Redirecting.');
+          // If the user is logged in but not an admin, redirect them.
+          console.warn('User is not an admin. Redirecting to login.');
           setAuthStatus('unauthorized');
           router.replace('/admin/login');
         }
       });
     } else {
-      // No user is logged in after loading has finished.
+      // If no user is found after loading, redirect to login.
       console.log('No user found. Redirecting to login.');
       setAuthStatus('unauthorized');
       router.replace('/admin/login');
     }
   }, [user, isUserLoading, router]);
 
-  // While checking or if unauthorized, show a loading/redirecting screen.
+  // While checking auth or if unauthorized, show a loading screen.
   // This prevents any child components from rendering prematurely.
   if (authStatus !== 'authorized') {
     return (
@@ -89,7 +90,7 @@ export default function DashboardLayout({
     );
   }
 
-  // Only render the full dashboard layout and its children if authorized.
+  // Only render the full dashboard layout if the user is authorized.
   return (
     <SidebarProvider>
       <Sidebar>
