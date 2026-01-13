@@ -72,7 +72,6 @@ export default function BookingsPage() {
 
   const bookingsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    // This query is now safe because the DashboardLayout guarantees the user is an admin.
     return collection(firestore, 'bookings');
   }, [firestore]);
 
