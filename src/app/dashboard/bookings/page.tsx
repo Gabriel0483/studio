@@ -28,7 +28,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
-import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import {
   collection,
   Timestamp,
@@ -62,7 +62,6 @@ interface Booking {
 
 export default function BookingsPage() {
   const firestore = useFirestore();
-  const { user, isUserLoading } = useUser();
   const router = useRouter();
   const { toast } = useToast();
   const [search, setSearch] = useState('');
@@ -71,15 +70,12 @@ export default function BookingsPage() {
   const [isPaidDialogOpen, setIsPaidDialogOpen] = useState(false);
   const [bookingToProcess, setBookingToProcess] = useState<Booking | null>(null);
 
-  const isAdmin = useMemo(() => {
-    if (isUserLoading || !user) return false;
-    return user.email === 'rielmagpantay@gmail.com';
-  }, [user, isUserLoading]);
-
+  // Since the layout now protects this route, we can assume the user is an admin
+  // and directly query the collection.
   const bookingsQuery = useMemoFirebase(() => {
-    if (!firestore || !isAdmin) return null;
+    if (!firestore) return null;
     return collection(firestore, 'bookings');
-  }, [firestore, isAdmin]);
+  }, [firestore]);
 
   const { data: bookings, isLoading: isLoadingBookings } = useCollection<Booking>(bookingsQuery, { idField: 'firestoreId' });
 
@@ -287,7 +283,7 @@ export default function BookingsPage() {
     }
   };
   
-  const isLoading = isUserLoading || (isAdmin && isLoadingBookings);
+  const isLoading = isLoadingBookings;
 
   return (
     <>
@@ -342,12 +338,6 @@ export default function BookingsPage() {
                             <Loader2 className="mr-2 h-6 w-6 animate-spin" />
                             Loading bookings...
                           </div>
-                        </TableCell>
-                    </TableRow>
-                    ) : !isAdmin ? (
-                       <TableRow key="unauthorized">
-                        <TableCell colSpan={10} className="text-center h-24">
-                          You do not have permission to view bookings.
                         </TableCell>
                     </TableRow>
                     ) : filteredBookings && filteredBookings.length > 0 ? (

@@ -25,13 +25,17 @@ import { useUser } from '@/firebase';
 import type { User } from 'firebase/auth';
 
 const isAdminUser = async (user: User): Promise<boolean> => {
+  // Always check the hardcoded email first as a reliable fallback.
+  if (user.email === 'rielmagpantay@gmail.com') {
+    return true;
+  }
   try {
     const idTokenResult = await user.getIdTokenResult();
-    return idTokenResult.claims.admin === true || user.email === 'rielmagpantay@gmail.com';
+    // Check for the admin custom claim.
+    return idTokenResult.claims.admin === true;
   } catch (error) {
     console.error('Error getting user token for admin check:', error);
-    // Fallback to email check if token fails for some reason
-    return user.email === 'rielmagpantay@gmail.com';
+    return false;
   }
 };
 
@@ -47,25 +51,28 @@ export default function DashboardLayout({
   const [authCheckCompleted, setAuthCheckCompleted] = useState(false);
 
   useEffect(() => {
-    if (isUserLoading) {
-      return; // Wait until user state is resolved
-    }
-    if (!user) {
-      router.replace('/admin/login');
-      return;
-    }
-    
-    isAdminUser(user).then(isAdmin => {
-      if (isAdmin) {
-        setIsAuthorized(true);
+    // Only perform the check once the user object is available.
+    if (!isUserLoading) {
+      if (user) {
+        isAdminUser(user).then(isAdmin => {
+          if (isAdmin) {
+            setIsAuthorized(true);
+          } else {
+            // If not an admin, deny access.
+            router.replace('/admin/login');
+          }
+          setAuthCheckCompleted(true);
+        });
       } else {
+        // If no user is logged in, redirect to login.
         router.replace('/admin/login');
+        setAuthCheckCompleted(true);
       }
-      setAuthCheckCompleted(true);
-    });
-
+    }
   }, [user, isUserLoading, router]);
 
+  // While checking for authorization, show a loading screen.
+  // This prevents any child components from rendering prematurely.
   if (!authCheckCompleted || !isAuthorized) {
     return (
       <div className="flex h-screen w-full items-center justify-center">
@@ -75,6 +82,7 @@ export default function DashboardLayout({
     );
   }
 
+  // Only render the dashboard if the user is authorized.
   return (
     <SidebarProvider>
       <Sidebar>
