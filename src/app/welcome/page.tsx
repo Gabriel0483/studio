@@ -38,6 +38,12 @@ export default function WelcomePage() {
                 <Button asChild size="lg">
                   <Link href="/book">Book a Seat Online</Link>
                 </Button>
+                <Button asChild size="lg" variant="secondary">
+                  <Link href="/login">Login</Link>
+                </Button>
+                <Button asChild size="lg" variant="outline">
+                   <Link href="/signup">Sign Up</Link>
+                </Button>
               </div>
             </div>
           </div>
