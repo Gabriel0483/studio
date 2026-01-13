@@ -25,15 +25,9 @@ import { useUser } from '@/firebase';
 import type { User } from 'firebase/auth';
 
 const isAdminUser = async (user: User): Promise<boolean> => {
-  // Always grant access to the fallback admin email.
-  if (user.email === 'rielmagpantay@gmail.com') {
-    return true;
-  }
   try {
-    // Force refresh the token to get the latest custom claims.
     const idTokenResult = await user.getIdTokenResult(true);
-    // Check if the 'admin' claim is explicitly true.
-    return idTokenResult.claims.admin === true;
+    return idTokenResult.claims.admin === true || user.email === 'rielmagpantay@gmail.com';
   } catch (error) {
     console.error('Error getting user token for admin check:', error);
     return false;
@@ -51,34 +45,28 @@ export default function DashboardLayout({
   const [authStatus, setAuthStatus] = useState<'checking' | 'authorized' | 'unauthorized'>('checking');
 
   useEffect(() => {
-    // Wait until the initial user loading is complete.
     if (isUserLoading) {
       setAuthStatus('checking');
       return;
     }
 
     if (user) {
-      // Once the user object is available, verify their admin status.
       isAdminUser(user).then(isAdmin => {
         if (isAdmin) {
           setAuthStatus('authorized');
         } else {
-          // If the user is logged in but not an admin, redirect them.
           console.warn('User is not an admin. Redirecting to login.');
           setAuthStatus('unauthorized');
           router.replace('/admin/login');
         }
       });
     } else {
-      // If no user is found after loading, redirect to login.
       console.log('No user found. Redirecting to login.');
       setAuthStatus('unauthorized');
       router.replace('/admin/login');
     }
   }, [user, isUserLoading, router]);
 
-  // While checking auth or if unauthorized, show a loading screen.
-  // This prevents any child components from rendering prematurely.
   if (authStatus !== 'authorized') {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
@@ -90,7 +78,6 @@ export default function DashboardLayout({
     );
   }
 
-  // Only render the full dashboard layout if the user is authorized.
   return (
     <SidebarProvider>
       <Sidebar>

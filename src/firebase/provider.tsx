@@ -79,19 +79,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
     const unsubscribe = onAuthStateChanged(
       auth,
       (firebaseUser) => {
-        if (firebaseUser) {
-          setUserAuthState({ user: firebaseUser, isUserLoading: false, userError: null });
-        } else {
-          // If no user, sign in anonymously then set the state
-          signInAnonymously(auth)
-            .then((userCredential) => {
-              setUserAuthState({ user: userCredential.user, isUserLoading: false, userError: null });
-            })
-            .catch((error) => {
-              console.error("FirebaseProvider: Anonymous sign-in error:", error);
-              setUserAuthState({ user: null, isUserLoading: false, userError: error });
-            });
-        }
+        setUserAuthState({ user: firebaseUser, isUserLoading: false, userError: null });
       },
       (error) => {
         console.error("FirebaseProvider: onAuthStateChanged error:", error);
@@ -99,6 +87,15 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
       }
     );
   
+    // Sign in anonymously if there's no user. This is separate from the listener.
+    if (!auth.currentUser) {
+        signInAnonymously(auth).catch((error) => {
+            console.error("FirebaseProvider: Anonymous sign-in error:", error);
+            // The onAuthStateChanged listener will handle the error state if sign-in fails
+        });
+    }
+
+
     return () => unsubscribe();
   }, [auth]);
 
