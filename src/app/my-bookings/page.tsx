@@ -1,8 +1,8 @@
 
 'use client';
 
-import React, { useMemo } from 'react';
-import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
+import React, { useMemo, useEffect } from 'react';
+import { useCollection, useFirestore, useMemoFirebase, useUser, useAuthContext } from '@/firebase';
 import { collection, query, where, Timestamp } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
@@ -16,6 +16,7 @@ import { Separator } from '@/components/ui/separator';
 export default function MyBookingsPage() {
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
+  const { isAuthReady } = useAuthContext();
   const router = useRouter();
 
   const bookingsQuery = useMemoFirebase(() => {
@@ -27,6 +28,12 @@ export default function MyBookingsPage() {
 
   const { data: bookings, isLoading: isLoadingBookings } = useCollection(bookingsQuery, { idField: 'firestoreId' });
   const { data: schedules, isLoading: isLoadingSchedules } = useCollection(schedulesQuery);
+
+  useEffect(() => {
+    if (isAuthReady && !user) {
+      router.replace('/login');
+    }
+  }, [isAuthReady, user, router]);
 
   const enrichedBookings = useMemo(() => {
     if (!bookings || !schedules) return [];
@@ -45,16 +52,19 @@ export default function MyBookingsPage() {
     });
   }, [bookings, schedules]);
 
-  if (isUserLoading) {
+  const isLoading = isUserLoading || !isAuthReady || isLoadingBookings || isLoadingSchedules;
+
+  if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
+        <p className="ml-2 text-muted-foreground">Loading your bookings...</p>
       </div>
     );
   }
 
   if (!user) {
-    router.replace('/login');
+    // This will be caught by the useEffect, but as a fallback.
     return null;
   }
 
@@ -88,8 +98,6 @@ export default function MyBookingsPage() {
     }
   };
 
-  const isLoading = isLoadingBookings || isLoadingSchedules;
-
   return (
     <div className="flex min-h-screen flex-col">
       <PublicHeader />
@@ -103,12 +111,7 @@ export default function MyBookingsPage() {
               </p>
             </div>
 
-            {isLoading ? (
-              <div className="flex h-64 w-full items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                <p className="ml-2">Loading your bookings...</p>
-              </div>
-            ) : enrichedBookings && enrichedBookings.length > 0 ? (
+            {enrichedBookings && enrichedBookings.length > 0 ? (
               <div className="space-y-6">
                 {enrichedBookings.map((booking) => (
                   <Card key={booking.firestoreId} className="overflow-hidden">
