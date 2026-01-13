@@ -1,15 +1,16 @@
 
 'use client';
-import { getAuth, signOut, createUserWithEmailAndPassword } from "firebase/auth";
+import { getAuth, signOut, createUserWithEmailAndPassword, Auth } from "firebase/auth";
 
-export const handleSignUp = async (email: string, password: string): Promise<void> => {
-    const auth = getAuth();
+// It's better to pass the auth instance to the functions
+// to make them more testable and less reliant on a global getAuth() call.
+
+export const handleSignUp = async (auth: Auth, email: string, password: string): Promise<void> => {
     await createUserWithEmailAndPassword(auth, email, password);
     console.log("User signed up successfully.");
 };
 
-export const handleSignOut = async () => {
-    const auth = getAuth();
+export const handleSignOut = async (auth: Auth) => {
     try {
         await signOut(auth);
         console.log("User signed out successfully.");

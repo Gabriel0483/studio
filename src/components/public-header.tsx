@@ -27,7 +27,7 @@ export function PublicHeader() {
 
   const onSignOut = async () => {
     await handleSignOut();
-    router.push('/');
+    router.push('/welcome');
   };
   
   const getInitials = (email: string | null | undefined) => {

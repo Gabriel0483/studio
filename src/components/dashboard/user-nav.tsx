@@ -17,16 +17,17 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { CreditCard, LifeBuoy, LogOut, Settings, User as UserIcon } from "lucide-react"
-import { useUser } from "@/firebase";
+import { useUser, useAuth } from "@/firebase";
 import { handleSignOut } from "@/firebase/auth";
 import { useRouter } from "next/navigation";
 
 export function UserNav() {
   const { user, isUserLoading } = useUser();
+  const auth = useAuth();
   const router = useRouter();
 
   const onSignOut = async () => {
-    await handleSignOut();
+    await handleSignOut(auth);
     router.push('/admin/login');
   };
 

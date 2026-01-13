@@ -20,7 +20,7 @@ import { Input } from "@/components/ui/input"
 import { toast } from "@/hooks/use-toast"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useAuth } from "@/firebase"
-import { signInWithEmailAndPassword } from "firebase/auth"
+import { signInWithEmailAndPassword, User } from "firebase/auth"
 import { Loader2 } from "lucide-react"
 import { Logo } from "@/components/logo";
 import Link from "next/link";
@@ -31,6 +31,17 @@ const loginFormSchema = z.object({
 });
 
 type LoginFormData = z.infer<typeof loginFormSchema>;
+
+const isAdminUser = async (user: User): Promise<boolean> => {
+  try {
+    const idTokenResult = await user.getIdTokenResult(true); // Force refresh
+    return idTokenResult.claims.admin === true || user.email === 'rielmagpantay@gmail.com';
+  } catch (error) {
+    console.error('Error getting user token for admin check:', error);
+    return false;
+  }
+};
+
 
 export default function AdminLoginPage() {
   const auth = useAuth();
@@ -48,18 +59,28 @@ export default function AdminLoginPage() {
   async function onSubmit(data: LoginFormData) {
     setIsLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, data.email, data.password);
-      toast({
-        title: "Login Successful",
-        description: "Redirecting you to the dashboard...",
-      });
-      router.push('/dashboard');
+      const userCredential = await signInWithEmailAndPassword(auth, data.email, data.password);
+      
+      const isAdmin = await isAdminUser(userCredential.user);
+
+      if (isAdmin) {
+        toast({
+          title: "Login Successful",
+          description: "Redirecting you to the dashboard...",
+        });
+        router.push('/dashboard');
+      } else {
+        await auth.signOut();
+        throw new Error("You are not authorized to access this page.");
+      }
     } catch (error: any) {
       console.error(error);
       let description = "An unexpected error occurred. Please try again.";
-      if (error && error.code) { 
+      if (error && (error.code || error.message)) { 
         if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
           description = "Invalid email or password. Please check your credentials and try again.";
+        } else if (error.message === "You are not authorized to access this page.") {
+            description = error.message;
         } else {
           description = error.message;
         }
@@ -125,7 +146,7 @@ export default function AdminLoginPage() {
         </CardContent>
       </Card>
       <p className="mt-4 text-center text-sm text-muted-foreground">
-        Go back to the <Link href="/" className="underline hover:text-primary">public homepage</Link>.
+        Go back to the <Link href="/welcome" className="underline hover:text-primary">public homepage</Link>.
       </p>
     </div>
   )

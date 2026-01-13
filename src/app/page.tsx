@@ -1,49 +1,34 @@
 
-import Link from 'next/link';
-import Image from 'next/image';
-import { PlaceHolderImages } from '@/lib/placeholder-images';
-import { PublicHeader } from '@/components/public-header';
-import { PublicFooter } from '@/components/public-footer';
-import { Button } from '@/components/ui/button';
+'use client';
 
-const heroImage = PlaceHolderImages.find((img) => img.id === 'hero-image');
+import React, { useEffect } from 'react';
+import { useUser, useAuthContext } from '@/firebase';
+import { useRouter } from 'next/navigation';
+import { Loader2 } from 'lucide-react';
 
-export default function Home() {
+export default function ProtectedRootPage() {
+  const { user, isUserLoading } = useUser();
+  const { isAuthReady } = useAuthContext();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (isAuthReady && !isUserLoading) {
+      if (user) {
+        // If the user is logged in, redirect to their bookings.
+        // This could be changed to a dashboard or another page.
+        router.replace('/my-bookings');
+      } else {
+        // If no user, redirect to the new public welcome page.
+        router.replace('/welcome');
+      }
+    }
+  }, [isAuthReady, isUserLoading, user, router]);
+
+  // Display a loading indicator while checking auth status.
   return (
-    <div className="flex min-h-screen flex-col">
-      <PublicHeader />
-      <main className="flex-1">
-        <section className="relative w-full pt-24 pb-12 md:pt-40 md:pb-20 lg:pt-48 lg:pb-28">
-           <div className="absolute inset-0 -z-10">
-            {heroImage && (
-              <Image
-                src={heroImage.imageUrl}
-                alt={heroImage.description}
-                fill
-                className="object-cover"
-                data-ai-hint={heroImage.imageHint}
-              />
-            )}
-            <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-transparent" />
-          </div>
-          <div className="container mx-auto px-4 text-center md:px-6">
-            <div className="flex flex-col items-center space-y-6">
-              <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl md:text-6xl">
-                Your Island Adventure Awaits
-              </h1>
-              <p className="max-w-3xl text-lg text-muted-foreground md:text-xl">
-                Effortless ferry bookings with Isla Konek. Book your tickets in minutes and enjoy real-time trip updates for a stress-free journey.
-              </p>
-              <div className="flex flex-col gap-4 sm:flex-row">
-                <Button asChild size="lg">
-                  <Link href="/book">Book a Seat Online</Link>
-                </Button>
-              </div>
-            </div>
-          </div>
-        </section>
-      </main>
-      <PublicFooter />
+    <div className="flex h-screen w-full items-center justify-center bg-background">
+      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <p className="ml-3 text-muted-foreground">Loading...</p>
     </div>
   );
 }

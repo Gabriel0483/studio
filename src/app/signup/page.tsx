@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input"
 import { toast } from "@/hooks/use-toast"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { handleSignUp } from "@/firebase/auth"
+import { useAuth } from "@/firebase";
 import { Loader2 } from "lucide-react"
 import Link from "next/link";
 import { PublicHeader } from "@/components/public-header";
@@ -34,6 +35,7 @@ type SignupFormData = z.infer<typeof signupFormSchema>;
 
 export default function SignupPage() {
   const router = useRouter();
+  const auth = useAuth();
   const [isLoading, setIsLoading] = useState(false);
 
   const form = useForm<SignupFormData>({
@@ -47,7 +49,7 @@ export default function SignupPage() {
   async function onSubmit(data: SignupFormData) {
     setIsLoading(true);
     try {
-      await handleSignUp(data.email, data.password);
+      await handleSignUp(auth, data.email, data.password);
       toast({
         title: "Account Created",
         description: "You have successfully signed up!",
