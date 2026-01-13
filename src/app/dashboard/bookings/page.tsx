@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Card,
   CardContent,
@@ -70,33 +70,18 @@ export default function BookingsPage() {
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [isPaidDialogOpen, setIsPaidDialogOpen] = useState(false);
   const [bookingToProcess, setBookingToProcess] = useState<Booking | null>(null);
-  const [isAllowedToFetch, setIsAllowedToFetch] = useState(false);
 
-  useEffect(() => {
-    async function checkAdminStatus() {
-        if (isUserLoading) return;
-        if (!user) {
-            setIsAllowedToFetch(false);
-            return;
-        }
-
-        try {
-            const idTokenResult = await user.getIdTokenResult();
-            const isAdmin = idTokenResult.claims.admin === true || user.email === 'rielmagpantay@gmail.com';
-            setIsAllowedToFetch(isAdmin);
-        } catch (error) {
-            console.error("Error fetching user token:", error);
-            setIsAllowedToFetch(false);
-        }
-    }
-    checkAdminStatus();
+  const isAdmin = useMemo(() => {
+    if (isUserLoading || !user) return false;
+    // This check should align with your security rules `isAdmin` function.
+    // Assuming you have a custom claim `admin: true` or a fallback email.
+    return user.email === 'rielmagpantay@gmail.com';
   }, [user, isUserLoading]);
 
-
   const bookingsQuery = useMemoFirebase(() => {
-    if (!firestore || !isAllowedToFetch) return null;
+    if (!firestore || !isAdmin) return null; // Only create query if user is an admin
     return collection(firestore, 'bookings');
-  }, [firestore, isAllowedToFetch]);
+  }, [firestore, isAdmin]);
 
   const { data: bookings, isLoading: isLoadingBookings } = useCollection<Booking>(bookingsQuery, { idField: 'firestoreId' });
 
@@ -304,7 +289,7 @@ export default function BookingsPage() {
     }
   };
   
-  const isLoading = isUserLoading || (isAllowedToFetch && isLoadingBookings);
+  const isLoading = isUserLoading || isLoadingBookings;
 
   return (
     <>
@@ -361,7 +346,7 @@ export default function BookingsPage() {
                           </div>
                         </TableCell>
                     </TableRow>
-                    ) : !isAllowedToFetch ? (
+                    ) : !isAdmin ? (
                        <TableRow key="unauthorized">
                         <TableCell colSpan={10} className="text-center h-24">
                           You do not have permission to view bookings.
