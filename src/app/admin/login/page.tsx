@@ -20,7 +20,7 @@ import { Input } from "@/components/ui/input"
 import { toast } from "@/hooks/use-toast"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useAuth } from "@/firebase"
-import { signInWithEmailAndPassword, type User } from "firebase/auth"
+import { signInWithEmailAndPassword } from "firebase/auth"
 import { Loader2 } from "lucide-react"
 import { Logo } from "@/components/logo";
 import Link from "next/link";
@@ -31,17 +31,6 @@ const loginFormSchema = z.object({
 });
 
 type LoginFormData = z.infer<typeof loginFormSchema>;
-
-// This function now explicitly checks the token
-const isAdminUser = async (user: User): Promise<boolean> => {
-    try {
-        const idTokenResult = await user.getIdTokenResult(true); // Force refresh
-        return idTokenResult.claims.admin === true || user.email === 'rielmagpantay@gmail.com';
-    } catch (error) {
-        console.error("Error verifying admin status:", error);
-        return false;
-    }
-};
 
 export default function AdminLoginPage() {
   const auth = useAuth();
@@ -59,26 +48,12 @@ export default function AdminLoginPage() {
   async function onSubmit(data: LoginFormData) {
     setIsLoading(true);
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, data.email, data.password);
-      
-      // Explicitly wait for the admin check to complete before redirecting
-      const isAdmin = await isAdminUser(userCredential.user);
-
-      if (isAdmin) {
-        toast({
-          title: "Login Successful",
-          description: "Redirecting you to the dashboard...",
-        });
-        router.push('/dashboard');
-      } else {
-        await auth.signOut();
-        toast({
-          variant: "destructive",
-          title: "Access Denied",
-          description: "You do not have permission to access the admin dashboard.",
-        });
-      }
-
+      await signInWithEmailAndPassword(auth, data.email, data.password);
+      toast({
+        title: "Login Successful",
+        description: "Redirecting you to the dashboard...",
+      });
+      router.push('/dashboard');
     } catch (error: any) {
       console.error(error);
       let description = "An unexpected error occurred. Please try again.";
