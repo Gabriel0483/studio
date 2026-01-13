@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -25,8 +26,9 @@ import type { User } from 'firebase/auth';
 
 const isAdminUser = async (user: User): Promise<boolean> => {
   try {
+    // Force a refresh of the ID token to get the latest custom claims.
     const idTokenResult = await user.getIdTokenResult(true);
-    return idTokenResult.claims.admin === true || user.email === 'rielmagpantay@gmail.com';
+    return idTokenResult.claims.admin === true;
   } catch (error) {
     console.error('Error getting user token for admin check:', error);
     return false;
@@ -45,15 +47,8 @@ export default function DashboardLayout({
   const [authStatus, setAuthStatus] = useState<'checking' | 'authorized' | 'unauthorized'>('checking');
 
   useEffect(() => {
-    // Wait until the initial authentication check is complete.
-    if (!isAuthReady) {
-      setAuthStatus('checking');
-      return;
-    }
-  
-    // isAuthReady is true, now we can check the user status.
-    if (isUserLoading) {
-      // Still checking user, so we wait.
+    // Wait until the initial authentication check is complete and the user object is available.
+    if (!isAuthReady || isUserLoading) {
       setAuthStatus('checking');
       return;
     }

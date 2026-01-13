@@ -35,7 +35,7 @@ type LoginFormData = z.infer<typeof loginFormSchema>;
 const isAdminUser = async (user: User): Promise<boolean> => {
   try {
     const idTokenResult = await user.getIdTokenResult(true); // Force refresh
-    return idTokenResult.claims.admin === true || user.email === 'rielmagpantay@gmail.com';
+    return idTokenResult.claims.admin === true;
   } catch (error) {
     console.error('Error getting user token for admin check:', error);
     return false;
