@@ -19,9 +19,14 @@ export default function BoardingPage() {
     if (!firestore) return null;
     return collection(firestore, 'schedules');
   }, [firestore]);
+  
+  const routesQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'routes');
+  }, [firestore]);
 
   const { data: schedules, isLoading: isLoadingSchedules } = useCollection(schedulesQuery);
-  const { data: routes, isLoading: isLoadingRoutes } = useCollection(useMemoFirebase(() => (firestore) ? collection(firestore, 'routes') : null, [firestore]));
+  const { data: routes, isLoading: isLoadingRoutes } = useCollection(routesQuery);
 
   const todaySchedules = useMemo(() => {
     if (!schedules) return [];

@@ -45,6 +45,7 @@ export default function ReportsPage() {
     to: endOfMonth(new Date()),
   });
 
+  // The DashboardLayout now guarantees user is an admin, so we can directly query.
   const bookingsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return collection(firestore, 'bookings');
