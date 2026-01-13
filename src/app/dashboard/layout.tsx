@@ -21,13 +21,12 @@ import { UserNav } from '@/components/dashboard/user-nav';
 import { navLinks } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import { Home, Loader2 } from 'lucide-react';
-import { useUser } from '@/firebase';
+import { useUser, useAuthContext } from '@/firebase';
 import type { User } from 'firebase/auth';
 
 const isAdminUser = async (user: User): Promise<boolean> => {
   try {
     const idTokenResult = await user.getIdTokenResult(true);
-    // Use a fallback admin email for development purposes
     return idTokenResult.claims.admin === true || user.email === 'rielmagpantay@gmail.com';
   } catch (error) {
     console.error('Error getting user token for admin check:', error);
@@ -43,11 +42,12 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const router = useRouter();
   const { user, isUserLoading } = useUser();
+  const { isAuthReady } = useAuthContext();
   const [authStatus, setAuthStatus] = useState<'checking' | 'authorized' | 'unauthorized'>('checking');
 
   useEffect(() => {
-    // We should not proceed until the user loading state is settled.
-    if (isUserLoading) {
+    // Wait until the initial authentication check is fully complete.
+    if (!isAuthReady) {
       setAuthStatus('checking');
       return;
     }
@@ -64,12 +64,12 @@ export default function DashboardLayout({
         }
       });
     } else {
-      // No user is logged in.
+      // No user is logged in after the auth check.
       console.log('No user found. Redirecting to login.');
       setAuthStatus('unauthorized');
       router.replace('/admin/login');
     }
-  }, [user, isUserLoading, router]);
+  }, [user, isAuthReady, router]);
 
   if (authStatus !== 'authorized') {
     return (

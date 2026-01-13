@@ -70,9 +70,9 @@ export default function BookingsPage() {
   const [isPaidDialogOpen, setIsPaidDialogOpen] = useState(false);
   const [bookingToProcess, setBookingToProcess] = useState<Booking | null>(null);
 
-  // The DashboardLayout now guarantees user is an admin, so we can directly query.
   const bookingsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
+    // This query is now safe because the DashboardLayout guarantees the user is an admin.
     return collection(firestore, 'bookings');
   }, [firestore]);
 
