@@ -4,7 +4,7 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
@@ -19,7 +19,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { toast } from "@/hooks/use-toast"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { useAuth } from "@/firebase"
+import { useAuth, useUser, useAuthContext } from "@/firebase"
 import { signInWithEmailAndPassword } from "firebase/auth"
 import { Loader2 } from "lucide-react"
 import Link from "next/link";
@@ -35,8 +35,17 @@ type LoginFormData = z.infer<typeof loginFormSchema>;
 
 export default function PublicLoginPage() {
   const auth = useAuth();
+  const { user, isUserLoading } = useUser();
+  const { isAuthReady } = useAuthContext();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (isAuthReady && !isUserLoading && user) {
+        router.replace('/my-bookings');
+    }
+  }, [isAuthReady, isUserLoading, user, router]);
+
 
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginFormSchema),
@@ -74,6 +83,15 @@ export default function PublicLoginPage() {
     } finally {
         setIsLoading(false);
     }
+  }
+
+  if (!isAuthReady || isUserLoading || user) {
+    return (
+        <div className="flex h-screen w-full items-center justify-center bg-background">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="ml-3 text-muted-foreground">Loading...</p>
+        </div>
+    );
   }
 
   return (

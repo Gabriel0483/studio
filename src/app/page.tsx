@@ -15,11 +15,10 @@ export default function ProtectedRootPage() {
     if (isAuthReady && !isUserLoading) {
       if (user) {
         // If the user is logged in, redirect to their bookings.
-        // This could be changed to a dashboard or another page.
         router.replace('/my-bookings');
       } else {
-        // If no user, redirect to the new public welcome page.
-        router.replace('/welcome');
+        // If no user, redirect to the public login page.
+        router.replace('/login');
       }
     }
   }, [isAuthReady, isUserLoading, user, router]);
