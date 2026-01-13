@@ -29,7 +29,7 @@ const isAdminUser = async (user: User): Promise<boolean> => {
     return true;
   }
   try {
-    const idTokenResult = await user.getIdTokenResult(true); // Force refresh
+    const idTokenResult = await user.getIdTokenResult(true);
     return idTokenResult.claims.admin === true;
   } catch (error) {
     console.error('Error getting user token for admin check:', error);
@@ -45,43 +45,33 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const router = useRouter();
   const { user, isUserLoading } = useUser();
-  const [isAuthorized, setIsAuthorized] = useState(false);
-  const [authCheckCompleted, setAuthCheckCompleted] = useState(false);
+  const [authStatus, setAuthStatus] = useState<'checking' | 'authorized' | 'unauthorized'>('checking');
 
   useEffect(() => {
     if (!isUserLoading) {
       if (user) {
         isAdminUser(user).then(isAdmin => {
           if (isAdmin) {
-            setIsAuthorized(true);
+            setAuthStatus('authorized');
           } else {
+            setAuthStatus('unauthorized');
             router.replace('/admin/login');
           }
-          setAuthCheckCompleted(true);
         });
       } else {
+        setAuthStatus('unauthorized');
         router.replace('/admin/login');
-        setAuthCheckCompleted(true);
       }
     }
   }, [user, isUserLoading, router]);
 
-  if (!authCheckCompleted) {
+  if (authStatus !== 'authorized') {
     return (
       <div className="flex h-screen w-full items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
-        <p className="ml-2">Verifying access...</p>
-      </div>
-    );
-  }
-
-  if (!isAuthorized) {
-    // This will show the loading spinner briefly before the redirect to login happens.
-    // Or you can render a dedicated "Access Denied" component here.
-    return (
-       <div className="flex h-screen w-full items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
-        <p className="ml-2">Redirecting to login...</p>
+        <p className="ml-2">
+            {authStatus === 'checking' ? 'Verifying access...' : 'Redirecting...'}
+        </p>
       </div>
     );
   }
