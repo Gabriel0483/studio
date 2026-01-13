@@ -1,7 +1,8 @@
+
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { collection, Timestamp } from 'firebase/firestore';
 import { format, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -18,7 +19,7 @@ interface Booking {
   firestoreId: string;
   id: string;
   passengerEmail: string;
-  passengerInfo?: { fullName: string, fareType: string }[];
+  passengerInfo?: { fullName: string, fareType: string, id: string }[];
   fareDetails?: { passengerType: string, pricePerTicket: number }[];
   routeName: string;
   travelDate: Timestamp;
@@ -38,6 +39,7 @@ interface BoardingRecord {
 
 export default function ReportsPage() {
   const firestore = useFirestore();
+  const { isUserLoading } = useUser();
 
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: startOfMonth(new Date()),
@@ -45,14 +47,14 @@ export default function ReportsPage() {
   });
 
   const bookingsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (isUserLoading || !firestore) return null;
     return collection(firestore, 'bookings');
-  }, [firestore]);
+  }, [firestore, isUserLoading]);
   
   const boardingQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (isUserLoading || !firestore) return null;
     return collection(firestore, 'boarding');
-  }, [firestore]);
+  }, [firestore, isUserLoading]);
 
   const { data: bookings, isLoading: isLoadingBookings } = useCollection<Booking>(bookingsQuery, { idField: 'firestoreId' });
   const { data: boardingRecords, isLoading: isLoadingBoarding } = useCollection<BoardingRecord>(boardingQuery);
@@ -164,7 +166,7 @@ export default function ReportsPage() {
     }
   };
 
-  const isLoading = isLoadingBookings || isLoadingBoarding;
+  const isLoading = isLoadingBookings || isLoadingBoarding || isUserLoading;
 
   return (
     <div className="space-y-6">
@@ -327,5 +329,3 @@ export default function ReportsPage() {
     </div>
   );
 }
-
-    
