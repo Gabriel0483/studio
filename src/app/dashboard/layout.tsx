@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -46,12 +45,15 @@ export default function DashboardLayout({
   const [authStatus, setAuthStatus] = useState<'checking' | 'authorized' | 'unauthorized'>('checking');
 
   useEffect(() => {
+    // Wait until the initial authentication check is complete.
     if (!isAuthReady) {
       setAuthStatus('checking');
       return;
     }
   
+    // isAuthReady is true, now we can check the user status.
     if (isUserLoading) {
+      // Still checking user, so we wait.
       setAuthStatus('checking');
       return;
     }
@@ -67,6 +69,7 @@ export default function DashboardLayout({
         }
       });
     } else {
+      // No user is signed in.
       console.log('No user found. Redirecting to login.');
       setAuthStatus('unauthorized');
       router.replace('/admin/login');
@@ -115,7 +118,7 @@ export default function DashboardLayout({
             <SidebarTrigger />
             <div className='hidden md:block'>
                 <Button asChild variant="outline" size="icon">
-                    <Link href="/">
+                    <Link href="/welcome">
                         <Home className="h-4 w-4"/>
                         <span className="sr-only">Back to Homepage</span>
                     </Link>
