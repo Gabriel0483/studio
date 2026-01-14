@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/logo';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from '@/components/ui/sheet';
 import { Menu, User, LogOut, BookCopy } from 'lucide-react';
-import { useUser, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
+import { useUser, useDoc, useFirestore, useMemoFirebase, useAuth } from '@/firebase';
 import { handleSignOut } from '@/firebase/auth';
 import { useRouter } from 'next/navigation';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -16,6 +16,7 @@ import { doc } from 'firebase/firestore';
 export function PublicHeader() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
+  const auth = useAuth();
   const router = useRouter();
 
   const passengerDocRef = useMemoFirebase(() => {
@@ -26,7 +27,7 @@ export function PublicHeader() {
   const { data: passengerData } = useDoc(passengerDocRef);
 
   const onSignOut = async () => {
-    await handleSignOut();
+    await handleSignOut(auth);
     router.push('/welcome');
   };
   
@@ -39,7 +40,7 @@ export function PublicHeader() {
     if (passengerData?.firstName) {
         return `${passengerData.firstName} ${passengerData.lastName || ''}`.trim();
     }
-    return 'Passenger';
+    return user?.email || 'Passenger';
   };
 
 
