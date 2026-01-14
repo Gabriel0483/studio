@@ -64,6 +64,8 @@ export default function AdminLoginPage() {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, data.email, data.password);
       
+      // Force a refresh of the token to get the latest custom claims.
+      await userCredential.user.getIdTokenResult(true);
       const isAdmin = await isAdminUser(userCredential.user);
 
       if (isAdmin) {
