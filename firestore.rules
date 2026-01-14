@@ -33,8 +33,6 @@
  *   This avoids costly `get()` calls in security rules, allowing for fast ownership checks.
  * - Custom Claims for Admin: The `isAdmin()` function now checks for `request.auth.token.admin == true`.
  *   This is the standard, scalable way to manage roles in Firebase.
- * - Schema Flexibility: In line with prototyping, these rules do NOT enforce the
- *   specific shape of documents beyond fields critical for authorization.
  */
 rules_version = '2';
 
