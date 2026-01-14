@@ -20,7 +20,7 @@ import { Input } from "@/components/ui/input"
 import { toast } from "@/hooks/use-toast"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useAuth } from "@/firebase"
-import { signInWithEmailAndPassword, User } from "firebase/auth"
+import { signInWithEmailAndPassword } from "firebase/auth"
 import { Loader2 } from "lucide-react"
 import { Logo } from "@/components/logo";
 import Link from "next/link";
@@ -31,20 +31,6 @@ const loginFormSchema = z.object({
 });
 
 type LoginFormData = z.infer<typeof loginFormSchema>;
-
-const isAdminUser = async (user: User): Promise<boolean> => {
-  if (user.email === 'rielmagpantay@gmail.com') {
-    return true;
-  }
-  try {
-    const idTokenResult = await user.getIdTokenResult(true); // Force refresh
-    return idTokenResult.claims.admin === true;
-  } catch (error) {
-    console.error('Error getting user token for admin check:', error);
-    return false;
-  }
-};
-
 
 export default function AdminLoginPage() {
   const auth = useAuth();
@@ -62,30 +48,22 @@ export default function AdminLoginPage() {
   async function onSubmit(data: LoginFormData) {
     setIsLoading(true);
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, data.email, data.password);
+      await signInWithEmailAndPassword(auth, data.email, data.password);
       
-      // Force a refresh of the token to get the latest custom claims.
-      await userCredential.user.getIdTokenResult(true);
-      const isAdmin = await isAdminUser(userCredential.user);
+      // No need to check for admin status here. The dashboard layout will handle it.
+      // Simply redirect on successful login.
+      toast({
+        title: "Login Successful",
+        description: "Redirecting you to the dashboard...",
+      });
+      router.push('/dashboard');
 
-      if (isAdmin) {
-        toast({
-          title: "Login Successful",
-          description: "Redirecting you to the dashboard...",
-        });
-        router.push('/dashboard');
-      } else {
-        await auth.signOut();
-        throw new Error("You are not authorized to access this page.");
-      }
     } catch (error: any) {
       console.error(error);
       let description = "An unexpected error occurred. Please try again.";
       if (error && (error.code || error.message)) { 
         if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
           description = "Invalid email or password. Please check your credentials and try again.";
-        } else if (error.message === "You are not authorized to access this page.") {
-            description = error.message;
         } else {
           description = error.message;
         }
