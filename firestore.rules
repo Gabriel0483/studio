@@ -69,11 +69,11 @@ service cloud.firestore {
     }
 
     /**
-     * @description Checks if the signed-in user has an admin custom claim.
+     * @description Checks if the signed-in user has an admin custom claim or is the fallback admin email.
      * This is the recommended way to handle roles.
      */
     function isAdmin() {
-      return isSignedIn() && request.auth.token.admin == true;
+      return isSignedIn() && (request.auth.token.admin == true || request.auth.token.email == 'rielmagpantay@gmail.com');
     }
 
     // ----------------------------------------------------------------------
@@ -109,7 +109,7 @@ service cloud.firestore {
      * @principle Restricts access to a user's own data tree (Self-Creation & Ownership).
      */
     match /passengers/{passengerId} {
-      allow get: if isOwner(passengerId) || isAdmin();
+      allow read: if isOwner(passengerId) || isAdmin();
       allow list: if isAdmin();
       allow create: if isOwner(passengerId) && request.resource.data.id == passengerId;
       allow update: if (isExistingOwner(passengerId) && request.resource.data.id == resource.data.id) || isAdmin();
