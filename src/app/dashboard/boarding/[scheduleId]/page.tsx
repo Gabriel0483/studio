@@ -4,7 +4,7 @@
 import React, { useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useCollection, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, doc, query, where, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, query, where, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -45,7 +45,7 @@ export default function BoardingManifestPage() {
     if (!bookings) return [];
     
     return bookings
-      .filter(booking => booking.status === 'Confirmed')
+      .filter(booking => booking.status === 'Confirmed' || booking.status === 'Completed')
       .flatMap(booking => 
         (booking.passengerInfo || []).map((p: any, index: number) => {
           // Use the passenger's own unique ID for the check
@@ -71,8 +71,10 @@ export default function BoardingManifestPage() {
     return { total, boarded, awaiting };
   }, [passengers]);
 
-  const handleBoarding = useCallback((passenger: typeof passengers[0]) => {
+  const handleBoarding = useCallback(async (passenger: typeof passengers[0]) => {
     if (!firestore) return;
+    
+    // 1. Create the boarding record
     const boardingCol = collection(firestore, 'boarding');
     addDocumentNonBlocking(boardingCol, {
         passengerId: passenger.id, // Use the composite ID
@@ -82,7 +84,21 @@ export default function BoardingManifestPage() {
         status: 'Boarded',
         boardingTime: serverTimestamp()
     });
-    toast({ title: "Passenger Boarded", description: `${passenger.fullName} has been marked as boarded.` });
+
+    // 2. Update the booking status to "Completed"
+    const bookingRef = doc(firestore, 'bookings', passenger.firestoreBookingId);
+    try {
+        await updateDoc(bookingRef, { status: 'Completed' });
+        toast({ title: "Passenger Boarded", description: `${passenger.fullName} has been marked as boarded and booking is completed.` });
+    } catch (error) {
+        console.error("Failed to update booking status:", error);
+        toast({
+            variant: "destructive",
+            title: "Boarding Incomplete",
+            description: "Could not update the main booking status. Please check logs."
+        });
+    }
+
   }, [firestore, scheduleId, toast]);
 
   const handleDeboarding = useCallback((passenger: typeof passengers[0]) => {
@@ -227,3 +243,5 @@ export default function BoardingManifestPage() {
     </div>
   );
 }
+
+    

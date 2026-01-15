@@ -55,7 +55,7 @@ interface Booking {
   bookingDate: Timestamp;
   numberOfSeats: number;
   totalPrice: number;
-  status: 'Confirmed' | 'Reserved' | 'Waitlisted' | 'Cancelled' | 'Refunded';
+  status: 'Confirmed' | 'Reserved' | 'Waitlisted' | 'Cancelled' | 'Refunded' | 'Completed';
   paymentStatus: 'Paid' | 'Unpaid' | 'Refunded';
 }
 
@@ -118,11 +118,11 @@ export default function BookingsPage() {
   };
   
   const confirmCancel = (booking: Booking) => {
-    if (booking.status === 'Cancelled' || booking.status === 'Refunded') {
+    if (booking.status === 'Cancelled' || booking.status === 'Refunded' || booking.status === 'Completed') {
       toast({
         variant: 'destructive',
         title: 'Already Finalized',
-        description: 'This booking has already been cancelled or refunded.',
+        description: 'This booking has already been cancelled, refunded, or completed.',
       });
       return;
     }
@@ -138,11 +138,11 @@ export default function BookingsPage() {
         });
         return;
     }
-    if (booking.status === 'Cancelled' || booking.status === 'Refunded') {
+    if (booking.status === 'Cancelled' || booking.status === 'Refunded' || booking.status === 'Completed') {
         toast({
             variant: 'destructive',
             title: 'Cannot Pay',
-            description: 'This booking has been cancelled.',
+            description: 'This booking has been cancelled, refunded, or completed.',
         });
         return;
     }
@@ -255,6 +255,7 @@ export default function BookingsPage() {
   const getStatusVariant = (status: Booking['status']) => {
     switch (status) {
       case 'Confirmed':
+      case 'Completed':
         return 'default';
       case 'Reserved':
         return 'secondary';
@@ -372,7 +373,7 @@ export default function BookingsPage() {
                                             variant="ghost"
                                             size="icon"
                                             onClick={() => confirmPaid(booking)}
-                                            disabled={booking.paymentStatus === 'Paid' || booking.status === 'Cancelled' || booking.status === 'Refunded'}
+                                            disabled={booking.paymentStatus === 'Paid' || booking.status === 'Cancelled' || booking.status === 'Refunded' || booking.status === 'Completed'}
                                         >
                                             <CreditCard className="h-4 w-4" />
                                             <span className="sr-only">Mark as Paid</span>
@@ -386,7 +387,7 @@ export default function BookingsPage() {
                                             variant="ghost"
                                             size="icon"
                                             onClick={() => handleEdit(booking.id)}
-                                            disabled={booking.status === 'Cancelled' || booking.status === 'Refunded'}
+                                            disabled={booking.status === 'Cancelled' || booking.status === 'Refunded' || booking.status === 'Completed'}
                                         >
                                             <Pencil className="h-4 w-4" />
                                             <span className="sr-only">Edit</span>
@@ -400,7 +401,7 @@ export default function BookingsPage() {
                                             variant="ghost"
                                             size="icon"
                                             onClick={() => confirmCancel(booking)}
-                                            disabled={booking.status === 'Cancelled' || booking.status === 'Refunded'}
+                                            disabled={booking.status === 'Cancelled' || booking.status === 'Refunded' || booking.status === 'Completed'}
                                         >
                                             <XCircle className="h-4 w-4" />
                                             <span className="sr-only">Cancel</span>
@@ -497,3 +498,5 @@ export default function BookingsPage() {
     </>
   );
 }
+
+    
