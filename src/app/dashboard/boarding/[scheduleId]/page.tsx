@@ -4,14 +4,14 @@
 import React, { useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useCollection, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, doc, query, where, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { collection, doc, query, where, serverTimestamp, updateDoc, deleteDoc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, ArrowLeft, UserCheck, UserX, LogIn, LogOut, Users, Ticket, UserMinus } from 'lucide-react';
 import { format, differenceInYears } from 'date-fns';
-import { addDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 
 export default function BoardingManifestPage() {
@@ -101,11 +101,27 @@ export default function BoardingManifestPage() {
 
   }, [firestore, scheduleId, toast]);
 
-  const handleDeboarding = useCallback((passenger: typeof passengers[0]) => {
+  const handleDeboarding = useCallback(async (passenger: typeof passengers[0]) => {
     if (!firestore || !passenger.boardingRecordId) return;
-    const boardingRef = doc(firestore, 'boarding', passenger.boardingRecordId);
-    deleteDocumentNonBlocking(boardingRef);
-    toast({ title: "Passenger Deboarded", description: `${passenger.fullName}'s boarding status has been reset.` });
+
+    try {
+        // Delete the boarding record
+        const boardingRef = doc(firestore, 'boarding', passenger.boardingRecordId);
+        await deleteDoc(boardingRef);
+
+        // Revert the main booking status to "Confirmed"
+        const bookingRef = doc(firestore, 'bookings', passenger.firestoreBookingId);
+        await updateDoc(bookingRef, { status: 'Confirmed' });
+        
+        toast({ title: "Passenger Deboarded", description: `${passenger.fullName}'s status has been reset and booking is now Confirmed.` });
+    } catch(error) {
+        console.error("Failed to deboard passenger:", error);
+        toast({
+            variant: "destructive",
+            title: "Deboarding Failed",
+            description: "Could not update records. Please check logs."
+        });
+    }
   }, [firestore, toast]);
   
   const getStatusVariant = (status: string) => {
