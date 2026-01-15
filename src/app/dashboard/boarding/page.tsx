@@ -3,11 +3,11 @@
 
 import React, { useMemo } from 'react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection } from 'firebase/firestore';
+import { collection, query, where } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, CalendarClock, Loader2 } from 'lucide-react';
+import { ArrowRight, CalendarClock, Loader2, Play } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useRouter } from 'next/navigation';
 
@@ -17,7 +17,13 @@ export default function BoardingPage() {
 
   const schedulesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return collection(firestore, 'schedules');
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    
+    // Query for daily trips OR special trips scheduled for today
+    return query(
+      collection(firestore, 'schedules'),
+      where('date', 'in', [null, todayStr])
+    );
   }, [firestore]);
   
   const routesQuery = useMemoFirebase(() => {
@@ -37,13 +43,12 @@ export default function BoardingPage() {
 
     return schedules
       .filter(schedule => {
-        const isDaily = schedule.tripType === 'Daily';
+        const isDaily = schedule.tripType === 'Daily' && !schedule.date;
         const isSpecialToday = schedule.tripType === 'Special' && schedule.date === todayStr;
         
-        // Include if it's a daily trip or a special trip for today
         if (isDaily || isSpecialToday) {
-            // Further filter to show only trips that haven't departed yet
-            return schedule.departureTime > currentTime;
+            // Include if trip has not departed yet.
+            return schedule.status !== 'Departed' && schedule.status !== 'Arrived';
         }
         return false;
       })
@@ -51,6 +56,19 @@ export default function BoardingPage() {
   }, [schedules]);
 
   const getRouteName = (routeId: string) => routes?.find(r => r.id === routeId)?.name || 'Unknown Route';
+
+  const getBoardingStatusVariant = (status?: string) => {
+    switch(status) {
+      case 'Boarding':
+        return 'default';
+      case 'Boarding Closed':
+        return 'destructive';
+      case 'Departed':
+        return 'secondary';
+      default: // Awaiting
+        return 'outline';
+    }
+  }
 
   const isLoading = isLoadingSchedules || isLoadingRoutes;
 
@@ -75,21 +93,28 @@ export default function BoardingPage() {
       {todaySchedules.length > 0 ? (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {todaySchedules.map(schedule => (
-            <Card key={schedule.id}>
+            <Card key={schedule.id} className="flex flex-col">
               <CardHeader>
                 <CardTitle className="tracking-tight">{getRouteName(schedule.routeId)}</CardTitle>
                 <CardDescription>
                   Departs at {schedule.departureTime}
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-2">
+              <CardContent className="space-y-2 flex-1">
                  <Badge variant={schedule.tripType === 'Daily' ? 'secondary' : 'default'}>{schedule.tripType} Trip</Badge>
-                 <p className="text-sm text-muted-foreground">Ship: {schedule.shipName || 'Unassigned'}</p>
-                 <p className="text-sm text-muted-foreground">Seats Available: {schedule.availableSeats}</p>
+                 <div className="text-sm text-muted-foreground">
+                    <p>Ship: {schedule.shipName || 'Unassigned'}</p>
+                    <p>Seats Available: {schedule.availableSeats}</p>
+                 </div>
               </CardContent>
-              <CardFooter>
+              <CardFooter className="flex-col items-start gap-4">
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground">Boarding Status</p>
+                  <Badge variant={getBoardingStatusVariant(schedule.boardingStatus)}>{schedule.boardingStatus || 'Awaiting'}</Badge>
+                </div>
                 <Button className="w-full" onClick={() => router.push(`/dashboard/boarding/${schedule.id}`)}>
-                  View Manifest <ArrowRight className="ml-2 h-4 w-4" />
+                  {schedule.boardingStatus === 'Boarding' ? 'View Manifest' : 'Manage Trip'}
+                  <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </CardFooter>
             </Card>

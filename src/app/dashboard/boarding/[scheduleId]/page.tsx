@@ -1,18 +1,21 @@
 
 'use client';
 
-import React, { useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback, useState, Fragment } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useCollection, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, doc, query, where, serverTimestamp, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, doc, query, where, serverTimestamp, updateDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, ArrowLeft, UserCheck, UserX, LogIn, LogOut, Users, Ticket, UserMinus } from 'lucide-react';
+import { Loader2, ArrowLeft, UserCheck, UserX, LogIn, LogOut, Users, Ticket, UserMinus, Play, Square, Ship, Printer } from 'lucide-react';
 import { format, differenceInYears } from 'date-fns';
 import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { PrintableManifest } from '@/components/printable-manifest';
+import { Separator } from '@/components/ui/separator';
 
 export default function BoardingManifestPage() {
   const firestore = useFirestore();
@@ -20,6 +23,7 @@ export default function BoardingManifestPage() {
   const router = useRouter();
   const { toast } = useToast();
   const scheduleId = params.scheduleId as string;
+  const [isPrintViewOpen, setIsPrintViewOpen] = useState(false);
 
   const scheduleRef = useMemoFirebase(() => {
     if (!firestore || !scheduleId) return null;
@@ -40,6 +44,7 @@ export default function BoardingManifestPage() {
   const { data: bookings, isLoading: isLoadingBookings } = useCollection(bookingsQuery, { idField: 'firestoreId' });
   const { data: boardingRecords, isLoading: isLoadingBoarding } = useCollection(boardingRecordsQuery);
   const { data: route, isLoading: isLoadingRoute } = useDoc(useMemoFirebase(() => (firestore && schedule?.routeId) ? doc(firestore, 'routes', schedule.routeId) : null, [firestore, schedule]));
+  const { data: ship, isLoading: isLoadingShip } = useDoc(useMemoFirebase(() => (firestore && schedule?.shipId) ? doc(firestore, 'ships', schedule.shipId) : null, [firestore, schedule]));
 
   const passengers = useMemo(() => {
     if (!bookings) return [];
@@ -47,13 +52,12 @@ export default function BoardingManifestPage() {
     return bookings
       .filter(booking => booking.status === 'Confirmed' || booking.status === 'Completed')
       .flatMap(booking => 
-        (booking.passengerInfo || []).map((p: any, index: number) => {
-          // Use the passenger's own unique ID for the check
+        (booking.passengerInfo || []).map((p: any) => {
           const uniquePassengerId = `${booking.firestoreId}-${p.id}`;
           const boardingRecord = boardingRecords?.find(br => br.passengerId === uniquePassengerId);
           return {
             ...p,
-            id: uniquePassengerId, // This is now the composite ID
+            id: uniquePassengerId,
             bookingId: booking.id,
             firestoreBookingId: booking.firestoreId,
             bookingStatus: booking.status,
@@ -64,20 +68,27 @@ export default function BoardingManifestPage() {
       );
   }, [bookings, boardingRecords]);
 
+  const boardedPassengers = useMemo(() => {
+    return passengers.filter(p => p.boardingStatus === 'Boarded');
+  }, [passengers]);
+
+
   const boardingStats = useMemo(() => {
     const total = passengers.length;
-    const boarded = passengers.filter(p => p.boardingStatus === 'Boarded').length;
+    const boarded = boardedPassengers.length;
     const awaiting = total - boarded;
     return { total, boarded, awaiting };
-  }, [passengers]);
+  }, [passengers, boardedPassengers]);
 
   const handleBoarding = useCallback(async (passenger: typeof passengers[0]) => {
     if (!firestore) return;
     
-    // 1. Create the boarding record
+    const batch = writeBatch(firestore);
+
     const boardingCol = collection(firestore, 'boarding');
-    addDocumentNonBlocking(boardingCol, {
-        passengerId: passenger.id, // Use the composite ID
+    const newBoardingRef = doc(boardingCol);
+    batch.set(newBoardingRef, {
+        passengerId: passenger.id,
         passengerName: passenger.fullName,
         bookingId: passenger.firestoreBookingId,
         scheduleId,
@@ -85,13 +96,14 @@ export default function BoardingManifestPage() {
         boardingTime: serverTimestamp()
     });
 
-    // 2. Update the booking status to "Completed"
     const bookingRef = doc(firestore, 'bookings', passenger.firestoreBookingId);
+    batch.update(bookingRef, { status: 'Completed' });
+
     try {
-        await updateDoc(bookingRef, { status: 'Completed' });
+        await batch.commit();
         toast({ title: "Passenger Boarded", description: `${passenger.fullName} has been marked as boarded and booking is completed.` });
     } catch (error) {
-        console.error("Failed to update booking status:", error);
+        console.error("Failed to update records:", error);
         toast({
             variant: "destructive",
             title: "Boarding Incomplete",
@@ -103,16 +115,16 @@ export default function BoardingManifestPage() {
 
   const handleDeboarding = useCallback(async (passenger: typeof passengers[0]) => {
     if (!firestore || !passenger.boardingRecordId) return;
+    const batch = writeBatch(firestore);
 
+    const boardingRef = doc(firestore, 'boarding', passenger.boardingRecordId);
+    batch.delete(boardingRef);
+
+    const bookingRef = doc(firestore, 'bookings', passenger.firestoreBookingId);
+    batch.update(bookingRef, { status: 'Confirmed' });
+    
     try {
-        // Delete the boarding record
-        const boardingRef = doc(firestore, 'boarding', passenger.boardingRecordId);
-        await deleteDoc(boardingRef);
-
-        // Revert the main booking status to "Confirmed"
-        const bookingRef = doc(firestore, 'bookings', passenger.firestoreBookingId);
-        await updateDoc(bookingRef, { status: 'Confirmed' });
-        
+        await batch.commit();
         toast({ title: "Passenger Deboarded", description: `${passenger.fullName}'s status has been reset and booking is now Confirmed.` });
     } catch(error) {
         console.error("Failed to deboard passenger:", error);
@@ -124,14 +136,28 @@ export default function BoardingManifestPage() {
     }
   }, [firestore, toast]);
   
+  const handleBoardingStatusChange = useCallback(async (newStatus: 'Boarding' | 'Boarding Closed' | 'Departed') => {
+    if (!scheduleRef) return;
+    try {
+      await updateDoc(scheduleRef, { boardingStatus: newStatus });
+      toast({
+        title: `Trip Status Updated`,
+        description: `The trip is now: ${newStatus}`,
+      });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Update Failed',
+        description: 'Could not update the trip status.',
+      });
+    }
+  }, [scheduleRef, toast]);
+  
   const getStatusVariant = (status: string) => {
     switch (status) {
-      case 'Awaiting':
-        return 'secondary';
-      case 'Boarded':
-        return 'default';
-      default:
-        return 'outline';
+      case 'Awaiting': return 'secondary';
+      case 'Boarded': return 'default';
+      default: return 'outline';
     }
   };
   
@@ -139,12 +165,11 @@ export default function BoardingManifestPage() {
     if (!birthDate) return 'N/A';
     try {
         return differenceInYears(new Date(), new Date(birthDate)).toString();
-    } catch {
-        return 'N/A';
-    }
+    } catch { return 'N/A'; }
   };
 
-  const isLoading = isLoadingSchedule || isLoadingBookings || isLoadingRoute || isLoadingBoarding;
+  const isLoading = isLoadingSchedule || isLoadingBookings || isLoadingRoute || isLoadingBoarding || isLoadingShip;
+  const isBoardingActive = schedule?.boardingStatus === 'Boarding';
 
   if (isLoading) {
     return (
@@ -163,11 +188,43 @@ export default function BoardingManifestPage() {
     )
   }
 
+  const BoardingWorkflowButtons = () => {
+    switch (schedule.boardingStatus) {
+      case 'Boarding':
+        return <Button onClick={() => handleBoardingStatusChange('Boarding Closed')}><Square className="mr-2 h-4 w-4" /> Close Boarding</Button>;
+      case 'Boarding Closed':
+        return <Button onClick={() => handleBoardingStatusChange('Departed')}><Ship className="mr-2 h-4 w-4" /> Mark as Departed</Button>;
+      case 'Departed':
+        return <p className="text-sm font-medium text-muted-foreground">Trip has departed.</p>;
+      default: // 'Awaiting'
+        return <Button onClick={() => handleBoardingStatusChange('Boarding')}><Play className="mr-2 h-4 w-4" /> Start Boarding</Button>;
+    }
+  };
+
   return (
+    <>
     <div className="space-y-6">
       <Button variant="ghost" size="sm" className="w-fit p-0 h-auto" onClick={() => router.back()}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to Trips
       </Button>
+
+      <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+        <div>
+          <CardTitle className="text-2xl font-bold tracking-tight">Passenger Manifest</CardTitle>
+          <CardDescription>
+            Manifest for {route?.name} departing at {schedule.departureTime} on {format(new Date(schedule.date || Date.now()), 'PPP')}
+          </CardDescription>
+        </div>
+        <div className="flex items-center gap-2">
+            <BoardingWorkflowButtons />
+            {schedule.boardingStatus === 'Boarding Closed' && (
+              <Button variant="outline" onClick={() => setIsPrintViewOpen(true)}>
+                <Printer className="mr-2 h-4 w-4" /> Print Manifest
+              </Button>
+            )}
+        </div>
+      </div>
+      <Separator/>
 
         <div className="grid gap-4 md:grid-cols-3">
           <Card>
@@ -204,9 +261,9 @@ export default function BoardingManifestPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-2xl font-bold tracking-tight">Passenger Manifest</CardTitle>
+          <CardTitle>Passenger List</CardTitle>
           <CardDescription>
-            Manifest for {route?.name} departing at {schedule.departureTime} on {format(new Date(schedule.date || Date.now()), 'PPP')}
+            {isBoardingActive ? "Boarding is in progress." : `Boarding is currently ${schedule.boardingStatus || 'Awaiting'}.`}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -234,11 +291,11 @@ export default function BoardingManifestPage() {
                     </TableCell>
                     <TableCell className="text-right">
                        {passenger.boardingStatus === 'Awaiting' ? (
-                          <Button variant="outline" size="sm" onClick={() => handleBoarding(passenger)}>
+                          <Button variant="outline" size="sm" onClick={() => handleBoarding(passenger)} disabled={!isBoardingActive}>
                               <LogIn className="mr-2 h-4 w-4" /> Board
                           </Button>
                        ) : (
-                          <Button variant="secondary" size="sm" onClick={() => handleDeboarding(passenger)}>
+                          <Button variant="secondary" size="sm" onClick={() => handleDeboarding(passenger)} disabled={!isBoardingActive}>
                              <LogOut className="mr-2 h-4 w-4" /> Deboard
                           </Button>
                        )}
@@ -257,7 +314,16 @@ export default function BoardingManifestPage() {
         </CardContent>
       </Card>
     </div>
+    <Dialog open={isPrintViewOpen} onOpenChange={setIsPrintViewOpen}>
+      <DialogContent className="max-w-4xl p-0">
+          <PrintableManifest 
+            passengers={boardedPassengers}
+            route={route}
+            schedule={schedule}
+            ship={ship}
+          />
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
-
-    
