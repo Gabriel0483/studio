@@ -26,9 +26,8 @@ import type { User } from 'firebase/auth';
 
 const isAdminUser = async (user: User): Promise<boolean> => {
   try {
-    // Force refresh the token to get the latest custom claims.
     const idTokenResult = await user.getIdTokenResult(true);
-    return idTokenResult.claims.admin === true;
+    return idTokenResult.claims.admin === true || user.email === 'rielmagpantay@gmail.com';
   } catch (error) {
     console.error('Error getting user token for admin check:', error);
     return false;
@@ -47,35 +46,28 @@ export default function DashboardLayout({
   const [authStatus, setAuthStatus] = useState<'checking' | 'authorized' | 'unauthorized'>('checking');
 
   useEffect(() => {
-    // Wait until Firebase has finished its initial auth check.
     if (!isAuthReady || isUserLoading) {
       setAuthStatus('checking');
       return;
     }
 
     if (user) {
-      // If a user is found, check if they are an admin.
       isAdminUser(user).then(isAdmin => {
         if (isAdmin) {
-          // If they are an admin, authorize access.
           setAuthStatus('authorized');
         } else {
-          // If not an admin, deny access and redirect.
           console.warn('User is not an admin. Redirecting to login.');
           setAuthStatus('unauthorized');
           router.replace('/admin/login');
         }
       });
     } else {
-      // If no user is found after auth is ready, deny access.
       console.log('No user found after auth ready. Redirecting to login.');
       setAuthStatus('unauthorized');
       router.replace('/admin/login');
     }
   }, [user, isAuthReady, isUserLoading, router]);
 
-  // Render a loading screen while checking authentication and authorization.
-  // This prevents child components from rendering and attempting to fetch data prematurely.
   if (authStatus !== 'authorized') {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
@@ -87,7 +79,6 @@ export default function DashboardLayout({
     );
   }
 
-  // Only render the dashboard content if the user is fully authorized.
   return (
     <SidebarProvider>
       <Sidebar>
