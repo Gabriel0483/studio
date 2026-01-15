@@ -316,6 +316,10 @@ export default function BoardingManifestPage() {
     </div>
     <Dialog open={isPrintViewOpen} onOpenChange={setIsPrintViewOpen}>
       <DialogContent className="max-w-4xl p-0">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Printable Passenger Manifest</DialogTitle>
+            <DialogDescription>A printable version of the passenger manifest for this trip.</DialogDescription>
+          </DialogHeader>
           <PrintableManifest 
             passengers={boardedPassengers}
             route={route}
