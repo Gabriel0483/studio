@@ -48,16 +48,15 @@ export default function AdminLoginPage() {
   async function onSubmit(data: LoginFormData) {
     setIsLoading(true);
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, data.email, data.password);
+      // Just sign in. The layout will handle the redirect and auth check.
+      await signInWithEmailAndPassword(auth, data.email, data.password);
       
-      // Force refresh the token to get custom claims before redirecting.
-      // This is crucial to prevent race conditions in the dashboard layout.
-      await userCredential.user.getIdTokenResult(true);
-
       toast({
         title: "Login Successful",
         description: "Redirecting you to the dashboard...",
       });
+      // The dashboard layout's useEffect will now handle the redirect logic
+      // after the auth state is confirmed to be ready.
       router.push('/dashboard');
 
     } catch (error: any) {
