@@ -1,21 +1,22 @@
 
 'use client';
 
-import React, { useMemo, useCallback, useState, Fragment } from 'react';
+import React, { useMemo, useCallback, useState, Fragment, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useCollection, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, doc, query, where, serverTimestamp, updateDoc, deleteDoc, writeBatch } from 'firebase/firestore';
+import { collection, doc, query, where, serverTimestamp, updateDoc, writeBatch } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, ArrowLeft, UserCheck, UserX, LogIn, LogOut, Users, Ticket, UserMinus, Play, Square, Ship, Printer } from 'lucide-react';
 import { format, differenceInYears } from 'date-fns';
-import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { PrintableManifest } from '@/components/printable-manifest';
 import { Separator } from '@/components/ui/separator';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 
 export default function BoardingManifestPage() {
   const firestore = useFirestore();
@@ -45,6 +46,7 @@ export default function BoardingManifestPage() {
   const { data: boardingRecords, isLoading: isLoadingBoarding } = useCollection(boardingRecordsQuery);
   const { data: route, isLoading: isLoadingRoute } = useDoc(useMemoFirebase(() => (firestore && schedule?.routeId) ? doc(firestore, 'routes', schedule.routeId) : null, [firestore, schedule]));
   const { data: ship, isLoading: isLoadingShip } = useDoc(useMemoFirebase(() => (firestore && schedule?.shipId) ? doc(firestore, 'ships', schedule.shipId) : null, [firestore, schedule]));
+  const { data: allShips, isLoading: isLoadingAllShips } = useCollection(useMemoFirebase(() => firestore ? collection(firestore, 'ships') : null, [firestore]));
 
   const passengers = useMemo(() => {
     if (!bookings) return [];
@@ -136,23 +138,6 @@ export default function BoardingManifestPage() {
     }
   }, [firestore, toast]);
   
-  const handleBoardingStatusChange = useCallback(async (newStatus: 'Boarding' | 'Boarding Closed' | 'Departed') => {
-    if (!scheduleRef) return;
-    try {
-      await updateDoc(scheduleRef, { boardingStatus: newStatus });
-      toast({
-        title: `Trip Status Updated`,
-        description: `The trip is now: ${newStatus}`,
-      });
-    } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Update Failed',
-        description: 'Could not update the trip status.',
-      });
-    }
-  }, [scheduleRef, toast]);
-  
   const getStatusVariant = (status: string) => {
     switch (status) {
       case 'Awaiting': return 'secondary';
@@ -168,7 +153,7 @@ export default function BoardingManifestPage() {
     } catch { return 'N/A'; }
   };
 
-  const isLoading = isLoadingSchedule || isLoadingBookings || isLoadingRoute || isLoadingBoarding || isLoadingShip;
+  const isLoading = isLoadingSchedule || isLoadingBookings || isLoadingRoute || isLoadingBoarding || isLoadingShip || isLoadingAllShips;
   const isBoardingActive = schedule?.boardingStatus === 'Boarding';
 
   if (isLoading) {
@@ -189,15 +174,73 @@ export default function BoardingManifestPage() {
   }
 
   const BoardingWorkflowButtons = () => {
+    const [selectedShipId, setSelectedShipId] = useState(schedule?.shipId || '');
+    
+    const availableShips = useMemo(() => {
+        return allShips?.filter(s => s.status === 'In Service') || [];
+    }, [allShips]);
+    
+    const handleStatusChange = useCallback(async (newStatus: 'Boarding' | 'Boarding Closed' | 'Departed') => {
+      if (!scheduleRef) return;
+      
+      const updateData: { boardingStatus: string, shipId?: string, shipName?: string } = { boardingStatus: newStatus };
+      
+      if (newStatus === 'Boarding') {
+          if (!selectedShipId) {
+              toast({ variant: 'destructive', title: 'No Ship Assigned', description: 'Please assign a ship to the trip before starting boarding.' });
+              return;
+          }
+          const selectedShip = allShips?.find(s => s.id === selectedShipId);
+          if (selectedShip) {
+              updateData.shipId = selectedShipId;
+              updateData.shipName = selectedShip.name;
+          }
+      }
+
+      try {
+        await updateDoc(scheduleRef, updateData);
+        toast({
+          title: `Trip Status Updated`,
+          description: `The trip is now: ${newStatus}`,
+        });
+      } catch (error) {
+        toast({
+          variant: 'destructive',
+          title: 'Update Failed',
+          description: 'Could not update the trip status.',
+        });
+      }
+    }, [scheduleRef, toast, selectedShipId, allShips]);
+
+
     switch (schedule.boardingStatus) {
       case 'Boarding':
-        return <Button onClick={() => handleBoardingStatusChange('Boarding Closed')}><Square className="mr-2 h-4 w-4" /> Close Boarding</Button>;
+        return <Button onClick={() => handleStatusChange('Boarding Closed')}><Square className="mr-2 h-4 w-4" /> Close Boarding</Button>;
       case 'Boarding Closed':
-        return <Button onClick={() => handleBoardingStatusChange('Departed')}><Ship className="mr-2 h-4 w-4" /> Mark as Departed</Button>;
+        return <Button onClick={() => handleStatusChange('Departed')}><Ship className="mr-2 h-4 w-4" /> Mark as Departed</Button>;
       case 'Departed':
         return <p className="text-sm font-medium text-muted-foreground">Trip has departed.</p>;
       default: // 'Awaiting'
-        return <Button onClick={() => handleBoardingStatusChange('Boarding')}><Play className="mr-2 h-4 w-4" /> Start Boarding</Button>;
+        return (
+            <div className="flex items-end gap-2">
+                {!schedule.shipId && (
+                    <div className="space-y-1">
+                        <Label htmlFor="ship-select">Assign Ship</Label>
+                        <Select onValueChange={setSelectedShipId} value={selectedShipId}>
+                            <SelectTrigger id="ship-select" className="w-[200px]">
+                                <SelectValue placeholder="Select a ship..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {availableShips.map(s => (
+                                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                )}
+                <Button onClick={() => handleStatusChange('Boarding')} disabled={!selectedShipId}><Play className="mr-2 h-4 w-4" /> Start Boarding</Button>
+            </div>
+        );
     }
   };
 
@@ -331,3 +374,5 @@ export default function BoardingManifestPage() {
     </>
   );
 }
+
+    
