@@ -48,10 +48,12 @@ export default function AdminLoginPage() {
   async function onSubmit(data: LoginFormData) {
     setIsLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, data.email, data.password);
+      const userCredential = await signInWithEmailAndPassword(auth, data.email, data.password);
       
-      // No need to check for admin status here. The dashboard layout will handle it.
-      // Simply redirect on successful login.
+      // Force refresh the token to get custom claims before redirecting.
+      // This is crucial to prevent race conditions in the dashboard layout.
+      await userCredential.user.getIdTokenResult(true);
+
       toast({
         title: "Login Successful",
         description: "Redirecting you to the dashboard...",
