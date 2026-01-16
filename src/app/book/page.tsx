@@ -109,6 +109,10 @@ export default function BookingPage() {
 
   const [availableFares, setAvailableFares] = useState<any[]>([]);
   const [filteredSchedules, setFilteredSchedules] = useState<any[]>([]);
+  
+  const maxDate = new Date();
+  maxDate.setDate(new Date().getDate() + 5);
+  const maxDateStr = maxDate.toISOString().split("T")[0];
 
   const form = useForm<BookingFormData>({
     resolver: zodResolver(bookingFormSchema),
@@ -482,7 +486,7 @@ export default function BookingPage() {
                                 <FormItem>
                                 <FormLabel>Date of Travel</FormLabel>
                                 <FormControl>
-                                  <Input type="date" {...field} min={new Date().toISOString().split("T")[0]} disabled={!watchRouteId} />
+                                  <Input type="date" {...field} min={new Date().toISOString().split("T")[0]} max={maxDateStr} disabled={!watchRouteId} />
                                 </FormControl>
                                 <FormMessage />
                                 </FormItem>

@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -182,6 +183,13 @@ const ScheduleForm = ({
     }
     onFinished();
   };
+  
+  const today = new Date();
+  const maxDate = new Date();
+  maxDate.setDate(today.getDate() + 5);
+  const minDateStr = today.toISOString().split('T')[0];
+  const maxDateStr = maxDate.toISOString().split('T')[0];
+
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -202,8 +210,10 @@ const ScheduleForm = ({
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
+                min={minDateStr}
+                max={maxDateStr}
             />
-             <p className="text-xs text-muted-foreground">Leave empty for daily trips.</p>
+             <p className="text-xs text-muted-foreground">Leave empty for daily trips. Limited to 5 days from today.</p>
         </div>
       </div>
        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -297,31 +307,42 @@ export default function SchedulesPage() {
   const handleDelete = async (schedule: Schedule) => {
     if (!firestore) return;
   
-    const bookingsForScheduleQuery = query(collection(firestore, 'bookings'), where('scheduleId', '==', schedule.id));
-    const bookingsSnapshot = await getDocs(bookingsForScheduleQuery);
-  
-    if (!bookingsSnapshot.empty) {
-      toast({
-        variant: 'destructive',
-        title: 'Deletion Failed',
-        description: 'Cannot delete a schedule that has active bookings.',
-      });
-      return;
-    }
-
     if (window.confirm(`Are you sure you want to delete this schedule? This will also delete all of its future instances if it's a daily trip. This action cannot be undone.`)) {
       try {
         const batch = writeBatch(firestore);
 
         const scheduleRef = doc(firestore, 'schedules', schedule.id);
+        
+        // Safety check for bookings on the primary schedule to be deleted
+        const primaryBookingsQuery = query(collection(firestore, 'bookings'), where('scheduleId', '==', schedule.id));
+        const primaryBookingsSnapshot = await getDocs(primaryBookingsQuery);
+        
+        if (!primaryBookingsSnapshot.empty) {
+          toast({
+            variant: 'destructive',
+            title: 'Deletion Failed',
+            description: 'Cannot delete schedule. It has active bookings.',
+          });
+          return;
+        }
+
         batch.delete(scheduleRef);
 
         if (schedule.tripType === 'Daily') {
           const instancesQuery = query(collection(firestore, 'schedules'), where("baseScheduleId", "==", schedule.id));
           const instancesSnapshot = await getDocs(instancesQuery);
-          instancesSnapshot.forEach(doc => {
-            batch.delete(doc.ref);
+          
+          // Use Promise.all to check all instances for bookings before deleting
+          const bookingChecks = instancesSnapshot.docs.map(async (doc) => {
+              const instanceBookingQuery = query(collection(firestore, 'bookings'), where('scheduleId', '==', doc.id));
+              const instanceBookingSnapshot = await getDocs(instanceBookingQuery);
+              if (!instanceBookingSnapshot.empty) {
+                  throw new Error(`Instance for date ${doc.data().date} has active bookings.`);
+              }
+              batch.delete(doc.ref);
           });
+
+          await Promise.all(bookingChecks);
         }
 
         await batch.commit();
@@ -335,7 +356,7 @@ export default function SchedulesPage() {
         toast({
           variant: 'destructive',
           title: 'Deletion Failed',
-          description: `An error occurred: ${error.message}. Please check the console.`,
+          description: error.message || `An error occurred. Please check the console.`,
         });
       }
     }
