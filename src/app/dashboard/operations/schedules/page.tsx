@@ -587,7 +587,7 @@ export default function SchedulesPage() {
                           variant="ghost"
                           size="icon"
                           className="text-destructive hover:text-destructive"
-                          onClick={async () => await handleDelete(schedule)}
+                          onClick={() => handleDelete(schedule)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -638,4 +638,3 @@ export default function SchedulesPage() {
   );
 }
 
-    
