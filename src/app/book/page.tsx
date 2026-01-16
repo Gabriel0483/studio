@@ -1,4 +1,3 @@
-
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -46,7 +45,7 @@ const passengerSchema = z.object({
 
 const bookingFormSchema = z.object({
   routeId: z.string({ required_error: "Please select a route." }),
-  travelDate: z.string().refine((val) => !isNaN(Date.parse(val)), { message: "A date of travel is required."}),
+  travelDate: z.string().refine((val) => val && !isNaN(Date.parse(val)), { message: "A date of travel is required."}),
   scheduleId: z.string({ required_error: "Please select a schedule." }),
   passengers: z.array(passengerSchema).min(1, "At least one passenger is required."),
   primaryEmail: z.string().email({ message: "Please enter a valid email address." }),
@@ -93,6 +92,8 @@ export default function BookingPage() {
   const [bookingSummary, setBookingSummary] = useState<BookingSummary>({ details: [], totalPrice: 0, totalTickets: 0 });
   const [confirmedBooking, setConfirmedBooking] = useState<ConfirmedBooking | null>(null);
   const [isReserving, setIsReserving] = useState(false);
+  const [dateRange, setDateRange] = useState<{ min: string; max: string }>({ min: '', max: '' });
+
 
   const passengerDocRef = useMemoFirebase(() => firestore && user ? doc(firestore, 'passengers', user.uid) : null, [firestore, user]);
   const { data: passengerData } = useDoc(passengerDocRef);
@@ -107,23 +108,29 @@ export default function BookingPage() {
 
   const [availableFares, setAvailableFares] = useState<any[]>([]);
   
-  const today = new Date();
-  const fiveDaysFromNow = addDays(today, 4); // Today + 4 days = 5-day window
-  
-  const todayStr = format(today, "yyyy-MM-dd");
-  const maxDateStr = format(fiveDaysFromNow, "yyyy-MM-dd");
-
   const form = useForm<BookingFormData>({
     resolver: zodResolver(bookingFormSchema),
     defaultValues: {
       routeId: "",
-      travelDate: todayStr,
+      travelDate: "",
       scheduleId: "",
       passengers: [{ id: nanoid(), fullName: user?.displayName || "", birthDate: "", fareType: "" }],
       primaryEmail: user?.email || "",
       primaryPhone: "",
     },
   });
+
+  useEffect(() => {
+    // This effect runs only on the client, after the component has mounted.
+    const today = new Date();
+    const fiveDaysFromNow = addDays(today, 4);
+    
+    const minDate = format(today, "yyyy-MM-dd");
+    const maxDate = format(fiveDaysFromNow, "yyyy-MM-dd");
+    
+    setDateRange({ min: minDate, max: maxDate });
+    form.setValue('travelDate', minDate);
+  }, [form]);
 
   useEffect(() => {
     if (user && passengerData) {
@@ -163,7 +170,6 @@ export default function BookingPage() {
     // Get special trips for the selected date
     const specialTrips = allSchedules.filter(s => 
       s.tripType === 'Special' && 
-      s.routeId === watchRouteId && 
       s.date === formattedTravelDate &&
       (!isToday || s.departureTime > currentTime)
     );
@@ -449,7 +455,7 @@ export default function BookingPage() {
                                 <FormItem>
                                 <FormLabel>Date of Travel</FormLabel>
                                 <FormControl>
-                                  <Input type="date" {...field} min={todayStr} max={maxDateStr} disabled={!watchRouteId} />
+                                  <Input type="date" {...field} min={dateRange.min} max={dateRange.max} disabled={!watchRouteId || !dateRange.min} />
                                 </FormControl>
                                 <FormMessage />
                                 </FormItem>
@@ -703,3 +709,5 @@ export default function BookingPage() {
     </div>
   )
 }
+
+    
