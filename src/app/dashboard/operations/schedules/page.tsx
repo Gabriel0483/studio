@@ -348,30 +348,35 @@ export default function SchedulesPage() {
   };
   
   const handleClearPast = async () => {
-    if (!firestore) return;
+    if (!firestore || !schedules) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Schedules not loaded yet.' });
+      return;
+    }
     const today = format(new Date(), 'yyyy-MM-dd');
     
     try {
-        const q = query(
-            collection(firestore, 'schedules'),
-            where('tripType', '==', 'Special'),
-            where('date', '<', today)
+        const pastSchedules = schedules.filter(s => 
+            s.tripType === 'Special' && 
+            s.date && 
+            s.date < today
         );
-        const snapshot = await getDocs(q);
         
-        if (snapshot.empty) {
+        if (pastSchedules.length === 0) {
             toast({ title: 'No Past Schedules', description: 'There are no expired special schedules to clear.' });
             setIsClearConfirmOpen(false);
             return;
         }
 
         const batch = writeBatch(firestore);
-        snapshot.forEach(doc => batch.delete(doc.ref));
+        pastSchedules.forEach(schedule => {
+            const docRef = doc(firestore, 'schedules', schedule.id);
+            batch.delete(docRef);
+        });
         await batch.commit();
 
         toast({
             title: 'Cleanup Complete',
-            description: `Successfully deleted ${snapshot.size} past special schedules.`,
+            description: `Successfully deleted ${pastSchedules.length} past special schedules.`,
         });
 
     } catch (error) {
