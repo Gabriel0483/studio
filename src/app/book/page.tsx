@@ -28,11 +28,11 @@ import { PublicHeader } from "@/components/public-header"
 import { PublicFooter } from "@/components/public-footer"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from "@/firebase"
-import { collection, doc, serverTimestamp, runTransaction, Timestamp, where, query, getDocs, addDoc, getDoc, updateDoc, orderBy } from "firebase/firestore"
+import { collection, doc, serverTimestamp, runTransaction, Timestamp, where, query, getDocs, addDoc, getDoc, updateDoc } from "firebase/firestore"
 import React, { useMemo, useState, useEffect, useRef } from "react"
 import { Separator } from "@/components/ui/separator"
 import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
-import { format } from "date-fns"
+import { format, addDays } from "date-fns"
 import { TripItinerary } from "@/components/trip-itinerary";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { nanoid } from "nanoid"
@@ -97,16 +97,7 @@ export default function BookingPage() {
   const passengerDocRef = useMemoFirebase(() => firestore && user ? doc(firestore, 'passengers', user.uid) : null, [firestore, user]);
   const { data: passengerData } = useDoc(passengerDocRef);
 
-  const schedulesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    const todayStr = format(new Date(), 'yyyy-MM-dd');
-    return query(
-      collection(firestore, 'schedules'), 
-      where('date', '>=', todayStr),
-      orderBy('date', 'asc'),
-      orderBy('departureTime', 'asc')
-    );
-  }, [firestore]);
+  const schedulesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'schedules') : null, [firestore]);
   const routesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'routes') : null, [firestore]);
   const faresQuery = useMemoFirebase(() => firestore ? collection(firestore, 'fares') : null, [firestore]);
   
@@ -115,7 +106,6 @@ export default function BookingPage() {
   const { data: allFares, isLoading: isLoadingFares } = useCollection(faresQuery);
 
   const [availableFares, setAvailableFares] = useState<any[]>([]);
-  const [filteredSchedules, setFilteredSchedules] = useState<any[]>([]);
   
   const maxDate = new Date();
   maxDate.setDate(new Date().getDate() + 5);
@@ -154,32 +144,42 @@ export default function BookingPage() {
   const watchScheduleId = form.watch('scheduleId');
   const watchPassengers = form.watch('passengers');
 
-  useEffect(() => {
-    if (watchRouteId && watchTravelDate && allSchedules) {
-      const selectedDate = new Date(watchTravelDate);
-      selectedDate.setHours(0, 0, 0, 0);
-      const formattedTravelDate = format(selectedDate, 'yyyy-MM-dd');
-  
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-  
-      const isToday = selectedDate.getTime() === today.getTime();
-      const now = new Date();
-      const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-      
-      const schedulesForDate = allSchedules.filter(s =>
-        s.routeId === watchRouteId &&
-        s.date === formattedTravelDate &&
-        (!isToday || s.departureTime > currentTime)
-      );
-      
-      setFilteredSchedules(schedulesForDate);
+  const filteredSchedules = useMemo(() => {
+    if (!watchRouteId || !watchTravelDate || !allSchedules) return [];
 
-    } else {
-      setFilteredSchedules([]);
-    }
+    const selectedDate = new Date(watchTravelDate);
+    selectedDate.setHours(0, 0, 0, 0);
+    const formattedTravelDate = format(selectedDate, 'yyyy-MM-dd');
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const isToday = selectedDate.getTime() === today.getTime();
+    const now = new Date();
+    const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+
+    // Get special trips for the selected date
+    const specialTrips = allSchedules.filter(s => 
+      s.tripType === 'Special' && 
+      s.routeId === watchRouteId && 
+      s.date === formattedTravelDate &&
+      (!isToday || s.departureTime > currentTime)
+    );
+
+    // Get daily trips
+    const dailyTrips = allSchedules.filter(s => s.tripType === 'Daily' && s.routeId === watchRouteId && (!isToday || s.departureTime > currentTime));
+
+    // For daily trips, find if a special instance for today already exists
+    const dailyTripInstances = dailyTrips.map(dailyTrip => {
+      const existingInstance = specialTrips.find(st => st.sourceScheduleId === dailyTrip.id);
+      return existingInstance || { ...dailyTrip, isVirtual: true };
+    });
+
+    return [...specialTrips.filter(st => !st.sourceScheduleId), ...dailyTripInstances]
+      .sort((a, b) => a.departureTime.localeCompare(b.departureTime));
+
   }, [watchRouteId, watchTravelDate, allSchedules]);
-  
+
   useEffect(() => {
     form.resetField('scheduleId');
     setAvailableFares([]);
@@ -243,23 +243,57 @@ export default function BookingPage() {
     const { scheduleId } = data;
     const summary = calculateBookingSummary(data);
     const travelDateObj = new Date(data.travelDate);
+    const formattedTravelDate = format(travelDateObj, 'yyyy-MM-dd');
   
     try {
       const { status: bookingStatus, bookingId, finalScheduleId } = await runTransaction(firestore, async (transaction) => {
-        const scheduleRef = doc(firestore, 'schedules', scheduleId);
-        const scheduleDoc = await transaction.get(scheduleRef);
+        let scheduleToBookRef: any;
+        let scheduleDataForUpdate: any;
 
-        if (!scheduleDoc.exists()) {
-            throw new Error("Selected schedule does not exist!");
+        const selectedScheduleTemplate = allSchedules.find(s => s.id === scheduleId);
+        if (!selectedScheduleTemplate) throw new Error("Selected schedule template is invalid.");
+
+        if (selectedScheduleTemplate.tripType === 'Daily') {
+          // It's a daily trip, we need to find or create a special instance for today
+          const spawnedScheduleQuery = query(
+            collection(firestore, 'schedules'),
+            where('sourceScheduleId', '==', scheduleId),
+            where('date', '==', formattedTravelDate)
+          );
+          const spawnedSchedules = await getDocs(spawnedScheduleQuery); // Use getDocs, not transaction.get on a query
+
+          if (!spawnedSchedules.empty) {
+            // An instance for today already exists, use it
+            const spawnedDoc = spawnedSchedules.docs[0];
+            scheduleToBookRef = spawnedDoc.ref;
+            scheduleDataForUpdate = spawnedDoc.data();
+          } else {
+            // No instance for today, create one
+            scheduleToBookRef = doc(collection(firestore, 'schedules'));
+            scheduleDataForUpdate = {
+              ...selectedScheduleTemplate,
+              tripType: 'Special',
+              date: formattedTravelDate,
+              sourceScheduleId: scheduleId,
+              id: scheduleToBookRef.id // ensure new instance has its own ID
+            };
+            // Set the new doc in the transaction
+            transaction.set(scheduleToBookRef, scheduleDataForUpdate);
+          }
+        } else {
+          // It's already a special trip
+          scheduleToBookRef = doc(firestore, 'schedules', scheduleId);
+          const scheduleDoc = await transaction.get(scheduleToBookRef);
+          if (!scheduleDoc.exists()) throw new Error("Selected schedule does not exist!");
+          scheduleDataForUpdate = scheduleDoc.data();
         }
 
-        const scheduleDataForUpdate = scheduleDoc.data();
         const currentAvailableSeats = scheduleDataForUpdate.availableSeats || 0;
         let status: 'Reserved' | 'Waitlisted' = 'Reserved';
 
         if (currentAvailableSeats >= totalSeats) {
           const newAvailableSeats = currentAvailableSeats - totalSeats;
-          transaction.update(scheduleRef, { availableSeats: newAvailableSeats });
+          transaction.update(scheduleToBookRef, { availableSeats: newAvailableSeats });
         } else {
           status = 'Waitlisted';
         }
@@ -278,7 +312,7 @@ export default function BookingPage() {
           })),
           passengerEmail: data.primaryEmail,
           passengerPhone: data.primaryPhone,
-          scheduleId: scheduleId,
+          scheduleId: scheduleToBookRef.id,
           fareDetails: summary.details.map(d => {
             const fareInfo = availableFares.find(f => f.passengerType === d.fareType);
             return {
@@ -300,7 +334,7 @@ export default function BookingPage() {
         };
   
         transaction.set(newBookingRef, newBookingData);
-        return { status, bookingId: newBookingId, finalScheduleId: scheduleId };
+        return { status, bookingId: newBookingId, finalScheduleId: scheduleToBookRef.id };
       });
   
       const passengerRef = doc(firestore, 'passengers', user.uid);
@@ -667,3 +701,5 @@ export default function BookingPage() {
     </div>
   )
 }
+
+    

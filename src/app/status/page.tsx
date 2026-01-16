@@ -16,21 +16,32 @@ export default function StatusPage() {
   const firestore = useFirestore();
 
   const todayStr = format(new Date(), 'yyyy-MM-dd');
+
+  // Query for all schedule templates and any special schedules for today
   const schedulesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return query(
-      collection(firestore, 'schedules'),
-      where('date', '==', todayStr)
-    );
-  }, [firestore, todayStr]);
+    return collection(firestore, 'schedules');
+  }, [firestore]);
+  
 
-  const { data: schedules, isLoading: isLoadingSchedules } = useCollection(schedulesQuery);
+  const { data: allSchedules, isLoading: isLoadingSchedules } = useCollection(schedulesQuery);
   const { data: routes, isLoading: isLoadingRoutes } = useCollection(useMemoFirebase(() => firestore ? collection(firestore, 'routes') : null, [firestore]));
 
   const todaySchedules = useMemo(() => {
-    if (!schedules) return [];
-    return schedules.sort((a, b) => a.departureTime.localeCompare(b.departureTime));
-  }, [schedules]);
+    if (!allSchedules) return [];
+    
+    const specialTripsForToday = allSchedules.filter(s => s.tripType === 'Special' && s.date === todayStr);
+    const dailyTrips = allSchedules.filter(s => s.tripType === 'Daily');
+
+    // For each daily trip, check if a special instance already exists for today. If so, use it. Otherwise, use the template.
+    const dailyInstancesForToday = dailyTrips.map(daily => {
+        const existingInstance = specialTripsForToday.find(st => st.sourceScheduleId === daily.id);
+        return existingInstance || daily;
+    });
+
+    return [...specialTripsForToday.filter(st => !st.sourceScheduleId), ...dailyInstancesForToday]
+        .sort((a, b) => a.departureTime.localeCompare(b.departureTime));
+  }, [allSchedules, todayStr]);
 
   const getRouteName = (routeId: string) => routes?.find(r => r.id === routeId)?.name || 'Unknown Route';
 
@@ -130,3 +141,5 @@ export default function StatusPage() {
     </div>
   );
 }
+
+    
