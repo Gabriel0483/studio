@@ -311,52 +311,31 @@ export default function SchedulesPage() {
       try {
         const batch = writeBatch(firestore);
 
+        // Delete the main schedule document
         const scheduleRef = doc(firestore, 'schedules', schedule.id);
-        
-        // Safety check for bookings on the primary schedule to be deleted
-        const primaryBookingsQuery = query(collection(firestore, 'bookings'), where('scheduleId', '==', schedule.id));
-        const primaryBookingsSnapshot = await getDocs(primaryBookingsQuery);
-        
-        if (!primaryBookingsSnapshot.empty) {
-          toast({
-            variant: 'destructive',
-            title: 'Deletion Failed',
-            description: 'Cannot delete schedule. It has active bookings.',
-          });
-          return;
-        }
-
         batch.delete(scheduleRef);
 
+        // If it's a daily trip, also delete all its instances
         if (schedule.tripType === 'Daily') {
           const instancesQuery = query(collection(firestore, 'schedules'), where("baseScheduleId", "==", schedule.id));
           const instancesSnapshot = await getDocs(instancesQuery);
-          
-          // Use Promise.all to check all instances for bookings before deleting
-          const bookingChecks = instancesSnapshot.docs.map(async (doc) => {
-              const instanceBookingQuery = query(collection(firestore, 'bookings'), where('scheduleId', '==', doc.id));
-              const instanceBookingSnapshot = await getDocs(instanceBookingQuery);
-              if (!instanceBookingSnapshot.empty) {
-                  throw new Error(`Instance for date ${doc.data().date} has active bookings.`);
-              }
-              batch.delete(doc.ref);
+          instancesSnapshot.forEach(doc => {
+            batch.delete(doc.ref);
           });
-
-          await Promise.all(bookingChecks);
         }
-
+        
         await batch.commit();
 
         toast({
           title: 'Schedule Deleted',
-          description: `The schedule and its related instances have been successfully deleted.`,
+          description: `The schedule and any related instances have been successfully deleted.`,
         });
       } catch (error: any) {
         console.error("Error deleting schedule:", error);
         toast({
           variant: 'destructive',
           title: 'Deletion Failed',
-          description: error.message || `An error occurred. Please check the console.`,
+          description: error.message || `An error occurred while deleting the schedule.`,
         });
       }
     }
