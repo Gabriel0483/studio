@@ -165,7 +165,7 @@ service cloud.firestore {
      * @principle Implements a "Public Read with Admin-Only Writes" pattern.
      */
     match /schedules/{scheduleId} {
-      allow read: if true;
+      allow read: if isAdmin();
       allow write: if isAdmin();
     }
 
