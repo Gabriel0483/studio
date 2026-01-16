@@ -86,6 +86,7 @@ interface Schedule {
   arrivalTime: string;
   availableSeats: number;
   status?: 'On Time' | 'Delayed' | 'Departed' | 'Arrived' | 'Cancelled';
+  sourceScheduleId?: string;
 }
 
 const ScheduleForm = ({
@@ -144,15 +145,15 @@ const ScheduleForm = ({
         return;
     }
     
-    const finalShipId = shipId === 'unassigned' ? null : shipId;
+    const finalShipId = shipId === 'unassigned' ? undefined : shipId;
     const selectedShip = ships.find(s => s.id === finalShipId);
 
-    const scheduleData = {
+    const scheduleData: Omit<Schedule, 'id'> = {
       tripType,
       shipId: finalShipId,
-      shipName: selectedShip ? selectedShip.name : 'Unassigned',
+      shipName: selectedShip ? selectedShip.name : undefined,
       routeId,
-      date: tripType === 'Special' ? date : null,
+      date: tripType === 'Special' ? date : undefined,
       departureTime,
       arrivalTime,
       availableSeats: seatsNum,
@@ -287,7 +288,7 @@ export default function SchedulesPage() {
   const staffQuery = useMemoFirebase(() => firestore ? collection(firestore, 'staff') : null, [firestore]);
 
 
-  const { data: schedules, isLoading: isLoadingSchedules } = useCollection<Omit<Schedule, 'id'>>(schedulesQuery);
+  const { data: schedules, isLoading: isLoadingSchedules } = useCollection<Schedule>(schedulesQuery);
   const { data: ships, isLoading: isLoadingShips } = useCollection<Omit<Ship, 'id'>>(shipsQuery);
   const { data: routes, isLoading: isLoadingRoutes } = useCollection<Omit<Route, 'id'>>(routesQuery);
   const { data: staff, isLoading: isLoadingStaff } = useCollection<Omit<Staff, 'id'>>(staffQuery);
@@ -307,34 +308,48 @@ export default function SchedulesPage() {
       toast({ variant: 'destructive', title: 'Error', description: 'Database connection not found.' });
       return;
     }
-  
-    const confirmMessage = `Are you sure you want to delete this schedule? This action cannot be undone.`;
+
+    let confirmMessage = `Are you sure you want to delete this schedule?`;
+    if (schedule.tripType === 'Daily') {
+      confirmMessage += ` This is a Daily (template) trip, and deleting it will also delete all future special trips created from it.`;
+    }
+    confirmMessage += ` This action cannot be undone. Associated bookings will NOT be deleted and will need to be handled manually.`;
+
     if (!window.confirm(confirmMessage)) {
       return;
     }
-  
+
     try {
-      // Check for associated bookings for this specific schedule ID
-      const bookingsQuery = query(collection(firestore, 'bookings'), where('scheduleId', '==', schedule.id));
-      const bookingsSnapshot = await getDocs(bookingsQuery);
-      if (!bookingsSnapshot.empty) {
-        toast({
-          variant: 'destructive',
-          title: 'Deletion Blocked',
-          description: `This schedule has ${bookingsSnapshot.size} active booking(s). Please cancel or rebook them first.`,
-          duration: 5000,
-        });
-        return;
+      const batch = writeBatch(firestore);
+
+      // If it's a daily trip, find and delete all special trips spawned from it
+      if (schedule.tripType === 'Daily') {
+        const specialTripsQuery = query(
+          collection(firestore, 'schedules'),
+          where('sourceScheduleId', '==', schedule.id)
+        );
+        const specialTripsSnapshot = await getDocs(specialTripsQuery);
+        if (!specialTripsSnapshot.empty) {
+          specialTripsSnapshot.forEach(doc => {
+            batch.delete(doc.ref);
+          });
+          toast({
+            title: 'Note',
+            description: `Deleting ${specialTripsSnapshot.size} associated special trip(s).`,
+          });
+        }
       }
-      
+
       const scheduleRef = doc(firestore, 'schedules', schedule.id);
-      await deleteDoc(scheduleRef);
-      
+      batch.delete(scheduleRef);
+
+      await batch.commit();
+
       toast({
         title: 'Schedule Deleted',
         description: 'The schedule has been successfully removed.',
       });
-  
+
     } catch (error: any) {
       console.error('Error deleting schedule:', error);
       toast({
@@ -365,7 +380,7 @@ export default function SchedulesPage() {
     }
   };
   
-  const formatDate = (dateString: string | null) => {
+  const formatDate = (dateString?: string) => {
     if (!dateString) return "Daily";
     try {
         const date = parse(dateString, 'yyyy-MM-dd', new Date());
@@ -448,7 +463,7 @@ export default function SchedulesPage() {
                   <TableRow key={schedule.id}>
                     <TableCell className="font-medium">{getRouteName(schedule.routeId)}</TableCell>
                     <TableCell>{schedule.tripType}</TableCell>
-                    <TableCell>{formatDate(schedule.date || null)}</TableCell>
+                    <TableCell>{formatDate(schedule.date)}</TableCell>
                     <TableCell>{formatTime(schedule.departureTime)}</TableCell>
                     <TableCell>{schedule.availableSeats}</TableCell>
                     <TableCell className="text-right">
@@ -496,5 +511,3 @@ export default function SchedulesPage() {
     </div>
   );
 }
-
-    
