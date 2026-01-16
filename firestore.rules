@@ -109,7 +109,7 @@ service cloud.firestore {
      * @principle Restricts access to a user's own data tree (Self-Creation & Ownership).
      */
     match /passengers/{passengerId} {
-      allow read: if isOwner(passengerId) || isAdmin();
+      allow get: if isOwner(passengerId) || isAdmin();
       allow list: if isAdmin();
       allow create: if isOwner(passengerId) && request.resource.data.id == passengerId;
       allow update: if (isExistingOwner(passengerId) && request.resource.data.id == resource.data.id) || isAdmin();
@@ -165,7 +165,8 @@ service cloud.firestore {
      * @principle Implements a "Public Read with Admin-Only Writes" pattern.
      */
     match /schedules/{scheduleId} {
-      allow read: if true;
+      allow get: if true;
+      allow list: if true;
       allow write: if isAdmin();
     }
 
