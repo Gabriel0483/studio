@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { collection, doc, query, where, getDocs, writeBatch, deleteDoc } from 'firebase/firestore';
+import { collection, doc, query, where, getDocs, writeBatch, deleteDoc, orderBy } from 'firebase/firestore';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import {
   addDocumentNonBlocking,
@@ -401,7 +401,7 @@ const BulkScheduleForm = ({
 
 export default function SchedulesPage() {
   const firestore = useFirestore();
-  const schedulesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'schedules') : null, [firestore]);
+  const schedulesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'schedules'), orderBy('date', 'asc'), orderBy('departureTime', 'asc')) : null, [firestore]);
   const shipsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'ships') : null, [firestore]);
   const routesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'routes') : null, [firestore]);
   const staffQuery = useMemoFirebase(() => firestore ? collection(firestore, 'staff') : null, [firestore]);

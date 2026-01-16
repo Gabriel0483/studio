@@ -162,7 +162,7 @@ export default function BookingPage() {
         s.routeId === watchRouteId &&
         s.date === formattedTravelDate &&
         (!isToday || s.departureTime > currentTime)
-      );
+      ).sort((a, b) => a.departureTime.localeCompare(b.departureTime));
       
       setFilteredSchedules(schedulesForDate);
 
