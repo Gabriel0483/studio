@@ -285,30 +285,27 @@ export default function SchedulesPage() {
   const handleDelete = async (schedule: Schedule) => {
     if (!firestore) return;
 
-    if (window.confirm(`Are you sure you want to delete this schedule? This may also delete related trip instances. This action cannot be undone.`)) {
+    if (window.confirm(`Are you sure you want to delete this schedule? This will also delete all of its future instances if it's a daily trip. This action cannot be undone.`)) {
       try {
         const batch = writeBatch(firestore);
 
-        // Main schedule to be deleted
         const scheduleRef = doc(firestore, 'schedules', schedule.id);
-        
-        // If it's a daily trip, also find and delete all its "Special" instances
+        batch.delete(scheduleRef);
+
         if (schedule.tripType === 'Daily') {
           const schedulesCol = collection(firestore, 'schedules');
           const instancesQuery = query(schedulesCol, where("baseScheduleId", "==", schedule.id));
           const instancesSnapshot = await getDocs(instancesQuery);
-          instancesSnapshot.forEach(doc => batch.delete(doc.ref));
+          instancesSnapshot.forEach(doc => {
+            batch.delete(doc.ref);
+          });
         }
-        
-        // Add the main schedule to the batch for deletion
-        batch.delete(scheduleRef);
 
-        // Commit all deletions at once
         await batch.commit();
 
         toast({
           title: 'Schedule Deleted',
-          description: `The schedule has been successfully deleted.`,
+          description: `The schedule and its related instances have been successfully deleted.`,
         });
       } catch (error: any) {
         console.error("Error deleting schedule:", error);
