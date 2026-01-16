@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { collection, doc, query, where, getDocs, writeBatch, DocumentReference } from 'firebase/firestore';
+import { collection, doc, query, where, getDocs, writeBatch } from 'firebase/firestore';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import {
   addDocumentNonBlocking,
@@ -77,6 +77,7 @@ interface Schedule {
   availableSeats: number;
   tripType: 'Daily' | 'Special';
   status?: 'On Time' | 'Delayed' | 'Departed' | 'Arrived' | 'Cancelled';
+  baseScheduleId?: string;
 }
 
 const ScheduleForm = ({
@@ -284,69 +285,34 @@ export default function SchedulesPage() {
   const handleDelete = async (schedule: Schedule) => {
     if (!firestore) return;
 
-    if (window.confirm(`Are you sure you want to delete this schedule? This is a destructive action.`)) {
-        
-        const bookingsRef = collection(firestore, 'bookings');
-        
-        // Check for bookings linked directly to this schedule
-        const directBookingsQuery = query(bookingsRef, where('scheduleId', '==', schedule.id));
-        
+    if (window.confirm(`Are you sure you want to delete this schedule? This will also delete all of its future instances if it's a daily trip. This action cannot be undone.`)) {
         try {
-            const directBookingsSnapshot = await getDocs(directBookingsQuery);
-            if (!directBookingsSnapshot.empty) {
-                toast({
-                    variant: 'destructive',
-                    title: 'Deletion Failed',
-                    description: 'This schedule has associated bookings and cannot be deleted.',
-                });
-                return;
-            }
+            const batch = writeBatch(firestore);
 
-            // If it's a daily trip, check its special instances for bookings too
-            let specialInstancesToDelete: DocumentReference[] = [];
+            // If it's a daily trip, find and delete all its special instances first.
             if (schedule.tripType === 'Daily') {
                 const schedulesCol = collection(firestore, 'schedules');
                 const specialInstancesQuery = query(schedulesCol, where("baseScheduleId", "==", schedule.id));
                 const specialInstancesSnapshot = await getDocs(specialInstancesQuery);
 
                 if (!specialInstancesSnapshot.empty) {
-                    const derivedScheduleIds = specialInstancesSnapshot.docs.map(d => d.id);
-                    specialInstancesToDelete = specialInstancesSnapshot.docs.map(d => d.ref);
-                    
-                    if (derivedScheduleIds.length > 0) {
-                      const derivedBookingsQuery = query(bookingsRef, where('scheduleId', 'in', derivedScheduleIds));
-                      const derivedBookingsSnapshot = await getDocs(derivedBookingsQuery);
-                      
-                      if (!derivedBookingsSnapshot.empty) {
-                          toast({
-                              variant: 'destructive',
-                              title: 'Deletion Failed',
-                              description: 'This daily schedule has future instances with associated bookings.',
-                          });
-                          return;
-                      }
-                    }
+                    specialInstancesSnapshot.docs.forEach(doc => {
+                        batch.delete(doc.ref);
+                    });
                 }
             }
-            
-            // If we've gotten this far, it's safe to delete.
-            const batch = writeBatch(firestore);
-            
-            // Delete the main schedule document.
+
+            // Delete the main schedule document itself.
             const scheduleRef = doc(firestore, 'schedules', schedule.id);
             batch.delete(scheduleRef);
 
-            // Delete all derived special instances.
-            specialInstancesToDelete.forEach(instanceRef => {
-                batch.delete(instanceRef);
-            });
-            
             await batch.commit();
 
             toast({
                 title: 'Schedule Deleted',
-                description: `The schedule and any derived trips have been deleted.`,
+                description: `The schedule has been successfully deleted.`,
             });
+
         } catch (error) {
             console.error("Error during schedule deletion: ", error);
             toast({
