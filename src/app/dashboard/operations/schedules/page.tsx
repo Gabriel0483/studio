@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { collection, doc, query, where, getDocs, writeBatch } from 'firebase/firestore';
+import { collection, doc, query, where, getDocs, writeBatch, deleteDoc } from 'firebase/firestore';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import {
   addDocumentNonBlocking,
@@ -117,8 +117,10 @@ const ScheduleForm = ({
   const { toast } = useToast();
   
   useEffect(() => {
-    setTripType(date ? 'Special' : 'Daily');
-  }, [date]);
+    if (tripType === 'Daily') {
+      setDate('');
+    }
+  }, [tripType]);
 
   useEffect(() => {
     if (shipId && shipId !== 'unassigned' && staff) {
@@ -132,7 +134,7 @@ const ScheduleForm = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!routeId || !departureTime || !arrivalTime || !availableSeats) {
+    if (!routeId || !departureTime || !arrivalTime || !availableSeats || (tripType === 'Special' && !date)) {
       toast({
         variant: 'destructive',
         title: 'Missing Fields',
@@ -158,11 +160,11 @@ const ScheduleForm = ({
       shipId: finalShipId,
       shipName: selectedShip ? selectedShip.name : 'Unassigned',
       routeId,
-      date: date || null,
+      date: tripType === 'Special' ? date : null,
       departureTime,
       arrivalTime,
       availableSeats: seatsNum,
-      tripType: date ? 'Special' : 'Daily',
+      tripType: tripType,
       status: schedule?.status || 'On Time',
     };
 
@@ -203,8 +205,22 @@ const ScheduleForm = ({
                 </SelectContent>
             </Select>
         </div>
-         <div className="space-y-2">
-            <Label htmlFor="date">Date (Optional)</Label>
+        <div className="space-y-2">
+            <Label htmlFor="tripType">Trip Type</Label>
+            <Select onValueChange={(value: 'Daily' | 'Special') => setTripType(value)} defaultValue={tripType}>
+                <SelectTrigger id="tripType">
+                    <SelectValue placeholder="Select a trip type" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="Daily">Daily (Regular)</SelectItem>
+                    <SelectItem value="Special">Special</SelectItem>
+                </SelectContent>
+            </Select>
+        </div>
+      </div>
+      {tripType === 'Special' && (
+        <div className="space-y-2">
+            <Label htmlFor="date">Date</Label>
             <Input
                 id="date"
                 type="date"
@@ -213,9 +229,9 @@ const ScheduleForm = ({
                 min={minDateStr}
                 max={maxDateStr}
             />
-             <p className="text-xs text-muted-foreground">Leave empty for daily trips. Limited to 5 days from today.</p>
+            <p className="text-xs text-muted-foreground">Required for special trips. Limited to 5 days.</p>
         </div>
-      </div>
+      )}
        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="departureTime">Departure Time</Label>
@@ -311,15 +327,16 @@ export default function SchedulesPage() {
       toast({ variant: 'destructive', title: 'Error', description: 'Database connection not found.' });
       return;
     }
-
+  
     const confirmMessage = `Are you sure you want to delete this schedule? This may also delete related future trip instances and cannot be undone.`;
     if (!window.confirm(confirmMessage)) {
       return;
     }
-
+  
     try {
+      // Find all schedule instances to check for bookings
       const scheduleIdsToDelete = [schedule.id];
-      if (schedule.tripType === 'Daily') {
+      if (schedule.tripType === 'Daily' && !schedule.date) {
         const instancesQuery = query(collection(firestore, 'schedules'), where('baseScheduleId', '==', schedule.id));
         const instancesSnapshot = await getDocs(instancesQuery);
         instancesSnapshot.forEach(doc => {
@@ -328,22 +345,23 @@ export default function SchedulesPage() {
           }
         });
       }
-      
+  
+      // Check for active bookings on any of the schedules to be deleted
       if (scheduleIdsToDelete.length > 0) {
         const bookingsQuery = query(collection(firestore, 'bookings'), where('scheduleId', 'in', scheduleIdsToDelete));
         const bookingsSnapshot = await getDocs(bookingsQuery);
-        
         if (!bookingsSnapshot.empty) {
           toast({
             variant: 'destructive',
             title: 'Deletion Blocked',
-            description: `This schedule (or its instances) has ${bookingsSnapshot.size} active booking(s). Please cancel or rebook them first.`,
+            description: `This schedule has ${bookingsSnapshot.size} active booking(s). Please cancel or rebook them first.`,
             duration: 5000,
           });
           return;
         }
       }
-
+      
+      // Perform deletion in a batch
       const batch = writeBatch(firestore);
       scheduleIdsToDelete.forEach(id => {
         const scheduleRef = doc(firestore, 'schedules', id);
@@ -351,12 +369,12 @@ export default function SchedulesPage() {
       });
       
       await batch.commit();
-
+      
       toast({
         title: 'Schedule Deleted',
         description: 'The schedule and any related instances have been removed.',
       });
-
+  
     } catch (error: any) {
       console.error('Error deleting schedule:', error);
       toast({
@@ -569,7 +587,7 @@ export default function SchedulesPage() {
                           variant="ghost"
                           size="icon"
                           className="text-destructive hover:text-destructive"
-                          onClick={() => handleDelete(schedule)}
+                          onClick={async () => await handleDelete(schedule)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -619,3 +637,5 @@ export default function SchedulesPage() {
     </div>
   );
 }
+
+    
