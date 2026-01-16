@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useState } from 'react';
-import { collection, doc, deleteDoc, query, where, getDocs } from 'firebase/firestore';
+import { collection, doc } from 'firebase/firestore';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import {
   addDocumentNonBlocking,
   updateDocumentNonBlocking,
+  deleteDocumentNonBlocking,
 } from '@/firebase/non-blocking-updates';
 import { Button } from '@/components/ui/button';
 import {
@@ -217,28 +218,15 @@ export default function ShipsPage() {
     setIsDeleteDialogOpen(true);
   };
 
-  const executeDelete = async () => {
+  const executeDelete = () => {
     if (!firestore || !shipToDelete) {
       toast({ variant: 'destructive', title: 'Error', description: 'Database connection or ship not found.' });
       return;
     }
 
     try {
-      const schedulesCol = collection(firestore, 'schedules');
-      const q = query(schedulesCol, where('shipId', '==', shipToDelete.id));
-      const querySnapshot = await getDocs(q);
-
-      if (!querySnapshot.empty) {
-          toast({
-            variant: 'destructive',
-            title: 'Deletion Failed',
-            description: `Cannot delete "${shipToDelete.name}" because it is assigned to ${querySnapshot.size} schedule(s). Please unassign it first.`,
-          });
-          return;
-      }
-
       const shipRef = doc(firestore, 'ships', shipToDelete.id);
-      await deleteDoc(shipRef);
+      deleteDocumentNonBlocking(shipRef);
       toast({
         title: 'Ship Deleted',
         description: `The ship "${shipToDelete.name}" has been successfully deleted.`,

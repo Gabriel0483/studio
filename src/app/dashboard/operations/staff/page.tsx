@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useState } from 'react';
-import { collection, doc, deleteDoc } from 'firebase/firestore';
+import { collection, doc } from 'firebase/firestore';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import {
   addDocumentNonBlocking,
   updateDocumentNonBlocking,
+  deleteDocumentNonBlocking
 } from '@/firebase/non-blocking-updates';
 import { Button } from '@/components/ui/button';
 import {
@@ -207,13 +208,13 @@ export default function StaffPage() {
     setIsDeleteDialogOpen(true);
   };
 
-  const executeDelete = async () => {
+  const executeDelete = () => {
     if (!firestore || !staffToDelete) {
       return;
     }
     try {
       const staffRef = doc(firestore, 'staff', staffToDelete.id);
-      await deleteDoc(staffRef);
+      deleteDocumentNonBlocking(staffRef);
       toast({
         title: 'Staff Deleted',
         description: `${staffToDelete.name} has been removed from the staff.`,
