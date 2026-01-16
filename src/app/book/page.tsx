@@ -28,7 +28,7 @@ import { PublicHeader } from "@/components/public-header"
 import { PublicFooter } from "@/components/public-footer"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from "@/firebase"
-import { collection, doc, serverTimestamp, runTransaction, Timestamp, where, query, getDocs, addDoc, getDoc, updateDoc } from "firebase/firestore"
+import { collection, doc, serverTimestamp, runTransaction, Timestamp, where, query, getDocs, addDoc, getDoc, updateDoc, orderBy } from "firebase/firestore"
 import React, { useMemo, useState, useEffect, useRef } from "react"
 import { Separator } from "@/components/ui/separator"
 import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
@@ -97,7 +97,16 @@ export default function BookingPage() {
   const passengerDocRef = useMemoFirebase(() => firestore && user ? doc(firestore, 'passengers', user.uid) : null, [firestore, user]);
   const { data: passengerData } = useDoc(passengerDocRef);
 
-  const schedulesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'schedules') : null, [firestore]);
+  const schedulesQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    return query(
+      collection(firestore, 'schedules'), 
+      where('date', '>=', todayStr),
+      orderBy('date', 'asc'),
+      orderBy('departureTime', 'asc')
+    );
+  }, [firestore]);
   const routesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'routes') : null, [firestore]);
   const faresQuery = useMemoFirebase(() => firestore ? collection(firestore, 'fares') : null, [firestore]);
   
@@ -162,7 +171,7 @@ export default function BookingPage() {
         s.routeId === watchRouteId &&
         s.date === formattedTravelDate &&
         (!isToday || s.departureTime > currentTime)
-      ).sort((a, b) => a.departureTime.localeCompare(b.departureTime));
+      );
       
       setFilteredSchedules(schedulesForDate);
 
