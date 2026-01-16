@@ -25,6 +25,16 @@ import {
   DialogTrigger,
   DialogClose,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -279,11 +289,25 @@ export default function SchedulesPage() {
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<Schedule | undefined>(undefined);
+  const [isDeleteAllConfirmOpen, setIsDeleteAllConfirmOpen] = useState(false);
+
 
   const { toast } = useToast();
 
   const handleDelete = async (schedule: Schedule) => {
     if (!firestore) return;
+  
+    const bookingsForScheduleQuery = query(collection(firestore, 'bookings'), where('scheduleId', '==', schedule.id));
+    const bookingsSnapshot = await getDocs(bookingsForScheduleQuery);
+  
+    if (!bookingsSnapshot.empty) {
+      toast({
+        variant: 'destructive',
+        title: 'Deletion Failed',
+        description: 'Cannot delete a schedule that has active bookings.',
+      });
+      return;
+    }
 
     if (window.confirm(`Are you sure you want to delete this schedule? This will also delete all of its future instances if it's a daily trip. This action cannot be undone.`)) {
       try {
@@ -293,8 +317,7 @@ export default function SchedulesPage() {
         batch.delete(scheduleRef);
 
         if (schedule.tripType === 'Daily') {
-          const schedulesCol = collection(firestore, 'schedules');
-          const instancesQuery = query(schedulesCol, where("baseScheduleId", "==", schedule.id));
+          const instancesQuery = query(collection(firestore, 'schedules'), where("baseScheduleId", "==", schedule.id));
           const instancesSnapshot = await getDocs(instancesQuery);
           instancesSnapshot.forEach(doc => {
             batch.delete(doc.ref);
@@ -315,6 +338,52 @@ export default function SchedulesPage() {
           description: `An error occurred: ${error.message}. Please check the console.`,
         });
       }
+    }
+  };
+
+  const handleDeleteAllSchedules = async () => {
+    if (!firestore) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Firestore not available. Please try again.',
+      });
+      return;
+    }
+    
+    try {
+      const schedulesCol = collection(firestore, 'schedules');
+      const querySnapshot = await getDocs(schedulesCol);
+      
+      if (querySnapshot.empty) {
+        toast({
+          title: 'No Schedules to Delete',
+          description: 'There are no schedules to delete.',
+        });
+        setIsDeleteAllConfirmOpen(false);
+        return;
+      }
+      
+      const batch = writeBatch(firestore);
+      querySnapshot.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+      
+      await batch.commit();
+      
+      toast({
+        title: 'All Schedules Deleted',
+        description: 'All schedules have been successfully deleted.',
+      });
+    } catch (error: any) {
+      console.error("Error deleting all schedules:", error);
+      toast({
+        variant: 'destructive',
+        title: 'Deletion Failed',
+        description: `An error occurred: ${error.message}.`,
+      });
+    } finally {
+      setIsDeleteAllConfirmOpen(false);
     }
   };
   
@@ -376,32 +445,41 @@ export default function SchedulesPage() {
             Create, view, edit, and delete trip schedules.
           </p>
         </div>
-        <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={() => setEditingSchedule(undefined)}>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Schedule
+        <div className="flex gap-2">
+            <Button
+                variant="destructive"
+                onClick={() => setIsDeleteAllConfirmOpen(true)}
+                >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete All
             </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[525px]">
-            <DialogHeader>
-              <DialogTitle>{editingSchedule ? 'Edit Schedule' : 'Add a New Schedule'}</DialogTitle>
-              <DialogDescription>
-                Fill in the details below. Click save when you're done.
-              </DialogDescription>
-            </DialogHeader>
-            {firestore && (
-              <ScheduleForm
-                firestore={firestore}
-                schedule={editingSchedule}
-                ships={ships || []}
-                routes={routes || []}
-                staff={staff || []}
-                onFinished={() => setIsFormOpen(false)}
-              />
-            )}
-          </DialogContent>
-        </Dialog>
+            <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+            <DialogTrigger asChild>
+                <Button onClick={() => setEditingSchedule(undefined)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Schedule
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[525px]">
+                <DialogHeader>
+                <DialogTitle>{editingSchedule ? 'Edit Schedule' : 'Add a New Schedule'}</DialogTitle>
+                <DialogDescription>
+                    Fill in the details below. Click save when you're done.
+                </DialogDescription>
+                </DialogHeader>
+                {firestore && (
+                <ScheduleForm
+                    firestore={firestore}
+                    schedule={editingSchedule}
+                    ships={ships || []}
+                    routes={routes || []}
+                    staff={staff || []}
+                    onFinished={() => setIsFormOpen(false)}
+                />
+                )}
+            </DialogContent>
+            </Dialog>
+        </div>
       </div>
 
       <Card>
@@ -493,6 +571,27 @@ export default function SchedulesPage() {
           </Table>
         </CardContent>
       </Card>
+
+      <AlertDialog open={isDeleteAllConfirmOpen} onOpenChange={setIsDeleteAllConfirmOpen}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    This action cannot be undone. This will permanently delete ALL schedules
+                    from your database.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                    onClick={handleDeleteAllSchedules}
+                    className="bg-destructive hover:bg-destructive/90"
+                >
+                    Yes, delete all schedules
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
