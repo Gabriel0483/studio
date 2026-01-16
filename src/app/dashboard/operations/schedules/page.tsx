@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -104,7 +105,7 @@ const ScheduleForm = ({
   onFinished: () => void;
 }) => {
   const [tripType, setTripType] = useState<Schedule['tripType']>(schedule?.tripType || 'Daily');
-  const [shipId, setShipId] = useState(schedule?.shipId || '');
+  const [shipId, setShipId] = useState(schedule?.shipId || 'unassigned');
   const [routeId, setRouteId] = useState(schedule?.routeId || '');
   const [date, setDate] = useState(schedule?.date || '');
   const [departureTime, setDepartureTime] = useState(schedule?.departureTime || '');
@@ -114,7 +115,7 @@ const ScheduleForm = ({
   const { toast } = useToast();
   
   useEffect(() => {
-    if (shipId && staff) {
+    if (shipId && shipId !== 'unassigned' && staff) {
         const crew = staff.filter(s => s.assignedShipId === shipId);
         setAssignedCrew(crew);
     } else {
@@ -144,11 +145,12 @@ const ScheduleForm = ({
         return;
     }
     
-    const selectedShip = ships.find(s => s.id === shipId);
+    const finalShipId = shipId === 'unassigned' ? null : shipId;
+    const selectedShip = ships.find(s => s.id === finalShipId);
 
     const scheduleData: Omit<Schedule, 'id'> = {
       tripType,
-      shipId: shipId || undefined,
+      shipId: finalShipId || undefined,
       shipName: selectedShip ? selectedShip.name : undefined,
       routeId,
       date: tripType === 'Special' ? date : undefined,
@@ -237,7 +239,7 @@ const ScheduleForm = ({
             <Select onValueChange={setShipId} defaultValue={shipId}>
                 <SelectTrigger id="shipId"><SelectValue placeholder="Select a ship" /></SelectTrigger>
                 <SelectContent>
-                    <SelectItem value="">Unassigned</SelectItem>
+                    <SelectItem value="unassigned">Unassigned</SelectItem>
                     {ships.map((ship) => <SelectItem key={ship.id} value={ship.id}>{ship.name}</SelectItem>)}
                 </SelectContent>
             </Select>
