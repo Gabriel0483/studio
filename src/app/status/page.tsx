@@ -2,7 +2,7 @@
 
 import React, { useMemo } from 'react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection } from 'firebase/firestore';
+import { collection, query, where } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -16,7 +16,11 @@ export default function StatusPage() {
 
   const schedulesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return collection(firestore, 'schedules');
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    return query(
+      collection(firestore, 'schedules'),
+      where('date', 'in', [null, todayStr])
+    );
   }, [firestore]);
 
   const { data: schedules, isLoading: isLoadingSchedules } = useCollection(schedulesQuery);
@@ -27,12 +31,23 @@ export default function StatusPage() {
 
     const todayStr = format(new Date(), 'yyyy-MM-dd');
     
-    return schedules
-      .filter(schedule => {
-        const isDaily = schedule.tripType === 'Daily';
-        const isSpecialToday = schedule.tripType === 'Special' && schedule.date === todayStr;
-        return isDaily || isSpecialToday;
-      })
+    const specialInstancesToday = schedules.filter(schedule => 
+        schedule.tripType === 'Special' && 
+        schedule.date === todayStr
+    );
+
+    const dailyTrips = schedules.filter(schedule => {
+        if (schedule.tripType !== 'Daily' || schedule.date) {
+            return false;
+        }
+        const hasSpecialInstance = specialInstancesToday.some(inst => inst.baseScheduleId === schedule.id);
+        if (hasSpecialInstance) {
+            return false;
+        }
+        return true;
+    });
+
+    return [...specialInstancesToday, ...dailyTrips]
       .sort((a, b) => a.departureTime.localeCompare(b.departureTime));
   }, [schedules]);
 

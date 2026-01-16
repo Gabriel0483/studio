@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useMemo } from 'react';
@@ -36,22 +35,30 @@ export default function BoardingPage() {
 
   const todaySchedules = useMemo(() => {
     if (!schedules) return [];
-
+    
     const todayStr = format(new Date(), 'yyyy-MM-dd');
-    const now = new Date();
-    const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
 
-    return schedules
-      .filter(schedule => {
-        const isDaily = schedule.tripType === 'Daily' && !schedule.date;
-        const isSpecialToday = schedule.tripType === 'Special' && schedule.date === todayStr;
-        
-        if (isDaily || isSpecialToday) {
-            // Include if trip has not departed yet.
-            return schedule.status !== 'Departed' && schedule.status !== 'Arrived';
+    const specialInstancesToday = schedules.filter(schedule => 
+        schedule.tripType === 'Special' && 
+        schedule.date === todayStr &&
+        schedule.status !== 'Departed' && 
+        schedule.status !== 'Arrived'
+    );
+
+    const dailyTrips = schedules.filter(schedule => {
+        if (schedule.tripType !== 'Daily' || schedule.date || (schedule.status === 'Departed' || schedule.status === 'Arrived')) {
+            return false;
         }
-        return false;
-      })
+
+        const hasSpecialInstance = specialInstancesToday.some(inst => inst.baseScheduleId === schedule.id);
+        if (hasSpecialInstance) {
+            return false;
+        }
+        
+        return true;
+    });
+
+    return [...specialInstancesToday, ...dailyTrips]
       .sort((a, b) => a.departureTime.localeCompare(b.departureTime));
   }, [schedules]);
 
