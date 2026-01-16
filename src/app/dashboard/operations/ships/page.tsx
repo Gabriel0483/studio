@@ -25,6 +25,16 @@ import {
   DialogTrigger,
   DialogClose,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -183,6 +193,8 @@ export default function ShipsPage() {
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingShip, setEditingShip] = useState<Ship | undefined>(undefined);
+  const [shipToDelete, setShipToDelete] = useState<Ship | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   const { toast } = useToast();
 
@@ -200,45 +212,52 @@ export default function ShipsPage() {
     }
   };
 
-  const handleDelete = async (ship: Ship) => {
-    if (!firestore) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Database connection not found.' });
+  const confirmDelete = (ship: Ship) => {
+    setShipToDelete(ship);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const executeDelete = async () => {
+    if (!firestore || !shipToDelete) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Database connection or ship not found.' });
       return;
     }
 
-    if (window.confirm(`Are you sure you want to delete the ship "${ship.name}"?`)) {
-      try {
-        const schedulesCol = collection(firestore, 'schedules');
-        const q = query(schedulesCol, where('shipId', '==', ship.id));
-        const querySnapshot = await getDocs(q);
+    try {
+      const schedulesCol = collection(firestore, 'schedules');
+      const q = query(schedulesCol, where('shipId', '==', shipToDelete.id));
+      const querySnapshot = await getDocs(q);
 
-        if (!querySnapshot.empty) {
-            toast({
-              variant: 'destructive',
-              title: 'Deletion Failed',
-              description: `Cannot delete "${ship.name}" because it is assigned to ${querySnapshot.size} schedule(s). Please unassign it first.`,
-            });
-            return;
-        }
-
-        const shipRef = doc(firestore, 'ships', ship.id);
-        await deleteDoc(shipRef);
-        toast({
-          title: 'Ship Deleted',
-          description: `The ship "${ship.name}" has been successfully deleted.`,
-        });
-      } catch (error: any) {
-        console.error('Error deleting ship:', error);
-        toast({
-          variant: 'destructive',
-          title: 'Deletion Failed',
-          description: error.message || 'An unexpected error occurred.',
-        });
+      if (!querySnapshot.empty) {
+          toast({
+            variant: 'destructive',
+            title: 'Deletion Failed',
+            description: `Cannot delete "${shipToDelete.name}" because it is assigned to ${querySnapshot.size} schedule(s). Please unassign it first.`,
+          });
+          return;
       }
+
+      const shipRef = doc(firestore, 'ships', shipToDelete.id);
+      await deleteDoc(shipRef);
+      toast({
+        title: 'Ship Deleted',
+        description: `The ship "${shipToDelete.name}" has been successfully deleted.`,
+      });
+    } catch (error: any) {
+      console.error('Error deleting ship:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Deletion Failed',
+        description: error.message || 'An unexpected error occurred.',
+      });
+    } finally {
+        setIsDeleteDialogOpen(false);
+        setShipToDelete(null);
     }
   };
 
   return (
+    <>
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -318,7 +337,7 @@ export default function ShipsPage() {
                           variant="ghost"
                           size="icon"
                           className="text-destructive hover:text-destructive"
-                          onClick={() => handleDelete(ship)}
+                          onClick={() => confirmDelete(ship)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -345,5 +364,23 @@ export default function ShipsPage() {
         </CardContent>
       </Card>
     </div>
+     <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the ship "{shipToDelete?.name}". This
+              action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={executeDelete} className="bg-destructive hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

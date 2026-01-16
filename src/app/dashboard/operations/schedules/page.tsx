@@ -1,8 +1,7 @@
-
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { collection, doc, query, where, getDocs, writeBatch, deleteDoc, orderBy } from 'firebase/firestore';
+import { collection, doc, query, where, getDocs, writeBatch, orderBy } from 'firebase/firestore';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import {
   addDocumentNonBlocking,
@@ -104,18 +103,18 @@ const ScheduleForm = ({
   staff: Staff[];
   onFinished: () => void;
 }) => {
-  const [tripType, setTripType] = useState(schedule?.tripType || 'Daily');
-  const [shipId, setShipId] = useState(schedule?.shipId || 'unassigned');
+  const [tripType, setTripType] = useState<Schedule['tripType']>(schedule?.tripType || 'Daily');
+  const [shipId, setShipId] = useState(schedule?.shipId || '');
   const [routeId, setRouteId] = useState(schedule?.routeId || '');
   const [date, setDate] = useState(schedule?.date || '');
   const [departureTime, setDepartureTime] = useState(schedule?.departureTime || '');
   const [arrivalTime, setArrivalTime] = useState(schedule?.arrivalTime || '');
-  const [availableSeats, setAvailableSeats] = useState(schedule?.availableSeats || '');
+  const [availableSeats, setAvailableSeats] = useState(schedule?.availableSeats?.toString() || '');
   const [assignedCrew, setAssignedCrew] = useState<Staff[]>([]);
   const { toast } = useToast();
   
   useEffect(() => {
-    if (shipId && shipId !== 'unassigned' && staff) {
+    if (shipId && staff) {
         const crew = staff.filter(s => s.assignedShipId === shipId);
         setAssignedCrew(crew);
     } else {
@@ -135,7 +134,7 @@ const ScheduleForm = ({
       return;
     }
     
-    const seatsNum = parseInt(availableSeats as string, 10);
+    const seatsNum = parseInt(availableSeats, 10);
      if (isNaN(seatsNum)) {
         toast({
             variant: 'destructive',
@@ -145,12 +144,11 @@ const ScheduleForm = ({
         return;
     }
     
-    const finalShipId = shipId === 'unassigned' ? undefined : shipId;
-    const selectedShip = ships.find(s => s.id === finalShipId);
+    const selectedShip = ships.find(s => s.id === shipId);
 
     const scheduleData: Omit<Schedule, 'id'> = {
       tripType,
-      shipId: finalShipId,
+      shipId: shipId || undefined,
       shipName: selectedShip ? selectedShip.name : undefined,
       routeId,
       date: tripType === 'Special' ? date : undefined,
@@ -239,7 +237,7 @@ const ScheduleForm = ({
             <Select onValueChange={setShipId} defaultValue={shipId}>
                 <SelectTrigger id="shipId"><SelectValue placeholder="Select a ship" /></SelectTrigger>
                 <SelectContent>
-                    <SelectItem value="unassigned">Unassigned</SelectItem>
+                    <SelectItem value="">Unassigned</SelectItem>
                     {ships.map((ship) => <SelectItem key={ship.id} value={ship.id}>{ship.name}</SelectItem>)}
                 </SelectContent>
             </Select>
@@ -287,87 +285,99 @@ export default function SchedulesPage() {
   const routesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'routes') : null, [firestore]);
   const staffQuery = useMemoFirebase(() => firestore ? collection(firestore, 'staff') : null, [firestore]);
 
-
   const { data: schedules, isLoading: isLoadingSchedules } = useCollection<Schedule>(schedulesQuery);
   const { data: ships, isLoading: isLoadingShips } = useCollection<Omit<Ship, 'id'>>(shipsQuery);
   const { data: routes, isLoading: isLoadingRoutes } = useCollection<Omit<Route, 'id'>>(routesQuery);
   const { data: staff, isLoading: isLoadingStaff } = useCollection<Omit<Staff, 'id'>>(staffQuery);
 
-
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<Schedule | undefined>(undefined);
-  const [isDeleteAllConfirmOpen, setIsDeleteAllConfirmOpen] = useState(false);
-
-
+  const [scheduleToDelete, setScheduleToDelete] = useState<Schedule | null>(null);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
+  
   const { toast } = useToast();
   
   const getRouteName = (routeId: string) => routes?.find(r => r.id === routeId)?.name || 'Unknown Route';
 
-  const handleDelete = async (schedule: Schedule) => {
-    if (!firestore) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Database connection not found.' });
-      return;
-    }
-
-    let confirmMessage = `Are you sure you want to delete this schedule?`;
-    if (schedule.tripType === 'Daily') {
-      confirmMessage += ` This is a Daily (template) trip, and deleting it will also delete all future special trips created from it.`;
-    }
-    confirmMessage += ` This action cannot be undone. Associated bookings will NOT be deleted and will need to be handled manually.`;
-
-    if (!window.confirm(confirmMessage)) {
-      return;
-    }
+  const confirmDelete = (schedule: Schedule) => {
+    setScheduleToDelete(schedule);
+    setIsDeleteConfirmOpen(true);
+  };
+  
+  const executeDelete = async () => {
+    if (!firestore || !scheduleToDelete) return;
 
     try {
       const batch = writeBatch(firestore);
+      const scheduleRef = doc(firestore, 'schedules', scheduleToDelete.id);
+      let specialTripsDeleted = 0;
 
-      // If it's a daily trip, find and delete all special trips spawned from it
-      if (schedule.tripType === 'Daily') {
+      if (scheduleToDelete.tripType === 'Daily') {
         const specialTripsQuery = query(
           collection(firestore, 'schedules'),
-          where('sourceScheduleId', '==', schedule.id)
+          where('sourceScheduleId', '==', scheduleToDelete.id)
         );
         const specialTripsSnapshot = await getDocs(specialTripsQuery);
-        if (!specialTripsSnapshot.empty) {
-          specialTripsSnapshot.forEach(doc => {
-            batch.delete(doc.ref);
-          });
-          toast({
-            title: 'Note',
-            description: `Deleting ${specialTripsSnapshot.size} associated special trip(s).`,
-          });
-        }
+        specialTripsSnapshot.forEach(doc => {
+          batch.delete(doc.ref);
+          specialTripsDeleted++;
+        });
       }
-
-      const scheduleRef = doc(firestore, 'schedules', schedule.id);
+      
       batch.delete(scheduleRef);
-
       await batch.commit();
 
       toast({
         title: 'Schedule Deleted',
-        description: 'The schedule has been successfully removed.',
+        description: `${scheduleToDelete.tripType === 'Daily' ? `Template and ${specialTripsDeleted} derived trips deleted.` : 'The schedule has been removed.'}`,
       });
-
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error deleting schedule:', error);
       toast({
         variant: 'destructive',
         title: 'Deletion Failed',
-        description: error.message || 'An unexpected error occurred during the deletion process.',
+        description: 'An unexpected error occurred.',
       });
+    } finally {
+      setIsDeleteConfirmOpen(false);
+      setScheduleToDelete(null);
     }
   };
   
-  const handleStatusChange = (scheduleId: string, status: string) => {
+  const handleClearPast = async () => {
     if (!firestore) return;
-    const scheduleRef = doc(firestore, 'schedules', scheduleId);
-    updateDocumentNonBlocking(scheduleRef, { status });
-    toast({
-        title: 'Status Updated',
-        description: 'The trip status has been updated.',
-    });
+    const today = format(new Date(), 'yyyy-MM-dd');
+    
+    try {
+        const q = query(
+            collection(firestore, 'schedules'),
+            where('tripType', '==', 'Special'),
+            where('date', '<', today)
+        );
+        const snapshot = await getDocs(q);
+        
+        if (snapshot.empty) {
+            toast({ title: 'No Past Schedules', description: 'There are no expired special schedules to clear.' });
+            setIsClearConfirmOpen(false);
+            return;
+        }
+
+        const batch = writeBatch(firestore);
+        snapshot.forEach(doc => batch.delete(doc.ref));
+        await batch.commit();
+
+        toast({
+            title: 'Cleanup Complete',
+            description: `Successfully deleted ${snapshot.size} past special schedules.`,
+        });
+
+    } catch (error) {
+        console.error('Error clearing past schedules:', error);
+        toast({ variant: 'destructive', title: 'Cleanup Failed', description: 'Could not clear past schedules.' });
+    } finally {
+        setIsClearConfirmOpen(false);
+    }
   };
   
   const formatTime = (timeString: string) => {
@@ -390,14 +400,12 @@ export default function SchedulesPage() {
     }
   };
 
-
   const isLoading = isLoadingSchedules || isLoadingShips || isLoadingRoutes || isLoadingStaff;
 
-  const statusOptions = ['On Time', 'Delayed', 'Departed', 'Arrived', 'Cancelled'];
-
   return (
+    <>
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Schedule Management</h1>
           <p className="text-muted-foreground">
@@ -405,6 +413,9 @@ export default function SchedulesPage() {
           </p>
         </div>
         <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setIsClearConfirmOpen(true)}>
+              <Trash2 className="mr-2 h-4 w-4" /> Clear Past Schedules
+            </Button>
             <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
             <DialogTrigger asChild>
                 <Button onClick={() => setEditingSchedule(undefined)}>
@@ -482,7 +493,7 @@ export default function SchedulesPage() {
                           variant="ghost"
                           size="icon"
                           className="text-destructive hover:text-destructive"
-                          onClick={() => handleDelete(schedule)}
+                          onClick={() => confirmDelete(schedule)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -509,5 +520,42 @@ export default function SchedulesPage() {
         </CardContent>
       </Card>
     </div>
+
+    <AlertDialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this schedule.
+              {scheduleToDelete?.tripType === 'Daily' && " This is a Daily template, so all future special trips created from it will also be deleted."}
+              {' '}This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={executeDelete} className="bg-destructive hover:bg-destructive/90">
+              Yes, Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={isClearConfirmOpen} onOpenChange={setIsClearConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear All Past Schedules?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete all 'Special' trips with a travel date before today. This can help clean up the database but cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleClearPast} className="bg-destructive hover:bg-destructive/90">
+              Yes, Clear Schedules
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

@@ -25,6 +25,16 @@ import {
   DialogTrigger,
   DialogClose,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -187,36 +197,44 @@ export default function StaffPage() {
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<Staff | undefined>(undefined);
+  const [staffToDelete, setStaffToDelete] = useState<Staff | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   const { toast } = useToast();
 
-  const handleDelete = async (staffMember: Staff) => {
-    if (!firestore) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Database connection not found.' });
+  const confirmDelete = (staffMember: Staff) => {
+    setStaffToDelete(staffMember);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const executeDelete = async () => {
+    if (!firestore || !staffToDelete) {
       return;
     }
-    if (window.confirm(`Are you sure you want to delete ${staffMember.name}?`)) {
-      try {
-        const staffRef = doc(firestore, 'staff', staffMember.id);
-        await deleteDoc(staffRef);
-        toast({
-          title: 'Staff Deleted',
-          description: `${staffMember.name} has been removed from the staff.`,
-        });
-      } catch (error: any) {
-        console.error('Error deleting staff:', error);
-        toast({
-          variant: 'destructive',
-          title: 'Deletion Failed',
-          description: error.message || 'An unexpected error occurred.',
-        });
-      }
+    try {
+      const staffRef = doc(firestore, 'staff', staffToDelete.id);
+      await deleteDoc(staffRef);
+      toast({
+        title: 'Staff Deleted',
+        description: `${staffToDelete.name} has been removed from the staff.`,
+      });
+    } catch (error: any) {
+      console.error('Error deleting staff:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Deletion Failed',
+        description: error.message || 'An unexpected error occurred.',
+      });
+    } finally {
+      setIsDeleteDialogOpen(false);
+      setStaffToDelete(null);
     }
   };
 
   const isLoading = isLoadingStaff || isLoadingShips;
 
   return (
+    <>
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -293,7 +311,7 @@ export default function StaffPage() {
                           variant="ghost"
                           size="icon"
                           className="text-destructive hover:text-destructive"
-                          onClick={() => handleDelete(person)}
+                          onClick={() => confirmDelete(person)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -320,5 +338,22 @@ export default function StaffPage() {
         </CardContent>
       </Card>
     </div>
+    <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This will permanently delete the staff member "{staffToDelete?.name}". This action cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={executeDelete} className="bg-destructive hover:bg-destructive/90">
+            Delete
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }
