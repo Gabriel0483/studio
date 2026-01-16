@@ -1,12 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
-import { collection, doc } from 'firebase/firestore';
+import { collection, doc, deleteDoc, query, where, getDocs } from 'firebase/firestore';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import {
   addDocumentNonBlocking,
   updateDocumentNonBlocking,
-  deleteDocumentNonBlocking,
 } from '@/firebase/non-blocking-updates';
 import { Button } from '@/components/ui/button';
 import {
@@ -201,14 +200,41 @@ export default function ShipsPage() {
     }
   };
 
-  const handleDelete = (ship: Ship) => {
+  const handleDelete = async (ship: Ship) => {
+    if (!firestore) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Database connection not found.' });
+      return;
+    }
+
     if (window.confirm(`Are you sure you want to delete the ship "${ship.name}"?`)) {
-      const shipRef = doc(firestore, 'ships', ship.id);
-      deleteDocumentNonBlocking(shipRef);
-      toast({
-        title: 'Ship Deleted',
-        description: `The ship "${ship.name}" has been deleted.`,
-      });
+      try {
+        const schedulesCol = collection(firestore, 'schedules');
+        const q = query(schedulesCol, where('shipId', '==', ship.id));
+        const querySnapshot = await getDocs(q);
+
+        if (!querySnapshot.empty) {
+            toast({
+              variant: 'destructive',
+              title: 'Deletion Failed',
+              description: `Cannot delete "${ship.name}" because it is assigned to ${querySnapshot.size} schedule(s). Please unassign it first.`,
+            });
+            return;
+        }
+
+        const shipRef = doc(firestore, 'ships', ship.id);
+        await deleteDoc(shipRef);
+        toast({
+          title: 'Ship Deleted',
+          description: `The ship "${ship.name}" has been successfully deleted.`,
+        });
+      } catch (error: any) {
+        console.error('Error deleting ship:', error);
+        toast({
+          variant: 'destructive',
+          title: 'Deletion Failed',
+          description: error.message || 'An unexpected error occurred.',
+        });
+      }
     }
   };
 

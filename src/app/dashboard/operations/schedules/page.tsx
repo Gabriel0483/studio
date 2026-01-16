@@ -306,53 +306,58 @@ export default function SchedulesPage() {
 
   const handleDelete = async (schedule: Schedule) => {
     if (!firestore) {
-      toast({
-        variant: 'destructive',
-        title: 'Database Connection Error',
-        description: 'Could not connect to the database. Please try again.',
-      });
+      toast({ variant: 'destructive', title: 'Error', description: 'Database connection not found.' });
       return;
     }
-  
-    const confirmed = window.confirm(
-      `Are you sure you want to delete this schedule? This will also delete all of its future instances if it's a daily trip. This action cannot be undone.`
-    );
+    
+    if (!window.confirm(`Are you sure you want to delete this schedule? This action cannot be undone and will also remove related future trips.`)) {
+        return;
+    }
 
-    if (confirmed) {
-      try {
-        const batch = writeBatch(firestore);
-
-        // Queue the main schedule document for deletion
-        const scheduleRef = doc(firestore, 'schedules', schedule.id);
-        batch.delete(scheduleRef);
-
-        // If it is a daily trip, find and queue its instances for deletion
+    try {
+        const bookingsCol = collection(firestore, 'bookings');
+        
+        const scheduleIdsToCheck = [schedule.id];
         if (schedule.tripType === 'Daily') {
-          const instancesQuery = query(
-            collection(firestore, 'schedules'),
-            where('baseScheduleId', '==', schedule.id)
-          );
-          const instancesSnapshot = await getDocs(instancesQuery);
-          instancesSnapshot.forEach((doc) => {
-            batch.delete(doc.ref);
-          });
+            const instancesQuery = query(collection(firestore, 'schedules'), where('baseScheduleId', '==', schedule.id));
+            const instancesSnapshot = await getDocs(instancesQuery);
+            instancesSnapshot.forEach(doc => scheduleIdsToCheck.push(doc.id));
+        }
+
+        for (const id of scheduleIdsToCheck) {
+            const bookingsQuery = query(bookingsCol, where('scheduleId', '==', id));
+            const bookingsSnapshot = await getDocs(bookingsQuery);
+            if (!bookingsSnapshot.empty) {
+                const conflictingSchedule = id === schedule.id ? 'this schedule' : `a future instance`;
+                toast({
+                    variant: 'destructive',
+                    title: 'Deletion Blocked',
+                    description: `Cannot delete because ${conflictingSchedule} has active bookings. Please cancel or rebook them first.`,
+                });
+                return; 
+            }
         }
         
-        // Atomically commit all the deletions
+        const batch = writeBatch(firestore);
+        for (const id of scheduleIdsToCheck) {
+            const scheduleRef = doc(firestore, 'schedules', id);
+            batch.delete(scheduleRef);
+        }
+
         await batch.commit();
         
         toast({
           title: 'Schedule Deleted',
           description: 'The schedule and its related instances have been successfully removed.',
         });
-      } catch (error: any) {
+
+    } catch (error: any) {
         console.error('Error deleting schedule:', error);
         toast({
-          variant: 'destructive',
-          title: 'Deletion Failed',
-          description: error.message || 'An unexpected error occurred while deleting the schedule.',
+            variant: 'destructive',
+            title: 'Deletion Failed',
+            description: error.message || 'An unexpected error occurred during the deletion process.',
         });
-      }
     }
   };
 
@@ -425,7 +430,6 @@ export default function SchedulesPage() {
   const formatDate = (dateString: string | null) => {
     if (!dateString) return "Daily";
     try {
-        // Assuming dateString is in 'YYYY-MM-DD' format
         const date = parse(dateString, 'yyyy-MM-dd', new Date());
         return format(date, 'PPP');
     } catch (e) {

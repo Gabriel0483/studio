@@ -1,12 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
-import { collection, doc } from 'firebase/firestore';
+import { collection, doc, deleteDoc } from 'firebase/firestore';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import {
   addDocumentNonBlocking,
   updateDocumentNonBlocking,
-  deleteDocumentNonBlocking,
 } from '@/firebase/non-blocking-updates';
 import { Button } from '@/components/ui/button';
 import {
@@ -191,14 +190,27 @@ export default function StaffPage() {
 
   const { toast } = useToast();
 
-  const handleDelete = (staffMember: Staff) => {
+  const handleDelete = async (staffMember: Staff) => {
+    if (!firestore) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Database connection not found.' });
+      return;
+    }
     if (window.confirm(`Are you sure you want to delete ${staffMember.name}?`)) {
-      const staffRef = doc(firestore, 'staff', staffMember.id);
-      deleteDocumentNonBlocking(staffRef);
-      toast({
-        title: 'Staff Deleted',
-        description: `${staffMember.name} has been removed from the staff.`,
-      });
+      try {
+        const staffRef = doc(firestore, 'staff', staffMember.id);
+        await deleteDoc(staffRef);
+        toast({
+          title: 'Staff Deleted',
+          description: `${staffMember.name} has been removed from the staff.`,
+        });
+      } catch (error: any) {
+        console.error('Error deleting staff:', error);
+        toast({
+          variant: 'destructive',
+          title: 'Deletion Failed',
+          description: error.message || 'An unexpected error occurred.',
+        });
+      }
     }
   };
 
