@@ -1,12 +1,11 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { collection, doc } from 'firebase/firestore';
+import { collection, doc, query, where, getDocs, writeBatch } from 'firebase/firestore';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import {
   addDocumentNonBlocking,
   updateDocumentNonBlocking,
-  deleteDocumentNonBlocking,
 } from '@/firebase/non-blocking-updates';
 import { Button } from '@/components/ui/button';
 import {
@@ -282,15 +281,68 @@ export default function SchedulesPage() {
 
   const { toast } = useToast();
 
-  const handleDelete = (schedule: Schedule) => {
-    if (window.confirm(`Are you sure you want to delete this schedule?`)) {
-      if (!firestore) return;
-      const scheduleRef = doc(firestore, 'schedules', schedule.id);
-      deleteDocumentNonBlocking(scheduleRef);
-      toast({
-        title: 'Schedule Deleted',
-        description: `The schedule has been deleted.`,
-      });
+  const handleDelete = async (schedule: Schedule) => {
+    if (!firestore) return;
+
+    if (window.confirm(`Are you sure you want to delete this schedule? This is a destructive action.`)) {
+        
+        const bookingsRef = collection(firestore, 'bookings');
+        const q = query(bookingsRef, where('scheduleId', '==', schedule.id));
+        
+        const schedulesCol = collection(firestore, 'schedules');
+        const specialInstancesQuery = query(schedulesCol, where("baseScheduleId", "==", schedule.id));
+        
+        try {
+            const querySnapshot = await getDocs(q);
+            const specialInstancesSnapshot = await getDocs(specialInstancesQuery);
+
+            let associatedBookingsExist = !querySnapshot.empty;
+            let derivedScheduleIds: string[] = [];
+
+            if (!specialInstancesSnapshot.empty) {
+                derivedScheduleIds = specialInstancesSnapshot.docs.map(d => d.id);
+                if(derivedScheduleIds.length > 0) {
+                    const derivedBookingsQuery = query(bookingsRef, where('scheduleId', 'in', derivedScheduleIds));
+                    const derivedBookingsSnapshot = await getDocs(derivedBookingsQuery);
+                    if (!derivedBookingsSnapshot.empty) {
+                        associatedBookingsExist = true;
+                    }
+                }
+            }
+            
+            if (associatedBookingsExist) {
+                toast({
+                    variant: 'destructive',
+                    title: 'Deletion Failed',
+                    description: 'Cannot delete schedule with active or past bookings. Please cancel or rebook them first.',
+                });
+                return;
+            }
+
+            const batch = writeBatch(firestore);
+
+            const scheduleRef = doc(firestore, 'schedules', schedule.id);
+            batch.delete(scheduleRef);
+
+            derivedScheduleIds.forEach(instanceId => {
+                const instanceRef = doc(firestore, 'schedules', instanceId);
+                batch.delete(instanceRef);
+            });
+            
+            await batch.commit();
+
+            toast({
+                title: 'Schedule Deleted',
+                description: `The schedule and its derived instances have been deleted.`,
+            });
+        } catch (error) {
+            console.error("Error deleting schedule: ", error);
+            toast({
+                variant: 'destructive',
+                title: 'Error',
+                description: 'Could not delete the schedule. Please check the console for details.',
+            });
+        }
     }
   };
   
