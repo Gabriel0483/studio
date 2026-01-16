@@ -57,8 +57,6 @@ import { Pencil, Plus, Trash2, Calendar as CalendarIcon, Users } from 'lucide-re
 import { useToast } from '@/hooks/use-toast';
 import type { Firestore } from 'firebase/firestore';
 import { format, parse } from 'date-fns';
-import { Badge } from '@/components/ui/badge';
-
 
 interface Ship {
   id: string;
@@ -82,13 +80,11 @@ interface Schedule {
   shipId?: string;
   shipName?: string;
   routeId: string;
-  date: string | null;
+  date: string;
   departureTime: string;
   arrivalTime: string;
   availableSeats: number;
-  tripType: 'Daily' | 'Special';
   status?: 'On Time' | 'Delayed' | 'Departed' | 'Arrived' | 'Cancelled';
-  baseScheduleId?: string;
 }
 
 const ScheduleForm = ({
@@ -112,16 +108,9 @@ const ScheduleForm = ({
   const [departureTime, setDepartureTime] = useState(schedule?.departureTime || '');
   const [arrivalTime, setArrivalTime] = useState(schedule?.arrivalTime || '');
   const [availableSeats, setAvailableSeats] = useState(schedule?.availableSeats || '');
-  const [tripType, setTripType] = useState<'Daily' | 'Special'>(schedule?.tripType || 'Daily');
   const [assignedCrew, setAssignedCrew] = useState<Staff[]>([]);
   const { toast } = useToast();
   
-  useEffect(() => {
-    if (tripType === 'Daily') {
-      setDate('');
-    }
-  }, [tripType]);
-
   useEffect(() => {
     if (shipId && shipId !== 'unassigned' && staff) {
         const crew = staff.filter(s => s.assignedShipId === shipId);
@@ -134,7 +123,7 @@ const ScheduleForm = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!routeId || !departureTime || !arrivalTime || !availableSeats || (tripType === 'Special' && !date)) {
+    if (!routeId || !departureTime || !arrivalTime || !availableSeats || !date) {
       toast({
         variant: 'destructive',
         title: 'Missing Fields',
@@ -160,11 +149,10 @@ const ScheduleForm = ({
       shipId: finalShipId,
       shipName: selectedShip ? selectedShip.name : 'Unassigned',
       routeId,
-      date: tripType === 'Special' ? date : null,
+      date,
       departureTime,
       arrivalTime,
       availableSeats: seatsNum,
-      tripType: tripType,
       status: schedule?.status || 'On Time',
     };
 
@@ -206,20 +194,6 @@ const ScheduleForm = ({
             </Select>
         </div>
         <div className="space-y-2">
-            <Label htmlFor="tripType">Trip Type</Label>
-            <Select onValueChange={(value: 'Daily' | 'Special') => setTripType(value)} defaultValue={tripType}>
-                <SelectTrigger id="tripType">
-                    <SelectValue placeholder="Select a trip type" />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="Daily">Daily (Regular)</SelectItem>
-                    <SelectItem value="Special">Special</SelectItem>
-                </SelectContent>
-            </Select>
-        </div>
-      </div>
-      {tripType === 'Special' && (
-        <div className="space-y-2">
             <Label htmlFor="date">Date</Label>
             <Input
                 id="date"
@@ -229,9 +203,8 @@ const ScheduleForm = ({
                 min={minDateStr}
                 max={maxDateStr}
             />
-            <p className="text-xs text-muted-foreground">Required for special trips. Limited to 5 days.</p>
         </div>
-      )}
+      </div>
        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="departureTime">Departure Time</Label>
@@ -328,51 +301,32 @@ export default function SchedulesPage() {
       return;
     }
   
-    const confirmMessage = `Are you sure you want to delete this schedule? This may also delete related future trip instances and cannot be undone.`;
+    const confirmMessage = `Are you sure you want to delete this schedule? This action cannot be undone.`;
     if (!window.confirm(confirmMessage)) {
       return;
     }
   
     try {
-      // Find all schedule instances to check for bookings
-      const scheduleIdsToDelete = [schedule.id];
-      if (schedule.tripType === 'Daily' && !schedule.date) {
-        const instancesQuery = query(collection(firestore, 'schedules'), where('baseScheduleId', '==', schedule.id));
-        const instancesSnapshot = await getDocs(instancesQuery);
-        instancesSnapshot.forEach(doc => {
-          if (!scheduleIdsToDelete.includes(doc.id)) {
-            scheduleIdsToDelete.push(doc.id);
-          }
+      // Check for active bookings on the schedule to be deleted
+      const bookingsQuery = query(collection(firestore, 'bookings'), where('scheduleId', '==', schedule.id));
+      const bookingsSnapshot = await getDocs(bookingsQuery);
+      if (!bookingsSnapshot.empty) {
+        toast({
+          variant: 'destructive',
+          title: 'Deletion Blocked',
+          description: `This schedule has ${bookingsSnapshot.size} active booking(s). Please cancel or rebook them first.`,
+          duration: 5000,
         });
-      }
-  
-      // Check for active bookings on any of the schedules to be deleted
-      if (scheduleIdsToDelete.length > 0) {
-        const bookingsQuery = query(collection(firestore, 'bookings'), where('scheduleId', 'in', scheduleIdsToDelete));
-        const bookingsSnapshot = await getDocs(bookingsQuery);
-        if (!bookingsSnapshot.empty) {
-          toast({
-            variant: 'destructive',
-            title: 'Deletion Blocked',
-            description: `This schedule has ${bookingsSnapshot.size} active booking(s). Please cancel or rebook them first.`,
-            duration: 5000,
-          });
-          return;
-        }
+        return;
       }
       
-      // Perform deletion in a batch
-      const batch = writeBatch(firestore);
-      scheduleIdsToDelete.forEach(id => {
-        const scheduleRef = doc(firestore, 'schedules', id);
-        batch.delete(scheduleRef);
-      });
-      
-      await batch.commit();
+      // Perform deletion
+      const scheduleRef = doc(firestore, 'schedules', schedule.id);
+      await deleteDoc(scheduleRef);
       
       toast({
         title: 'Schedule Deleted',
-        description: 'The schedule and any related instances have been removed.',
+        description: 'The schedule has been successfully removed.',
       });
   
     } catch (error: any) {
@@ -452,7 +406,7 @@ export default function SchedulesPage() {
   };
   
   const formatDate = (dateString: string | null) => {
-    if (!dateString) return "Daily";
+    if (!dateString) return "N/A";
     try {
         const date = parse(dateString, 'yyyy-MM-dd', new Date());
         return format(date, 'PPP');
@@ -463,18 +417,6 @@ export default function SchedulesPage() {
 
 
   const isLoading = isLoadingSchedules || isLoadingShips || isLoadingRoutes || isLoadingStaff;
-
-  
-  const getTripTypeVariant = (tripType: string) => {
-    switch (tripType) {
-      case 'Daily':
-        return 'secondary';
-      case 'Special':
-        return 'default';
-      default:
-        return 'outline';
-    }
-  };
 
   const statusOptions = ['On Time', 'Delayed', 'Departed', 'Arrived', 'Cancelled'];
 
@@ -535,7 +477,6 @@ export default function SchedulesPage() {
               <TableRow>
                 <TableHead>Route</TableHead>
                 <TableHead>Date</TableHead>
-                <TableHead>Trip Type</TableHead>
                 <TableHead>Departure</TableHead>
                 <TableHead>Live Status</TableHead>
                 <TableHead>Seats</TableHead>
@@ -545,7 +486,7 @@ export default function SchedulesPage() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center">
+                  <TableCell colSpan={6} className="text-center">
                     Loading schedules...
                   </TableCell>
                 </TableRow>
@@ -554,11 +495,6 @@ export default function SchedulesPage() {
                   <TableRow key={schedule.id}>
                     <TableCell className="font-medium">{getRouteName(schedule.routeId)}</TableCell>
                     <TableCell>{formatDate(schedule.date)}</TableCell>
-                    <TableCell>
-                      <Badge variant={getTripTypeVariant(schedule.tripType) as any}>
-                        {schedule.tripType}
-                      </Badge>
-                    </TableCell>
                     <TableCell>{formatTime(schedule.departureTime)}</TableCell>
                     <TableCell>
                       <Select defaultValue={schedule.status || 'On Time'} onValueChange={(value) => handleStatusChange(schedule.id, value)}>
@@ -597,7 +533,7 @@ export default function SchedulesPage() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-24 text-center">
+                  <TableCell colSpan={6} className="h-24 text-center">
                     <div className="flex flex-col items-center gap-2">
                         <CalendarIcon className="h-8 w-8 text-muted-foreground" />
                         <p className="text-muted-foreground">No schedules found.</p>
@@ -637,4 +573,3 @@ export default function SchedulesPage() {
     </div>
   );
 }
-

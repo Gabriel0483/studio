@@ -278,8 +278,8 @@
           "description": "Reference to Route. (Relationship: Route 1:N Schedule)"
         },
         "date": {
-          "type": [ "string", "null" ],
-          "description": "The date of the scheduled trip. Null for daily trips.",
+          "type": "string",
+          "description": "The date of the scheduled trip.",
           "format": "date"
         },
         "departureTime": {
@@ -296,11 +296,6 @@
           "type": "number",
           "description": "The number of seats available on this scheduled trip."
         },
-        "tripType": {
-          "type": "string",
-          "description": "The type of trip (e.g., 'Daily', 'Special').",
-          "enum": ["Daily", "Special"]
-        },
         "status": {
             "type": "string",
             "description": "The real-time status of the trip.",
@@ -310,19 +305,15 @@
             "type": "string",
             "description": "The boarding status of the trip.",
             "enum": ["Awaiting", "Boarding", "Boarding Closed", "Departed"]
-        },
-        "baseScheduleId": {
-            "type": ["string", "null"],
-            "description": "If this is a specific instance of a daily trip, this ID points to the original 'Daily' schedule template."
         }
       },
       "required": [
         "id",
         "routeId",
+        "date",
         "departureTime",
         "arrivalTime",
-        "availableSeats",
-        "tripType"
+        "availableSeats"
       ]
     },
     "Booking": {

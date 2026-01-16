@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useMemo } from 'react';
@@ -14,41 +15,21 @@ import { PublicFooter } from '@/components/public-footer';
 export default function StatusPage() {
   const firestore = useFirestore();
 
+  const todayStr = format(new Date(), 'yyyy-MM-dd');
   const schedulesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    const todayStr = format(new Date(), 'yyyy-MM-dd');
     return query(
       collection(firestore, 'schedules'),
-      where('date', 'in', [null, todayStr])
+      where('date', '==', todayStr)
     );
-  }, [firestore]);
+  }, [firestore, todayStr]);
 
   const { data: schedules, isLoading: isLoadingSchedules } = useCollection(schedulesQuery);
   const { data: routes, isLoading: isLoadingRoutes } = useCollection(useMemoFirebase(() => firestore ? collection(firestore, 'routes') : null, [firestore]));
 
   const todaySchedules = useMemo(() => {
     if (!schedules) return [];
-
-    const todayStr = format(new Date(), 'yyyy-MM-dd');
-    
-    const specialInstancesToday = schedules.filter(schedule => 
-        schedule.tripType === 'Special' && 
-        schedule.date === todayStr
-    );
-
-    const dailyTrips = schedules.filter(schedule => {
-        if (schedule.tripType !== 'Daily' || schedule.date) {
-            return false;
-        }
-        const hasSpecialInstance = specialInstancesToday.some(inst => inst.baseScheduleId === schedule.id);
-        if (hasSpecialInstance) {
-            return false;
-        }
-        return true;
-    });
-
-    return [...specialInstancesToday, ...dailyTrips]
-      .sort((a, b) => a.departureTime.localeCompare(b.departureTime));
+    return schedules.sort((a, b) => a.departureTime.localeCompare(b.departureTime));
   }, [schedules]);
 
   const getRouteName = (routeId: string) => routes?.find(r => r.id === routeId)?.name || 'Unknown Route';

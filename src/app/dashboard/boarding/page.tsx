@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useMemo } from 'react';
@@ -14,16 +15,12 @@ export default function BoardingPage() {
   const firestore = useFirestore();
   const router = useRouter();
 
+  const todayStr = format(new Date(), 'yyyy-MM-dd');
+
   const schedulesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    const todayStr = format(new Date(), 'yyyy-MM-dd');
-    
-    // Query for daily trips OR special trips scheduled for today
-    return query(
-      collection(firestore, 'schedules'),
-      where('date', 'in', [null, todayStr])
-    );
-  }, [firestore]);
+    return query(collection(firestore, 'schedules'), where('date', '==', todayStr));
+  }, [firestore, todayStr]);
   
   const routesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -36,30 +33,10 @@ export default function BoardingPage() {
   const todaySchedules = useMemo(() => {
     if (!schedules) return [];
     
-    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    return schedules
+        .filter(schedule => schedule.status !== 'Departed' && schedule.status !== 'Arrived')
+        .sort((a, b) => a.departureTime.localeCompare(b.departureTime));
 
-    const specialInstancesToday = schedules.filter(schedule => 
-        schedule.tripType === 'Special' && 
-        schedule.date === todayStr &&
-        schedule.status !== 'Departed' && 
-        schedule.status !== 'Arrived'
-    );
-
-    const dailyTrips = schedules.filter(schedule => {
-        if (schedule.tripType !== 'Daily' || schedule.date || (schedule.status === 'Departed' || schedule.status === 'Arrived')) {
-            return false;
-        }
-
-        const hasSpecialInstance = specialInstancesToday.some(inst => inst.baseScheduleId === schedule.id);
-        if (hasSpecialInstance) {
-            return false;
-        }
-        
-        return true;
-    });
-
-    return [...specialInstancesToday, ...dailyTrips]
-      .sort((a, b) => a.departureTime.localeCompare(b.departureTime));
   }, [schedules]);
 
   const getRouteName = (routeId: string) => routes?.find(r => r.id === routeId)?.name || 'Unknown Route';
@@ -108,7 +85,6 @@ export default function BoardingPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-2 flex-1">
-                 <Badge variant={schedule.tripType === 'Daily' ? 'secondary' : 'default'}>{schedule.tripType} Trip</Badge>
                  <div className="text-sm text-muted-foreground">
                     <p>Ship: {schedule.shipName || 'Unassigned'}</p>
                     <p>Seats Available: {schedule.availableSeats}</p>
