@@ -87,12 +87,10 @@ export default function EditBookingPage() {
   const schedulesQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'schedules') : null), [firestore]);
   const routesQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'routes') : null), [firestore]);
   const faresQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'fares') : null), [firestore]);
-  const shipsQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'ships') : null), [firestore]);
 
   const { data: allSchedules, isLoading: isLoadingSchedules } = useCollection(schedulesQuery);
   const { data: routes, isLoading: isLoadingRoutes } = useCollection(routesQuery);
   const { data: allFares, isLoading: isLoadingFares } = useCollection(faresQuery);
-  const { data: allShips, isLoading: isLoadingShips } = useCollection(shipsQuery);
 
   const [availableFares, setAvailableFares] = useState<any[]>([]);
   const [filteredSchedules, setFilteredSchedules] = useState<any[]>([]);
@@ -170,10 +168,9 @@ export default function EditBookingPage() {
       const formattedTravelDate = format(new Date(watchTravelDate), 'yyyy-MM-dd');
       
       const relatedSchedules = allSchedules.filter(
-        (s) =>
-          s.routeId === watchRouteId &&
-          (s.date === formattedTravelDate || (s.tripType === 'Daily' && !s.date))
-      );
+        (s) => s.routeId === watchRouteId && s.date === formattedTravelDate
+      ).sort((a,b) => a.departureTime.localeCompare(b.departureTime));
+
       setFilteredSchedules(relatedSchedules);
     } else {
       setFilteredSchedules([]);
@@ -240,85 +237,47 @@ export default function EditBookingPage() {
     routes?.find((r) => r.id === routeId)?.name || 'Unknown Route';
 
   async function handleUpdateBooking(data: BookingFormData) {
-    if (!firestore || !booking || !allSchedules || !allShips) {
+    if (!firestore || !booking || !allSchedules) {
         toast({ variant: 'destructive', title: 'Error', description: 'Could not connect. Please try again.' });
         return;
     }
     setIsSubmitting(true);
 
     const newSeats = data.passengers.length;
-    const newTemplateSchedule = allSchedules.find(s => s.id === data.scheduleId);
-    if (!newTemplateSchedule) {
+    const newSchedule = allSchedules.find(s => s.id === data.scheduleId);
+    if (!newSchedule) {
         toast({ variant: 'destructive', title: 'Error', description: 'Selected schedule could not be found.' });
         setIsSubmitting(false);
         return;
     }
 
     const travelDateObj = new Date(data.travelDate);
-    const travelDateStr = format(travelDateObj, 'yyyy-MM-dd');
-    const todayStr = format(new Date(), 'yyyy-MM-dd');
-    const isFutureDailyTrip = newTemplateSchedule.tripType === 'Daily' && !newTemplateSchedule.date && travelDateStr > todayStr;
-
-    let existingInstanceId: string | null = null;
-    if (isFutureDailyTrip) {
-        const schedulesCol = collection(firestore, 'schedules');
-        const q = query(schedulesCol, where("baseScheduleId", "==", data.scheduleId), where("date", "==", travelDateStr));
-        try {
-            const existingInstancesSnapshot = await getDocs(q);
-            if (!existingInstancesSnapshot.empty) {
-                existingInstanceId = existingInstancesSnapshot.docs[0].id;
-            }
-        } catch (e) {
-            console.error("Failed to query for existing schedule instances:", e);
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not verify schedule availability. Please try again.' });
-            setIsSubmitting(false);
-            return;
-        }
-    }
 
     try {
         await runTransaction(firestore, async (transaction) => {
             const bookingRef = doc(firestore, 'bookings', booking.firestoreId);
             const oldScheduleRef = doc(firestore, 'schedules', booking.scheduleId);
-            
-            const oldScheduleDoc = await transaction.get(oldScheduleRef);
-            
-            let finalScheduleRef;
-            if (isFutureDailyTrip) {
-                finalScheduleRef = existingInstanceId ? doc(firestore, 'schedules', existingInstanceId) : doc(collection(firestore, 'schedules'));
-            } else {
-                finalScheduleRef = doc(firestore, 'schedules', data.scheduleId);
-            }
-            const newScheduleDocForUpdate = await transaction.get(finalScheduleRef);
+            const newScheduleRef = doc(firestore, 'schedules', data.scheduleId);
 
+            const oldScheduleDoc = await transaction.get(oldScheduleRef);
+            const newScheduleDoc = await transaction.get(newScheduleRef);
+
+            if (!newScheduleDoc.exists()) {
+                throw new Error("The new schedule you selected no longer exists.");
+            }
+            
             if (oldScheduleDoc.exists() && (booking.status === 'Reserved' || booking.status === 'Confirmed')) {
                 transaction.update(oldScheduleRef, { availableSeats: oldScheduleDoc.data().availableSeats + booking.numberOfSeats });
             }
 
-            let finalScheduleData;
-            if (newScheduleDocForUpdate.exists()) {
-                finalScheduleData = newScheduleDocForUpdate.data();
-            } else {
-                if(!isFutureDailyTrip) throw new Error("Target schedule is not a future daily trip and does not exist.");
-                const ship = allShips.find(ship => ship.id === newTemplateSchedule.shipId);
-                const newCapacity = ship ? ship.capacity : newTemplateSchedule.availableSeats;
-                finalScheduleData = {
-                    ...newTemplateSchedule,
-                    tripType: 'Special',
-                    date: travelDateStr,
-                    availableSeats: newCapacity,
-                    baseScheduleId: data.scheduleId,
-                    status: 'On Time',
-                };
-                delete finalScheduleData.id;
-                transaction.set(finalScheduleRef, finalScheduleData);
-            }
-            if (!finalScheduleData) throw new Error("Target schedule data is not available.");
-            
+            const newScheduleData = newScheduleDoc.data();
             let newStatus = booking.status;
-            if (finalScheduleData.availableSeats >= newSeats) {
-                transaction.update(finalScheduleRef, { availableSeats: finalScheduleData.availableSeats - newSeats });
-                newStatus = (data.paymentStatus === 'Paid' || booking.paymentStatus === 'Paid') ? 'Confirmed' : 'Reserved';
+
+            if (newScheduleData.availableSeats >= newSeats) {
+                transaction.update(newScheduleRef, { availableSeats: newScheduleData.availableSeats - newSeats });
+                if (newStatus === 'Waitlisted' || data.paymentStatus === 'Paid' || booking.paymentStatus === 'Paid') {
+                    newStatus = (data.paymentStatus === 'Paid' || booking.paymentStatus === 'Paid') ? 'Confirmed' : 'Reserved';
+                }
             } else {
                 newStatus = 'Waitlisted';
             }
@@ -337,12 +296,12 @@ export default function EditBookingPage() {
                 passengerInfo: data.passengers.map((p) => ({ fullName: p.fullName, birthDate: p.birthDate || null, fareType: p.fareType })),
                 passengerEmail: data.primaryEmail,
                 passengerPhone: data.primaryPhone,
-                scheduleId: finalScheduleRef.id,
+                scheduleId: newScheduleRef.id,
                 fareDetails,
                 travelDate: Timestamp.fromDate(travelDateObj),
                 numberOfSeats: newSeats,
                 totalPrice: bookingSummary.totalPrice,
-                routeName: getRouteName(finalScheduleData.routeId),
+                routeName: getRouteName(newScheduleData.routeId),
                 status: newStatus,
                 paymentStatus: data.paymentStatus,
                 rebookingHistory: newRebookingHistory,
@@ -370,7 +329,7 @@ export default function EditBookingPage() {
 
 
   const isLoading =
-    isLoadingSchedules || isLoadingRoutes || isLoadingFares || isLoadingBooking || isLoadingShips;
+    isLoadingSchedules || isLoadingRoutes || isLoadingFares || isLoadingBooking;
     
   if (isLoading) {
     return (
@@ -743,5 +702,3 @@ export default function EditBookingPage() {
     </div>
   );
 }
-
-    
