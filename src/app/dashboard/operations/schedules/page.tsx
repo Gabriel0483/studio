@@ -53,10 +53,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Pencil, Plus, Trash2, Calendar as CalendarIcon, Users } from 'lucide-react';
+import { Pencil, Plus, Trash2, Calendar as CalendarIcon, Users, CalendarClock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { Firestore } from 'firebase/firestore';
-import { format, parse } from 'date-fns';
+import { format, parse, addDays } from 'date-fns';
 
 interface Ship {
   id: string;
@@ -272,6 +272,133 @@ const ScheduleForm = ({
   );
 };
 
+const BulkScheduleForm = ({
+  firestore,
+  ships,
+  routes,
+  onFinished,
+}: {
+  firestore: Firestore;
+  ships: Ship[];
+  routes: Route[];
+  onFinished: () => void;
+}) => {
+  const [shipId, setShipId] = useState('unassigned');
+  const [routeId, setRouteId] = useState('');
+  const [departureTime, setDepartureTime] = useState('');
+  const [arrivalTime, setArrivalTime] = useState('');
+  const [availableSeats, setAvailableSeats] = useState('');
+  const { toast } = useToast();
+
+  const handleBulkSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!routeId || !departureTime || !arrivalTime || !availableSeats) {
+      toast({
+        variant: 'destructive',
+        title: 'Missing Fields',
+        description: 'Please fill out all required fields.',
+      });
+      return;
+    }
+
+    const seatsNum = parseInt(availableSeats, 10);
+    if (isNaN(seatsNum) || seatsNum <= 0) {
+      toast({
+        variant: 'destructive',
+        title: 'Invalid Seats',
+        description: 'Available seats must be a positive number.',
+      });
+      return;
+    }
+
+    const finalShipId = shipId === 'unassigned' ? null : shipId;
+    const selectedShip = ships.find(s => s.id === finalShipId);
+
+    try {
+      const batch = writeBatch(firestore);
+      const schedulesCol = collection(firestore, 'schedules');
+
+      for (let i = 0; i < 5; i++) {
+        const scheduleDate = addDays(new Date(), i);
+        const dateStr = format(scheduleDate, 'yyyy-MM-dd');
+
+        const newScheduleRef = doc(schedulesCol); // auto-generate ID
+        
+        const scheduleData = {
+          shipId: finalShipId,
+          shipName: selectedShip ? selectedShip.name : 'Unassigned',
+          routeId,
+          date: dateStr,
+          departureTime,
+          arrivalTime,
+          availableSeats: seatsNum,
+          status: 'On Time',
+          boardingStatus: 'Awaiting',
+        };
+        batch.set(newScheduleRef, scheduleData);
+      }
+
+      await batch.commit();
+      toast({
+          title: 'Schedules Generated',
+          description: '5 daily schedules have been created for the selected route.',
+      });
+      onFinished();
+    } catch (error: any) {
+      console.error("Error bulk generating schedules:", error);
+      toast({
+        variant: 'destructive',
+        title: 'Generation Failed',
+        description: `An error occurred: ${error.message}.`,
+      });
+    }
+  };
+
+  return (
+    <form onSubmit={handleBulkSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <Label htmlFor="bulk-routeId">Route</Label>
+        <Select onValueChange={setRouteId} defaultValue={routeId}>
+          <SelectTrigger id="bulk-routeId"><SelectValue placeholder="Select a route" /></SelectTrigger>
+          <SelectContent>
+            {routes.map((route) => <SelectItem key={route.id} value={route.id}>{route.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="bulk-departureTime">Departure Time</Label>
+          <Input id="bulk-departureTime" type="time" value={departureTime} onChange={(e) => setDepartureTime(e.target.value)} />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="bulk-arrivalTime">Arrival Time</Label>
+          <Input id="bulk-arrivalTime" type="time" value={arrivalTime} onChange={(e) => setArrivalTime(e.target.value)} />
+        </div>
+      </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+         <div className="space-y-2">
+            <Label htmlFor="bulk-shipId">Ship (Optional)</Label>
+            <Select onValueChange={setShipId} defaultValue={shipId}>
+                <SelectTrigger id="bulk-shipId"><SelectValue placeholder="Select a ship" /></SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="unassigned">Unassigned</SelectItem>
+                    {ships.map((ship) => <SelectItem key={ship.id} value={ship.id}>{ship.name}</SelectItem>)}
+                </SelectContent>
+            </Select>
+        </div>
+        <div className="space-y-2">
+            <Label htmlFor="bulk-availableSeats">Available Seats</Label>
+            <Input id="bulk-availableSeats" type="number" value={availableSeats} onChange={(e) => setAvailableSeats(e.target.value)} placeholder="e.g., 150" />
+        </div>
+      </div>
+      <DialogFooter>
+        <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
+        <Button type="submit">Generate 5 Days</Button>
+      </DialogFooter>
+    </form>
+  );
+};
+
 export default function SchedulesPage() {
   const firestore = useFirestore();
   const schedulesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'schedules') : null, [firestore]);
@@ -287,6 +414,7 @@ export default function SchedulesPage() {
 
 
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isBulkFormOpen, setIsBulkFormOpen] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<Schedule | undefined>(undefined);
   const [isDeleteAllConfirmOpen, setIsDeleteAllConfirmOpen] = useState(false);
 
@@ -307,7 +435,6 @@ export default function SchedulesPage() {
     }
   
     try {
-      // Check for active bookings on the schedule to be deleted
       const bookingsQuery = query(collection(firestore, 'bookings'), where('scheduleId', '==', schedule.id));
       const bookingsSnapshot = await getDocs(bookingsQuery);
       if (!bookingsSnapshot.empty) {
@@ -320,7 +447,6 @@ export default function SchedulesPage() {
         return;
       }
       
-      // Perform deletion
       const scheduleRef = doc(firestore, 'schedules', schedule.id);
       await deleteDoc(scheduleRef);
       
@@ -437,6 +563,30 @@ export default function SchedulesPage() {
                 <Trash2 className="mr-2 h-4 w-4" />
                 Delete All
             </Button>
+            <Dialog open={isBulkFormOpen} onOpenChange={setIsBulkFormOpen}>
+                <DialogTrigger asChild>
+                    <Button variant="outline">
+                        <CalendarClock className="mr-2 h-4 w-4" />
+                        Bulk Generate
+                    </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[525px]">
+                    <DialogHeader>
+                        <DialogTitle>Bulk Generate Schedules</DialogTitle>
+                        <DialogDescription>
+                            Create schedules for the next 5 days for a specific route.
+                        </DialogDescription>
+                    </DialogHeader>
+                    {firestore && (
+                        <BulkScheduleForm
+                            firestore={firestore}
+                            ships={ships || []}
+                            routes={routes || []}
+                            onFinished={() => setIsBulkFormOpen(false)}
+                        />
+                    )}
+                </DialogContent>
+            </Dialog>
             <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
             <DialogTrigger asChild>
                 <Button onClick={() => setEditingSchedule(undefined)}>
@@ -556,7 +706,7 @@ export default function SchedulesPage() {
                 <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                 <AlertDialogDescription>
                     This action cannot be undone. This will permanently delete ALL schedules
-                    from your database.
+                    from your database. Any active bookings associated with these schedules will NOT be deleted, which may cause issues.
                 </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
