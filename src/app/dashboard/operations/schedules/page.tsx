@@ -78,8 +78,8 @@ interface Staff {
 interface Schedule {
   id: string;
   tripType: 'Daily' | 'Special';
-  shipId?: string;
-  shipName?: string;
+  shipId?: string | null;
+  shipName?: string | null;
   routeId: string;
   date?: string;
   departureTime: string;
@@ -150,8 +150,8 @@ const ScheduleForm = ({
 
     const scheduleData: Omit<Schedule, 'id'> = {
       tripType,
-      shipId: finalShipId || undefined,
-      shipName: selectedShip ? selectedShip.name : undefined,
+      shipId: finalShipId,
+      shipName: selectedShip ? selectedShip.name : null,
       routeId,
       date: tripType === 'Special' ? date : undefined,
       departureTime,
