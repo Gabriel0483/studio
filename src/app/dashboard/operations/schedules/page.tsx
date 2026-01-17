@@ -148,17 +148,20 @@ const ScheduleForm = ({
     const finalShipId = shipId === 'unassigned' ? null : shipId;
     const selectedShip = ships.find(s => s.id === finalShipId);
 
-    const scheduleData: Omit<Schedule, 'id'> = {
+    const scheduleData: Partial<Schedule> = {
       tripType,
       shipId: finalShipId,
       shipName: selectedShip ? selectedShip.name : null,
       routeId,
-      date: tripType === 'Special' ? date : undefined,
       departureTime,
       arrivalTime,
       availableSeats: seatsNum,
       status: schedule?.status || 'On Time',
     };
+
+    if (tripType === 'Special') {
+        scheduleData.date = date;
+    }
 
     if (schedule) {
       const scheduleRef = doc(firestore, 'schedules', schedule.id);
