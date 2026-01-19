@@ -36,7 +36,7 @@ import {
   runTransaction,
   updateDoc,
 } from 'firebase/firestore';
-import { BookCopy, Pencil, Search, Trash2, XCircle, CreditCard, Loader2, FilterX } from 'lucide-react';
+import { BookCopy, Pencil, Search, Trash2, XCircle, CreditCard, Loader2, FilterX, Filter } from 'lucide-react';
 import { format } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -45,6 +45,10 @@ import { useRouter } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import {
+  Collapsible,
+  CollapsibleContent,
+} from "@/components/ui/collapsible";
 
 interface Booking {
   firestoreId: string; // The actual firestore document ID
@@ -75,6 +79,7 @@ export default function BookingsPage() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterDate, setFilterDate] = useState<Date | undefined>();
   const [filterSchedule, setFilterSchedule] = useState('all');
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
 
   // State for dialogs
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -294,72 +299,86 @@ export default function BookingsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>All Bookings</CardTitle>
-            <CardDescription>
-              A real-time list of all passenger bookings.
-            </CardDescription>
-            <div className="pt-4 space-y-4">
-                <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input placeholder="Search by name, email, or route..." className="pl-10 w-full" value={search} onChange={(e) => setSearch(e.target.value)} />
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="space-y-1">
-                        <Label htmlFor="filter-date">Travel Date</Label>
-                        <Input
-                            id="filter-date"
-                            type="date"
-                            value={filterDate ? format(filterDate, 'yyyy-MM-dd') : ''}
-                            onChange={(e) => {
-                                if (e.target.value) {
-                                    const [year, month, day] = e.target.value.split('-').map(Number);
-                                    setFilterDate(new Date(year, month - 1, day));
-                                } else {
-                                    setFilterDate(undefined);
-                                }
-                            }}
-                            className="w-full"
-                        />
-                    </div>
-                    <div className="space-y-1">
-                        <Label htmlFor="filter-route">Route</Label>
-                        <Select value={filterRoute} onValueChange={setFilterRoute}>
-                            <SelectTrigger id="filter-route"><SelectValue placeholder="All Routes" /></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All Routes</SelectItem>
-                                {routes?.map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                     <div className="space-y-1">
-                        <Label htmlFor="filter-status">Booking Status</Label>
-                        <Select value={filterStatus} onValueChange={setFilterStatus}>
-                            <SelectTrigger id="filter-status"><SelectValue placeholder="All Statuses" /></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All Statuses</SelectItem>
-                                {bookingStatuses.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="space-y-1">
-                        <Label htmlFor="filter-schedule">Schedule</Label>
-                        <Select value={filterSchedule} onValueChange={setFilterSchedule} disabled={!filterDate}>
-                            <SelectTrigger id="filter-schedule"><SelectValue placeholder="All Schedules" /></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All Schedules</SelectItem>
-                                {availableSchedules.map(s => <SelectItem key={s.id} value={s.id}>{s.departureTime} - {s.arrivalTime}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                </div>
-                 <div className="flex justify-end">
-                    <Button variant="ghost" onClick={clearFilters} disabled={!search && filterRoute === 'all' && filterStatus === 'all' && !filterDate && filterSchedule === 'all'}>
-                        <FilterX className="mr-2 h-4 w-4" />
-                        Clear All Filters
-                    </Button>
-                </div>
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+              <div>
+                <CardTitle>All Bookings</CardTitle>
+                <CardDescription>
+                  A real-time list of all passenger bookings.
+                </CardDescription>
+              </div>
+              <div className="flex w-full flex-col sm:w-auto sm:flex-row sm:items-center gap-2">
+                <Button variant="outline" onClick={() => setIsFilterOpen(!isFilterOpen)} className="w-full sm:w-auto">
+                    <Filter className="mr-2 h-4 w-4" />
+                    {isFilterOpen ? 'Hide' : 'Show'} Filters
+                </Button>
+                <Button variant="ghost" onClick={clearFilters} disabled={!search && filterRoute === 'all' && filterStatus === 'all' && !filterDate && filterSchedule === 'all'} className="w-full sm:w-auto">
+                    <FilterX className="mr-2 h-4 w-4" />
+                    Clear All Filters
+                </Button>
+              </div>
             </div>
           </CardHeader>
+          <Collapsible open={isFilterOpen}>
+            <CollapsibleContent>
+              <div className="border-t">
+                  <div className="p-6 space-y-4">
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input placeholder="Search by name, email, or route..." className="pl-10 w-full" value={search} onChange={(e) => setSearch(e.target.value)} />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="space-y-1">
+                            <Label htmlFor="filter-date">Travel Date</Label>
+                            <Input
+                                id="filter-date"
+                                type="date"
+                                value={filterDate ? format(filterDate, 'yyyy-MM-dd') : ''}
+                                onChange={(e) => {
+                                    if (e.target.value) {
+                                        const [year, month, day] = e.target.value.split('-').map(Number);
+                                        setFilterDate(new Date(year, month - 1, day));
+                                    } else {
+                                        setFilterDate(undefined);
+                                    }
+                                }}
+                                className="w-full"
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <Label htmlFor="filter-route">Route</Label>
+                            <Select value={filterRoute} onValueChange={setFilterRoute}>
+                                <SelectTrigger id="filter-route"><SelectValue placeholder="All Routes" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All Routes</SelectItem>
+                                    {routes?.map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                         <div className="space-y-1">
+                            <Label htmlFor="filter-status">Booking Status</Label>
+                            <Select value={filterStatus} onValueChange={setFilterStatus}>
+                                <SelectTrigger id="filter-status"><SelectValue placeholder="All Statuses" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All Statuses</SelectItem>
+                                    {bookingStatuses.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-1">
+                            <Label htmlFor="filter-schedule">Schedule</Label>
+                            <Select value={filterSchedule} onValueChange={setFilterSchedule} disabled={!filterDate}>
+                                <SelectTrigger id="filter-schedule"><SelectValue placeholder="All Schedules" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All Schedules</SelectItem>
+                                    {availableSchedules.map(s => <SelectItem key={s.id} value={s.id}>{s.departureTime} - {s.arrivalTime}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                  </div>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
           <CardContent>
             <TooltipProvider>
                 <Table>
@@ -545,6 +564,8 @@ export default function BookingsPage() {
       </AlertDialog>
     </>
   );
+
+    
 
     
 
