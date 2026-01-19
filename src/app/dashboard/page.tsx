@@ -8,7 +8,7 @@ import { ChartConfig, ChartContainer, ChartTooltipContent } from "@/components/u
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, Timestamp } from 'firebase/firestore';
 import { format, getMonth, getYear } from 'date-fns';
-import { DollarSign, Users, Ticket, CheckCircle, Clock, CreditCard, XCircle, ClipboardCheck, Ban, Check, Bot, Ship, BarChart as BarChartIcon } from 'lucide-react';
+import { DollarSign, Users, Ticket, CheckCircle, Clock, CreditCard, XCircle, ClipboardCheck, Ban, Check, Bot, Ship, BarChart as BarChartIcon, UserX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -75,10 +75,10 @@ export default function DashboardPage() {
         totalRevenue: 0, totalPassengers: 0,
         reserved: 0, confirmed: 0, waitlisted: 0, refunded: 0,
         paid: 0, unpaid: 0, boarded: 0, paidPassengers: 0,
-        tripsBoarding: 0
+        tripsBoarding: 0, noShows: 0,
     };
 
-    if (!bookings || !allSchedules) {
+    if (!bookings || !allSchedules || !boardingRecords) {
       return defaultStats;
     }
 
@@ -89,8 +89,10 @@ export default function DashboardPage() {
       if (format(travelDate, 'yyyy-MM-dd') !== selectedDateStr) {
           return false;
       }
-      if (scheduleFilter !== 'all' && b.scheduleId !== scheduleFilter) {
-          return false;
+      if (scheduleFilter !== 'all') {
+          const bookingSchedule = allSchedules.find(s => s.id === b.scheduleId);
+          if (!bookingSchedule) return false;
+          return bookingSchedule.id === scheduleFilter || bookingSchedule.sourceScheduleId === scheduleFilter;
       }
       return true;
     });
@@ -100,17 +102,18 @@ export default function DashboardPage() {
 
     const relevantBoardingRecords = (boardingRecords || []).filter(br => {
         const schedule = allSchedules.find(s => s.id === br.scheduleId);
-        if (!schedule) return false;
-
-        const scheduleDate = schedule.tripType === 'Daily' ? date : (schedule.date ? new Date(schedule.date) : new Date());
-        if (format(scheduleDate, 'yyyy-MM-dd') !== selectedDateStr) {
+        if (!schedule || !schedule.date || schedule.date !== selectedDateStr) {
           return false;
         }
+
         if (scheduleFilter !== 'all') {
-            return br.scheduleId === scheduleFilter;
+            return schedule.id === scheduleFilter || schedule.sourceScheduleId === scheduleFilter;
         }
         return true;
     });
+
+    const boarded = relevantBoardingRecords.filter(br => br.status === 'Boarded').length;
+    const noShows = relevantBoardingRecords.filter(br => br.status === 'No-show').length;
 
     const totalRevenue = relevantBookings
       .filter(b => b.paymentStatus === 'Paid')
@@ -146,7 +149,8 @@ export default function DashboardPage() {
       ...statusCounts,
       paid,
       unpaid,
-      boarded: relevantBoardingRecords.length,
+      boarded,
+      noShows,
       paidPassengers: paidPassengers,
       tripsBoarding,
     };
@@ -328,6 +332,10 @@ export default function DashboardPage() {
                     <p className="text-xs text-muted-foreground">
                         {filteredStats.boarded} of {filteredStats.paidPassengers} confirmed passengers have boarded for the selected scope.
                     </p>
+                    <div className="flex items-center text-xs text-muted-foreground mt-1">
+                        <UserX className="h-3 w-3 mr-1 text-destructive" />
+                        <span>{filteredStats.noShows} no-shows recorded.</span>
+                    </div>
                 </CardContent>
             </Card>
              <Card className="col-span-1 md:col-span-1 lg:col-span-2">
