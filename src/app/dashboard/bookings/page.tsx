@@ -36,7 +36,7 @@ import {
   runTransaction,
   updateDoc,
 } from 'firebase/firestore';
-import { BookCopy, Pencil, Search, Trash2, XCircle, CreditCard, Loader2, Calendar as CalendarIcon, FilterX } from 'lucide-react';
+import { BookCopy, Pencil, Search, Trash2, XCircle, CreditCard, Loader2, FilterX } from 'lucide-react';
 import { format } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -44,10 +44,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
-import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
-import { Calendar } from '@/components/ui/calendar';
-import { cn } from '@/lib/utils';
 
 interface Booking {
   firestoreId: string; // The actual firestore document ID
@@ -309,17 +306,20 @@ export default function BookingsPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div className="space-y-1">
                         <Label htmlFor="filter-date">Travel Date</Label>
-                        <Popover>
-                            <PopoverTrigger asChild>
-                                <Button id="filter-date" variant={"outline"} className={cn("w-full justify-start text-left font-normal", !filterDate && "text-muted-foreground")}>
-                                    <CalendarIcon className="mr-2 h-4 w-4" />
-                                    {filterDate ? format(filterDate, "PPP") : <span>Pick a date</span>}
-                                </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0">
-                                <Calendar mode="single" selected={filterDate} onSelect={setFilterDate} initialFocus />
-                            </PopoverContent>
-                        </Popover>
+                        <Input
+                            id="filter-date"
+                            type="date"
+                            value={filterDate ? format(filterDate, 'yyyy-MM-dd') : ''}
+                            onChange={(e) => {
+                                if (e.target.value) {
+                                    const [year, month, day] = e.target.value.split('-').map(Number);
+                                    setFilterDate(new Date(year, month - 1, day));
+                                } else {
+                                    setFilterDate(undefined);
+                                }
+                            }}
+                            className="w-full"
+                        />
                     </div>
                     <div className="space-y-1">
                         <Label htmlFor="filter-route">Route</Label>
@@ -545,5 +545,7 @@ export default function BookingsPage() {
       </AlertDialog>
     </>
   );
+
+    
 
     
