@@ -1,30 +1,22 @@
 
 'use client';
 
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection } from 'firebase/firestore';
-import { format, addDays } from 'date-fns';
+import { format } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, CalendarClock, Loader2, Calendar as CalendarIcon } from 'lucide-react';
+import { ArrowRight, CalendarClock, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useRouter } from 'next/navigation';
-import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
-import { cn } from '@/lib/utils';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 export default function BoardingPage() {
   const firestore = useFirestore();
   const router = useRouter();
   const [date, setDate] = useState<Date>(new Date());
-  const [disabledDays, setDisabledDays] = useState<any>(null);
-
-  useEffect(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    setDisabledDays({ before: today });
-  }, []);
 
   const schedulesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -61,7 +53,6 @@ export default function BoardingPage() {
     ];
     
     return combinedSchedules
-        .filter(schedule => schedule.status !== 'Departed' && schedule.status !== 'Arrived')
         .sort((a, b) => a.departureTime.localeCompare(b.departureTime));
 
   }, [allSchedules, date]);
@@ -76,6 +67,7 @@ export default function BoardingPage() {
       case 'Boarding Closed':
         return 'destructive';
       case 'Departed':
+      case 'Arrived':
         return 'secondary';
       case 'Cancelled':
       case 'Delayed':
@@ -101,28 +93,22 @@ export default function BoardingPage() {
             View and manage all trips for the selected date.
           </p>
         </div>
-        <Popover>
-            <PopoverTrigger asChild>
-                <Button
-                variant={"outline"}
-                className={cn("w-full sm:w-[280px] justify-start text-left font-normal", !date && "text-muted-foreground")}
-                >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {date ? format(date, "PPP") : <span>Pick a date</span>}
-                </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0">
-                <Calendar
-                mode="single"
-                selected={date}
-                onSelect={(d) => {
-                  if (d) setDate(d);
+        <div className="flex items-center gap-2">
+            <Label htmlFor="trip-date" className="sr-only">Date</Label>
+            <Input
+                id="trip-date"
+                type="date"
+                value={format(date, 'yyyy-MM-dd')}
+                onChange={(e) => {
+                    if (e.target.value) {
+                        const [year, month, day] = e.target.value.split('-').map(Number);
+                        setDate(new Date(year, month - 1, day));
+                    }
                 }}
-                initialFocus
-                disabled={disabledDays}
-                />
-            </PopoverContent>
-        </Popover>
+                min={format(new Date(), 'yyyy-MM-dd')}
+                className="w-full sm:w-auto"
+            />
+        </div>
       </div>
 
       {isLoading ? (
