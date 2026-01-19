@@ -26,7 +26,7 @@ import { toast } from "@/hooks/use-toast"
 import { PublicHeader } from "@/components/public-header"
 import { PublicFooter } from "@/components/public-footer"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
-import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from "@/firebase"
+import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc, useAuthContext } from "@/firebase"
 import { collection, doc, serverTimestamp, runTransaction, Timestamp, where, query, getDocs, addDoc, getDoc, updateDoc } from "firebase/firestore"
 import React, { useMemo, useState, useEffect, useRef } from "react"
 import { Separator } from "@/components/ui/separator"
@@ -35,6 +35,7 @@ import { format, addDays } from "date-fns"
 import { TripItinerary } from "@/components/trip-itinerary";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { nanoid } from "nanoid"
+import { useRouter } from "next/navigation"
 
 const passengerSchema = z.object({
   id: z.string(),
@@ -85,7 +86,9 @@ const generateBookingReference = () => {
 
 export default function BookingPage() {
   const firestore = useFirestore();
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
+  const { isAuthReady } = useAuthContext();
+  const router = useRouter();
   const itineraryRef = useRef<HTMLDivElement>(null);
   
   const [step, setStep] = useState<'form' | 'summary' | 'confirmation'>('form');
@@ -94,6 +97,11 @@ export default function BookingPage() {
   const [isReserving, setIsReserving] = useState(false);
   const [dateRange, setDateRange] = useState<{ min: string; max: string }>({ min: '', max: '' });
 
+  useEffect(() => {
+    if (isAuthReady && !isUserLoading && !user) {
+        router.replace('/login?redirect=/book');
+    }
+  }, [isAuthReady, isUserLoading, user, router]);
 
   const passengerDocRef = useMemoFirebase(() => firestore && user ? doc(firestore, 'passengers', user.uid) : null, [firestore, user]);
   const { data: passengerData } = useDoc(passengerDocRef);
@@ -396,9 +404,43 @@ export default function BookingPage() {
     setConfirmedBooking(null);
   };
 
-  const isLoading = isLoadingSchedules || isLoadingRoutes || isLoadingFares;
+  const isLoading = isLoadingSchedules || isLoadingRoutes || isLoadingFares || !isAuthReady || isUserLoading;
   const currentSchedule = filteredSchedules.find(s => s.id === watchScheduleId);
   const familyMembers = passengerData?.familyMembers || [];
+
+  if (isLoading) {
+    return (
+        <div className="flex min-h-screen flex-col">
+          <PublicHeader />
+          <main className="flex-1">
+            <div className="container mx-auto px-4 py-24 md:px-6 md:py-32">
+                <div className="flex h-64 w-full items-center justify-center">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <p className="ml-3 text-muted-foreground">Loading your session...</p>
+                </div>
+            </div>
+          </main>
+          <PublicFooter />
+        </div>
+    );
+  }
+
+  if (!user) {
+    return (
+        <div className="flex min-h-screen flex-col">
+            <PublicHeader />
+            <main className="flex-1">
+                <div className="container mx-auto px-4 py-24 md:px-6 md:py-32">
+                    <div className="flex h-64 w-full items-center justify-center">
+                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                        <p className="ml-3 text-muted-foreground">Redirecting to login...</p>
+                    </div>
+                </div>
+            </main>
+          <PublicFooter />
+        </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -709,5 +751,3 @@ export default function BookingPage() {
     </div>
   )
 }
-
-    

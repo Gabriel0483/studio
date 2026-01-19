@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/logo';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from '@/components/ui/sheet';
-import { Menu, User, LogOut, BookCopy } from 'lucide-react';
+import { Menu, User, LogOut, BookCopy, ChevronDown } from 'lucide-react';
 import { useUser, useDoc, useFirestore, useMemoFirebase, useAuth } from '@/firebase';
 import { handleSignOut } from '@/firebase/auth';
 import { useRouter } from 'next/navigation';
@@ -143,11 +143,35 @@ export function PublicHeader() {
                  <div className="border-t pt-6 flex flex-col gap-4">
                   {!isUserLoading && (
                     user ? (
-                      <>
-                        <Button variant="outline" onClick={() => router.push('/my-profile')}>My Profile</Button>
-                        <Button variant="outline" onClick={() => router.push('/my-bookings')}>My Bookings</Button>
-                        <Button variant="secondary" onClick={onSignOut}>Log Out</Button>
-                      </>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                           <Button variant="outline" className="flex justify-between items-center w-full text-base py-6">
+                                <div className="flex items-center gap-2">
+                                    <Avatar className="h-8 w-8">
+                                        <AvatarImage src={user?.photoURL || `https://picsum.photos/seed/${user?.uid}/40/40`} alt="User" />
+                                        <AvatarFallback>{getInitials(user?.email)}</AvatarFallback>
+                                    </Avatar>
+                                    <span>{getDisplayName()}</span>
+                                </div>
+                                <ChevronDown className="h-4 w-4" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width]">
+                           <DropdownMenuItem className="text-base py-3" onClick={() => router.push('/my-profile')}>
+                                <User className="mr-2 h-4 w-4" />
+                                <span>My Profile</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem className="text-base py-3" onClick={() => router.push('/my-bookings')}>
+                                <BookCopy className="mr-2 h-4 w-4" />
+                                <span>My Bookings</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem className="text-base py-3" onClick={onSignOut}>
+                                <LogOut className="mr-2 h-4 w-4" />
+                                <span>Log out</span>
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     ) : (
                       <>
                         <Button variant="outline" asChild><Link href="/login">Login</Link></Button>

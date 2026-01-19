@@ -4,8 +4,8 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect, Suspense } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -33,18 +33,20 @@ const loginFormSchema = z.object({
 
 type LoginFormData = z.infer<typeof loginFormSchema>;
 
-export default function PublicLoginPage() {
+function PublicLoginContent() {
   const auth = useAuth();
   const { user, isUserLoading } = useUser();
   const { isAuthReady } = useAuthContext();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectUrl = searchParams.get('redirect') || '/my-bookings';
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     if (isAuthReady && !isUserLoading && user) {
-        router.replace('/my-bookings');
+        router.replace(redirectUrl);
     }
-  }, [isAuthReady, isUserLoading, user, router]);
+  }, [isAuthReady, isUserLoading, user, router, redirectUrl]);
 
 
   const form = useForm<LoginFormData>({
@@ -63,7 +65,7 @@ export default function PublicLoginPage() {
         title: "Login Successful",
         description: "Welcome back!",
       });
-      router.push('/my-bookings');
+      router.push(redirectUrl);
     } catch (error: any) {
       console.error(error);
       let description = "An unexpected error occurred. Please try again.";
@@ -157,4 +159,17 @@ export default function PublicLoginPage() {
       <PublicFooter />
     </div>
   )
+}
+
+
+export default function PublicLoginPage() {
+    return (
+        <Suspense fallback={
+            <div className="flex h-screen w-full items-center justify-center bg-background">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        }>
+            <PublicLoginContent />
+        </Suspense>
+    )
 }
