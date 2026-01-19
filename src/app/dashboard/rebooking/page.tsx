@@ -1,4 +1,3 @@
-
 'use client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -50,26 +49,20 @@ export default function RebookingPage() {
 
     try {
       const bookingsRef = collection(firestore, "bookings");
-      
-      const qById = query(bookingsRef, where('id', '==', searchQuery.toUpperCase()));
-      const byIdSnapshot = await getDocs(qById);
+      const bookingsSnapshot = await getDocs(bookingsRef);
+      const allBookings = bookingsSnapshot.docs.map(doc => ({...doc.data(), firestoreId: doc.id}) as any);
 
-      if (!byIdSnapshot.empty) {
-        const bookingDoc = byIdSnapshot.docs[0];
-        setSearchedBooking({ ...bookingDoc.data(), firestoreId: bookingDoc.id });
-      } else {
-        const allBookingsSnapshot = await getDocs(bookingsRef);
-        let foundBooking = null;
-        for (const doc of allBookingsSnapshot.docs) {
-          const bookingData = doc.data();
-          const passengers = bookingData.passengerInfo || [];
-          if (passengers.some((p: any) => p.fullName.toLowerCase().includes(searchQuery.toLowerCase()))) {
-            foundBooking = { ...bookingData, firestoreId: doc.id };
-            break; 
-          }
-        }
-        setSearchedBooking(foundBooking);
-      }
+      const searchTerm = searchQuery.toLowerCase();
+      
+      // Find a booking that matches either the booking reference (ID) or a passenger's full name.
+      const foundBooking = allBookings.find(booking => {
+        const idMatch = booking.id.toLowerCase().includes(searchTerm);
+        const passengerMatch = (booking.passengerInfo || []).some((p: any) => p.fullName.toLowerCase().includes(searchTerm));
+        return idMatch || passengerMatch;
+      });
+
+      setSearchedBooking(foundBooking || null);
+
     } catch (error) {
       console.error("Error searching for booking: ", error);
       toast({
@@ -313,5 +306,3 @@ export default function RebookingPage() {
     </>
   );
 }
-
-    
