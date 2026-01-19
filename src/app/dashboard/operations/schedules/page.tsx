@@ -1,8 +1,8 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { collection, doc, query, where, getDocs, writeBatch, orderBy } from 'firebase/firestore';
+import React, { useState, useMemo } from 'react';
+import { collection, doc, query, writeBatch, getDocs, orderBy } from 'firebase/firestore';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import {
   addDocumentNonBlocking,
@@ -104,17 +104,15 @@ const ScheduleForm = ({
   staff: Staff[];
   onFinished: () => void;
 }) => {
-  const [tripType, setTripType] = useState<Schedule['tripType']>(schedule?.tripType || 'Daily');
   const [shipId, setShipId] = useState(schedule?.shipId || 'unassigned');
   const [routeId, setRouteId] = useState(schedule?.routeId || '');
-  const [date, setDate] = useState(schedule?.date || '');
   const [departureTime, setDepartureTime] = useState(schedule?.departureTime || '');
   const [arrivalTime, setArrivalTime] = useState(schedule?.arrivalTime || '');
   const [availableSeats, setAvailableSeats] = useState(schedule?.availableSeats?.toString() || '');
   const [assignedCrew, setAssignedCrew] = useState<Staff[]>([]);
   const { toast } = useToast();
   
-  useEffect(() => {
+  React.useEffect(() => {
     if (shipId && shipId !== 'unassigned' && staff) {
         const crew = staff.filter(s => s.assignedShipId === shipId);
         setAssignedCrew(crew);
@@ -126,7 +124,7 @@ const ScheduleForm = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!routeId || !departureTime || !arrivalTime || !availableSeats || (tripType === 'Special' && !date)) {
+    if (!routeId || !departureTime || !arrivalTime || !availableSeats) {
       toast({
         variant: 'destructive',
         title: 'Missing Fields',
@@ -149,7 +147,7 @@ const ScheduleForm = ({
     const selectedShip = ships.find(s => s.id === finalShipId);
 
     const scheduleData: Partial<Schedule> = {
-      tripType,
+      tripType: 'Daily',
       shipId: finalShipId,
       shipName: selectedShip ? selectedShip.name : null,
       routeId,
@@ -158,10 +156,6 @@ const ScheduleForm = ({
       availableSeats: seatsNum,
       status: schedule?.status || 'On Time',
     };
-
-    if (tripType === 'Special') {
-        scheduleData.date = date;
-    }
 
     if (schedule) {
       const scheduleRef = doc(firestore, 'schedules', schedule.id);
@@ -183,18 +177,7 @@ const ScheduleForm = ({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-         <div className="space-y-2">
-            <Label htmlFor="tripType">Trip Type</Label>
-            <Select onValueChange={(value) => setTripType(value as 'Daily' | 'Special')} defaultValue={tripType}>
-                <SelectTrigger id="tripType"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="Daily">Daily (Regular)</SelectItem>
-                    <SelectItem value="Special">Special (One-Time)</SelectItem>
-                </SelectContent>
-            </Select>
-        </div>
-        <div className="space-y-2">
+       <div className="space-y-2">
             <Label htmlFor="routeId">Route</Label>
             <Select onValueChange={setRouteId} defaultValue={routeId}>
                 <SelectTrigger id="routeId"><SelectValue placeholder="Select a route" /></SelectTrigger>
@@ -203,19 +186,6 @@ const ScheduleForm = ({
                 </SelectContent>
             </Select>
         </div>
-      </div>
-       {tripType === 'Special' && (
-        <div className="space-y-2">
-            <Label htmlFor="date">Date</Label>
-            <Input
-                id="date"
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                min={new Date().toISOString().split('T')[0]}
-            />
-        </div>
-       )}
        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="departureTime">Departure Time</Label>
@@ -302,6 +272,11 @@ export default function SchedulesPage() {
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
   
   const { toast } = useToast();
+
+  const dailySchedules = useMemo(() => {
+    if (!schedules) return [];
+    return schedules.filter(s => s.tripType === 'Daily');
+  }, [schedules]);
   
   const getRouteName = (routeId: string) => routes?.find(r => r.id === routeId)?.name || 'Unknown Route';
 
@@ -318,24 +293,23 @@ export default function SchedulesPage() {
       const scheduleRef = doc(firestore, 'schedules', scheduleToDelete.id);
       let specialTripsDeleted = 0;
 
-      if (scheduleToDelete.tripType === 'Daily') {
-        const specialTripsQuery = query(
-          collection(firestore, 'schedules'),
-          where('sourceScheduleId', '==', scheduleToDelete.id)
-        );
-        const specialTripsSnapshot = await getDocs(specialTripsQuery);
-        specialTripsSnapshot.forEach(doc => {
-          batch.delete(doc.ref);
-          specialTripsDeleted++;
-        });
-      }
+      // This is a daily template, so delete all future special trips created from it.
+      const specialTripsQuery = query(
+        collection(firestore, 'schedules'),
+        where('sourceScheduleId', '==', scheduleToDelete.id)
+      );
+      const specialTripsSnapshot = await getDocs(specialTripsQuery);
+      specialTripsSnapshot.forEach(doc => {
+        batch.delete(doc.ref);
+        specialTripsDeleted++;
+      });
       
       batch.delete(scheduleRef);
       await batch.commit();
 
       toast({
         title: 'Schedule Deleted',
-        description: `${scheduleToDelete.tripType === 'Daily' ? `Template and ${specialTripsDeleted} derived trips deleted.` : 'The schedule has been removed.'}`,
+        description: `Template and ${specialTripsDeleted} derived trips deleted.`,
       });
     } catch (error) {
       console.error('Error deleting schedule:', error);
@@ -351,40 +325,41 @@ export default function SchedulesPage() {
   };
   
   const handleClearPast = async () => {
-    if (!firestore || !schedules) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Schedules not loaded yet.' });
-      return;
+    if (!firestore) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Database not available.' });
+        return;
     }
     const today = format(new Date(), 'yyyy-MM-dd');
     
     try {
-        const pastSchedules = schedules.filter(s => 
-            s.tripType === 'Special' && 
-            s.date && 
-            s.date < today
+        const q = query(
+            collection(firestore, 'schedules'), 
+            where('tripType', '==', 'Special'), 
+            where('date', '<', today)
         );
         
-        if (pastSchedules.length === 0) {
+        const pastSchedulesSnapshot = await getDocs(q);
+        
+        if (pastSchedulesSnapshot.empty) {
             toast({ title: 'No Past Schedules', description: 'There are no expired special schedules to clear.' });
             setIsClearConfirmOpen(false);
             return;
         }
 
         const batch = writeBatch(firestore);
-        pastSchedules.forEach(schedule => {
-            const docRef = doc(firestore, 'schedules', schedule.id);
-            batch.delete(docRef);
+        pastSchedulesSnapshot.forEach(doc => {
+            batch.delete(doc.ref);
         });
         await batch.commit();
 
         toast({
             title: 'Cleanup Complete',
-            description: `Successfully deleted ${pastSchedules.length} past special schedules.`,
+            description: `Successfully deleted ${pastSchedulesSnapshot.size} past special schedules.`,
         });
 
     } catch (error) {
         console.error('Error clearing past schedules:', error);
-        toast({ variant: 'destructive', title: 'Cleanup Failed', description: 'Could not clear past schedules.' });
+        toast({ variant: 'destructive', title: 'Cleanup Failed', description: 'Could not clear past schedules. A special index might be required in Firestore.' });
     } finally {
         setIsClearConfirmOpen(false);
     }
@@ -399,16 +374,6 @@ export default function SchedulesPage() {
         return "Invalid Time";
     }
   };
-  
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return "Daily";
-    try {
-        const date = parse(dateString, 'yyyy-MM-dd', new Date());
-        return format(date, 'PPP');
-    } catch (e) {
-        return "Invalid Date";
-    }
-  };
 
   const isLoading = isLoadingSchedules || isLoadingShips || isLoadingRoutes || isLoadingStaff;
 
@@ -419,7 +384,7 @@ export default function SchedulesPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Schedule Management</h1>
           <p className="text-muted-foreground">
-            Create, view, edit, and delete trip schedules.
+            Create, view, and manage daily trip templates.
           </p>
         </div>
         <div className="flex gap-2">
@@ -435,9 +400,9 @@ export default function SchedulesPage() {
             </DialogTrigger>
             <DialogContent className="sm:max-w-[525px]">
                 <DialogHeader>
-                <DialogTitle>{editingSchedule ? 'Edit Schedule' : 'Add a New Schedule'}</DialogTitle>
+                <DialogTitle>{editingSchedule ? 'Edit Schedule Template' : 'Add a New Schedule Template'}</DialogTitle>
                 <DialogDescription>
-                    Fill in the details below. Click save when you're done.
+                    Fill in the details for a recurring daily trip.
                 </DialogDescription>
                 </DialogHeader>
                 {firestore && (
@@ -457,16 +422,15 @@ export default function SchedulesPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>All Schedules</CardTitle>
-          <CardDescription>A list of all upcoming trip schedules.</CardDescription>
+          <CardTitle>Daily Schedule Templates</CardTitle>
+          <CardDescription>A list of all recurring daily trips.</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Route</TableHead>
-                <TableHead>Trip Type</TableHead>
-                <TableHead>Date</TableHead>
+                <TableHead>Frequency</TableHead>
                 <TableHead>Departure</TableHead>
                 <TableHead>Seats</TableHead>
                 <TableHead className="w-[100px] text-right">Actions</TableHead>
@@ -475,16 +439,15 @@ export default function SchedulesPage() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center">
+                  <TableCell colSpan={5} className="text-center">
                     Loading schedules...
                   </TableCell>
                 </TableRow>
-              ) : schedules && schedules.length > 0 ? (
-                schedules.map((schedule) => (
+              ) : dailySchedules && dailySchedules.length > 0 ? (
+                dailySchedules.map((schedule) => (
                   <TableRow key={schedule.id}>
                     <TableCell className="font-medium">{getRouteName(schedule.routeId)}</TableCell>
-                    <TableCell>{schedule.tripType}</TableCell>
-                    <TableCell>{formatDate(schedule.date)}</TableCell>
+                    <TableCell>Daily</TableCell>
                     <TableCell>{formatTime(schedule.departureTime)}</TableCell>
                     <TableCell>{schedule.availableSeats}</TableCell>
                     <TableCell className="text-right">
@@ -513,10 +476,10 @@ export default function SchedulesPage() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-24 text-center">
+                  <TableCell colSpan={5} className="h-24 text-center">
                     <div className="flex flex-col items-center gap-2">
                         <CalendarIcon className="h-8 w-8 text-muted-foreground" />
-                        <p className="text-muted-foreground">No schedules found.</p>
+                        <p className="text-muted-foreground">No schedule templates found.</p>
                         <Button variant="secondary" size="sm" onClick={() => { setEditingSchedule(undefined); setIsFormOpen(true); }}>
                             <Plus className="mr-2 h-4 w-4" />
                             Add your first schedule
@@ -536,9 +499,7 @@ export default function SchedulesPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete this schedule.
-              {scheduleToDelete?.tripType === 'Daily' && " This is a Daily template, so all future special trips created from it will also be deleted."}
-              {' '}This action cannot be undone.
+              This will permanently delete this schedule template and all future special trips created from it. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

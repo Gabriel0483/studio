@@ -93,8 +93,7 @@ export default function EditBookingPage() {
   const { data: allFares, isLoading: isLoadingFares } = useCollection(faresQuery);
 
   const [availableFares, setAvailableFares] = useState<any[]>([]);
-  const [filteredSchedules, setFilteredSchedules] = useState<any[]>([]);
-
+  
   const form = useForm<BookingFormData>({
     resolver: zodResolver(bookingFormSchema),
   });
@@ -163,18 +162,36 @@ export default function EditBookingPage() {
   const watchPassengers = form.watch('passengers');
   const watchNoShowFee = form.watch('noShowFee');
 
-  useEffect(() => {
-    if (watchRouteId && watchTravelDate && allSchedules) {
-      const formattedTravelDate = format(new Date(watchTravelDate), 'yyyy-MM-dd');
-      
-      const relatedSchedules = allSchedules.filter(
-        (s) => s.routeId === watchRouteId && s.date === formattedTravelDate
-      ).sort((a,b) => a.departureTime.localeCompare(b.departureTime));
+  const filteredSchedules = useMemo(() => {
+    if (!watchRouteId || !watchTravelDate || !allSchedules) return [];
 
-      setFilteredSchedules(relatedSchedules);
-    } else {
-      setFilteredSchedules([]);
-    }
+    const selectedDate = new Date(watchTravelDate);
+    selectedDate.setHours(0, 0, 0, 0);
+    const formattedTravelDate = format(selectedDate, 'yyyy-MM-dd');
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const isToday = selectedDate.getTime() === today.getTime();
+    const now = new Date();
+    const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+
+    const specialTrips = allSchedules.filter(s => 
+      s.tripType === 'Special' && 
+      s.date === formattedTravelDate &&
+      (!isToday || s.departureTime > currentTime)
+    );
+
+    const dailyTrips = allSchedules.filter(s => s.tripType === 'Daily' && s.routeId === watchRouteId && (!isToday || s.departureTime > currentTime));
+
+    const dailyTripInstances = dailyTrips.map(dailyTrip => {
+      const existingInstance = specialTrips.find(st => st.sourceScheduleId === dailyTrip.id);
+      return existingInstance || { ...dailyTrip, isVirtual: true };
+    });
+
+    return [...specialTrips.filter(st => !st.sourceScheduleId), ...dailyTripInstances]
+      .sort((a, b) => a.departureTime.localeCompare(b.departureTime));
+
   }, [watchRouteId, watchTravelDate, allSchedules]);
 
   useEffect(() => {
