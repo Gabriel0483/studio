@@ -1,6 +1,6 @@
 
 'use client';
-import { getAuth, signOut, createUserWithEmailAndPassword, Auth } from "firebase/auth";
+import { getAuth, signOut, createUserWithEmailAndPassword, Auth, sendPasswordResetEmail } from "firebase/auth";
 
 // It's better to pass the auth instance to the functions
 // to make them more testable and less reliant on a global getAuth() call.
@@ -17,4 +17,9 @@ export const handleSignOut = async (auth: Auth) => {
     } catch (error) {
         console.error("Error signing out: ", error);
     }
+};
+
+export const handlePasswordReset = async (auth: Auth, email: string): Promise<void> => {
+    await sendPasswordResetEmail(auth, email);
+    console.log("Password reset email sent.");
 };
