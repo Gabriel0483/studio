@@ -1,12 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
-import { collection, doc } from 'firebase/firestore';
+import { collection, doc, deleteDoc } from 'firebase/firestore'; // Import deleteDoc
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import {
   addDocumentNonBlocking,
   updateDocumentNonBlocking,
-  deleteDocumentNonBlocking,
 } from '@/firebase/non-blocking-updates';
 import { Button } from '@/components/ui/button';
 import {
@@ -26,6 +25,16 @@ import {
   DialogTrigger,
   DialogClose,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'; // Import AlertDialog
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -216,21 +225,33 @@ export default function RoutesPage() {
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingRoute, setEditingRoute] = useState<Route | undefined>(undefined);
+  const [routeToDelete, setRouteToDelete] = useState<Route | null>(null);
 
   const { toast } = useToast();
 
-  const handleDelete = (route: Route) => {
-    if (window.confirm(`Are you sure you want to delete the route "${route.name}"?`)) {
-      const routeRef = doc(firestore, 'routes', route.id);
-      deleteDocumentNonBlocking(routeRef);
-      toast({
-        title: 'Route Deleted',
-        description: `The route "${route.name}" has been deleted.`,
-      });
+  const handleDelete = async () => {
+    if (!firestore || !routeToDelete) return;
+
+    const routeRef = doc(firestore, 'routes', routeToDelete.id);
+    try {
+        await deleteDoc(routeRef);
+        toast({
+            title: 'Route Deleted',
+            description: `The route "${routeToDelete.name}" has been deleted.`,
+        });
+    } catch (error: any) {
+        toast({
+            variant: 'destructive',
+            title: 'Error Deleting Route',
+            description: error.message,
+        });
+    } finally {
+        setRouteToDelete(null);
     }
   };
 
   return (
+    <>
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -308,7 +329,7 @@ export default function RoutesPage() {
                           variant="ghost"
                           size="icon"
                           className="text-destructive hover:text-destructive"
-                          onClick={() => handleDelete(route)}
+                          onClick={() => setRouteToDelete(route)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -335,5 +356,23 @@ export default function RoutesPage() {
         </CardContent>
       </Card>
     </div>
+    
+    <AlertDialog open={!!routeToDelete} onOpenChange={(open) => !open && setRouteToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the route "{routeToDelete?.name}".
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

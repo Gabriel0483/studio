@@ -1,12 +1,11 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { collection } from 'firebase/firestore';
+import { collection, deleteDoc } from 'firebase/firestore'; // Import deleteDoc
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import {
   addDocumentNonBlocking,
   updateDocumentNonBlocking,
-  deleteDocumentNonBlocking,
 } from '@/firebase/non-blocking-updates';
 import { Button } from '@/components/ui/button';
 import {
@@ -26,6 +25,16 @@ import {
   DialogTrigger,
   DialogClose
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'; // Import AlertDialog
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -129,21 +138,32 @@ export default function PortsPage() {
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingPort, setEditingPort] = useState<Port | undefined>(undefined);
+  const [portToDelete, setPortToDelete] = useState<Port | null>(null);
 
   const { toast } = useToast();
 
-  const handleDelete = (port: Port) => {
-    if (window.confirm(`Are you sure you want to delete the port "${port.name}"?`)) {
-      const portRef = doc(firestore, 'ports', port.id);
-      deleteDocumentNonBlocking(portRef);
-      toast({
-        title: 'Port Deleted',
-        description: `The port "${port.name}" has been deleted.`,
-      });
+  const handleDelete = async () => {
+    if (!firestore || !portToDelete) return;
+    const portRef = doc(firestore, 'ports', portToDelete.id);
+    try {
+        await deleteDoc(portRef);
+        toast({
+            title: 'Port Deleted',
+            description: `The port "${portToDelete.name}" has been deleted.`,
+        });
+    } catch (error: any) {
+        toast({
+            variant: 'destructive',
+            title: 'Error Deleting Port',
+            description: error.message,
+        });
+    } finally {
+        setPortToDelete(null);
     }
   };
 
   return (
+    <>
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -217,7 +237,7 @@ export default function PortsPage() {
                           variant="ghost"
                           size="icon"
                           className="text-destructive hover:text-destructive"
-                          onClick={() => handleDelete(port)}
+                          onClick={() => setPortToDelete(port)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -244,5 +264,23 @@ export default function PortsPage() {
         </CardContent>
       </Card>
     </div>
+    
+    <AlertDialog open={!!portToDelete} onOpenChange={(open) => !open && setPortToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the port "{portToDelete?.name}".
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

@@ -1,12 +1,11 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { collection, doc } from 'firebase/firestore';
+import { collection, doc, deleteDoc } from 'firebase/firestore'; // Import deleteDoc
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import {
   addDocumentNonBlocking,
   updateDocumentNonBlocking,
-  deleteDocumentNonBlocking,
 } from '@/firebase/non-blocking-updates';
 import { Button } from '@/components/ui/button';
 import {
@@ -26,6 +25,16 @@ import {
   DialogTrigger,
   DialogClose,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'; // Import AlertDialog
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -214,6 +223,7 @@ export default function FaresPage() {
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingFare, setEditingFare] = useState<Fare | undefined>(undefined);
+  const [fareToDelete, setFareToDelete] = useState<Fare | null>(null);
   const [filterRouteId, setFilterRouteId] = useState('all');
 
   const { toast } = useToast();
@@ -224,20 +234,30 @@ export default function FaresPage() {
     return fares.filter(fare => fare.routeId === filterRouteId);
   }, [fares, filterRouteId]);
 
-  const handleDelete = (fare: Fare) => {
-    if (window.confirm(`Are you sure you want to delete this fare?`)) {
-      const fareRef = doc(firestore, 'fares', fare.id);
-      deleteDocumentNonBlocking(fareRef);
-      toast({
-        title: 'Fare Deleted',
-        description: `The fare has been deleted.`,
-      });
+  const handleDelete = async () => {
+    if (!firestore || !fareToDelete) return;
+    const fareRef = doc(firestore, 'fares', fareToDelete.id);
+    try {
+        await deleteDoc(fareRef);
+        toast({
+            title: 'Fare Deleted',
+            description: 'The fare has been successfully deleted.',
+        });
+    } catch (error: any) {
+        toast({
+            variant: 'destructive',
+            title: 'Error Deleting Fare',
+            description: error.message,
+        });
+    } finally {
+        setFareToDelete(null);
     }
   };
 
   const isLoading = isLoadingFares || isLoadingRoutes;
 
   return (
+    <>
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -344,7 +364,7 @@ export default function FaresPage() {
                           variant="ghost"
                           size="icon"
                           className="text-destructive hover:text-destructive"
-                          onClick={() => handleDelete(fare)}
+                          onClick={() => setFareToDelete(fare)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -371,5 +391,23 @@ export default function FaresPage() {
         </CardContent>
       </Card>
     </div>
+
+    <AlertDialog open={!!fareToDelete} onOpenChange={(open) => !open && setFareToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the fare.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

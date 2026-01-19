@@ -1,12 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
-import { collection, doc } from 'firebase/firestore';
+import { collection, doc, deleteDoc } from 'firebase/firestore'; // Import deleteDoc
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import {
   addDocumentNonBlocking,
   updateDocumentNonBlocking,
-  deleteDocumentNonBlocking,
 } from '@/firebase/non-blocking-updates';
 import { Button } from '@/components/ui/button';
 import {
@@ -218,7 +217,7 @@ export default function ShipsPage() {
     setIsDeleteDialogOpen(true);
   };
 
-  const executeDelete = () => {
+  const executeDelete = async () => {
     if (!firestore || !shipToDelete) {
       toast({ variant: 'destructive', title: 'Error', description: 'Database connection or ship not found.' });
       return;
@@ -226,7 +225,7 @@ export default function ShipsPage() {
 
     try {
       const shipRef = doc(firestore, 'ships', shipToDelete.id);
-      deleteDocumentNonBlocking(shipRef);
+      await deleteDoc(shipRef);
       toast({
         title: 'Ship Deleted',
         description: `The ship "${shipToDelete.name}" has been successfully deleted.`,
