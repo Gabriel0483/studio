@@ -269,14 +269,18 @@ export default function SchedulesPage() {
   const [editingSchedule, setEditingSchedule] = useState<Schedule | undefined>(undefined);
   const [scheduleToDelete, setScheduleToDelete] = useState<Schedule | null>(null);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
-  const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
+  const [filterRouteId, setFilterRouteId] = useState('all');
   
   const { toast } = useToast();
 
-  const dailySchedules = useMemo(() => {
+  const filteredSchedules = useMemo(() => {
     if (!schedules) return [];
-    return schedules.filter(s => s.tripType === 'Daily');
-  }, [schedules]);
+    const daily = schedules.filter(s => s.tripType === 'Daily');
+    if (filterRouteId === 'all') {
+        return daily;
+    }
+    return daily.filter(schedule => schedule.routeId === filterRouteId);
+  }, [schedules, filterRouteId]);
   
   const getRouteName = (routeId: string) => routes?.find(r => r.id === routeId)?.name || 'Unknown Route';
 
@@ -324,47 +328,6 @@ export default function SchedulesPage() {
     }
   };
   
-  const handleClearPast = async () => {
-    if (!firestore) {
-        toast({ variant: 'destructive', title: 'Error', description: 'Database not available.' });
-        return;
-    }
-    const today = format(new Date(), 'yyyy-MM-dd');
-    
-    try {
-        const q = query(
-            collection(firestore, 'schedules'), 
-            where('tripType', '==', 'Special'), 
-            where('date', '<', today)
-        );
-        
-        const pastSchedulesSnapshot = await getDocs(q);
-        
-        if (pastSchedulesSnapshot.empty) {
-            toast({ title: 'No Past Schedules', description: 'There are no expired special schedules to clear.' });
-            setIsClearConfirmOpen(false);
-            return;
-        }
-
-        const batch = writeBatch(firestore);
-        pastSchedulesSnapshot.forEach(doc => {
-            batch.delete(doc.ref);
-        });
-        await batch.commit();
-
-        toast({
-            title: 'Cleanup Complete',
-            description: `Successfully deleted ${pastSchedulesSnapshot.size} past special schedules.`,
-        });
-
-    } catch (error) {
-        console.error('Error clearing past schedules:', error);
-        toast({ variant: 'destructive', title: 'Cleanup Failed', description: 'Could not clear past schedules. A special index might be required in Firestore.' });
-    } finally {
-        setIsClearConfirmOpen(false);
-    }
-  };
-  
   const formatTime = (timeString: string) => {
     if (!timeString) return "Not set";
     try {
@@ -388,9 +351,6 @@ export default function SchedulesPage() {
           </p>
         </div>
         <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setIsClearConfirmOpen(true)}>
-              <Trash2 className="mr-2 h-4 w-4" /> Clear Past Schedules
-            </Button>
             <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
             <DialogTrigger asChild>
                 <Button onClick={() => setEditingSchedule(undefined)}>
@@ -424,6 +384,22 @@ export default function SchedulesPage() {
         <CardHeader>
           <CardTitle>Daily Schedule Templates</CardTitle>
           <CardDescription>A list of all recurring daily trips.</CardDescription>
+          <div className="pt-4">
+            <Label htmlFor="filter-route">Filter by Route</Label>
+            <Select value={filterRouteId} onValueChange={setFilterRouteId}>
+                <SelectTrigger id="filter-route" className="w-full sm:w-[300px]">
+                    <SelectValue placeholder="Select a route to filter" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="all">All Routes</SelectItem>
+                    {routes?.map((route) => (
+                        <SelectItem key={route.id} value={route.id}>
+                            {route.name}
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+          </div>
         </CardHeader>
         <CardContent>
           <Table>
@@ -443,8 +419,8 @@ export default function SchedulesPage() {
                     Loading schedules...
                   </TableCell>
                 </TableRow>
-              ) : dailySchedules && dailySchedules.length > 0 ? (
-                dailySchedules.map((schedule) => (
+              ) : filteredSchedules && filteredSchedules.length > 0 ? (
+                filteredSchedules.map((schedule) => (
                   <TableRow key={schedule.id}>
                     <TableCell className="font-medium">{getRouteName(schedule.routeId)}</TableCell>
                     <TableCell>Daily</TableCell>
@@ -479,7 +455,7 @@ export default function SchedulesPage() {
                   <TableCell colSpan={5} className="h-24 text-center">
                     <div className="flex flex-col items-center gap-2">
                         <CalendarIcon className="h-8 w-8 text-muted-foreground" />
-                        <p className="text-muted-foreground">No schedule templates found.</p>
+                        <p className="text-muted-foreground">No schedule templates found for the selected route.</p>
                         <Button variant="secondary" size="sm" onClick={() => { setEditingSchedule(undefined); setIsFormOpen(true); }}>
                             <Plus className="mr-2 h-4 w-4" />
                             Add your first schedule
@@ -506,23 +482,6 @@ export default function SchedulesPage() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={executeDelete} className="bg-destructive hover:bg-destructive/90">
               Yes, Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={isClearConfirmOpen} onOpenChange={setIsClearConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Clear All Past Schedules?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete all 'Special' trips with a travel date before today. This can help clean up the database but cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleClearPast} className="bg-destructive hover:bg-destructive/90">
-              Yes, Clear Schedules
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
