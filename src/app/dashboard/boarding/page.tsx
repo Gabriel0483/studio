@@ -23,8 +23,7 @@ export default function BoardingPage() {
   useEffect(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const fiveDaysFromNow = addDays(today, 4);
-    setDisabledDays({ before: today, after: fiveDaysFromNow });
+    setDisabledDays({ before: today });
   }, []);
 
   const schedulesQuery = useMemoFirebase(() => {
