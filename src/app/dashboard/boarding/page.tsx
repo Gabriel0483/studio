@@ -12,11 +12,13 @@ import { Badge } from '@/components/ui/badge';
 import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export default function BoardingPage() {
   const firestore = useFirestore();
   const router = useRouter();
   const [date, setDate] = useState<Date>(new Date());
+  const [filterRouteId, setFilterRouteId] = useState('all');
 
   const schedulesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -47,15 +49,19 @@ export default function BoardingPage() {
         return existingInstance || daily;
     });
 
-    const combinedSchedules = [
+    let combinedSchedules = [
         ...specialTripsForDate.filter(st => !st.sourceScheduleId), // Standalone special trips
         ...dailyInstancesForDate
     ];
+
+    if (filterRouteId !== 'all') {
+        combinedSchedules = combinedSchedules.filter(schedule => schedule.routeId === filterRouteId);
+    }
     
     return combinedSchedules
         .sort((a, b) => a.departureTime.localeCompare(b.departureTime));
 
-  }, [allSchedules, date]);
+  }, [allSchedules, date, filterRouteId]);
 
   const getRouteName = (routeId: string) => routes?.find(r => r.id === routeId)?.name || 'Unknown Route';
 
@@ -93,21 +99,38 @@ export default function BoardingPage() {
             View and manage all trips for the selected date.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-            <Label htmlFor="trip-date" className="sr-only">Date</Label>
-            <Input
-                id="trip-date"
-                type="date"
-                value={format(date, 'yyyy-MM-dd')}
-                onChange={(e) => {
-                    if (e.target.value) {
-                        const [year, month, day] = e.target.value.split('-').map(Number);
-                        setDate(new Date(year, month - 1, day));
-                    }
-                }}
-                min={format(new Date(), 'yyyy-MM-dd')}
-                className="w-full sm:w-auto"
-            />
+        <div className="flex flex-col sm:flex-row items-end gap-2 w-full sm:w-auto">
+            <div>
+                <Label htmlFor="trip-date">Date</Label>
+                <Input
+                    id="trip-date"
+                    type="date"
+                    value={format(date, 'yyyy-MM-dd')}
+                    onChange={(e) => {
+                        if (e.target.value) {
+                            const [year, month, day] = e.target.value.split('-').map(Number);
+                            setDate(new Date(year, month - 1, day));
+                        }
+                    }}
+                    className="w-full sm:w-auto"
+                />
+            </div>
+            <div>
+                <Label htmlFor="filter-route">Route</Label>
+                <Select value={filterRouteId} onValueChange={setFilterRouteId} disabled={isLoadingRoutes}>
+                    <SelectTrigger id="filter-route" className="w-full sm:w-[250px]">
+                        <SelectValue placeholder="Filter by route..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All Routes</SelectItem>
+                        {routes?.map((route) => (
+                            <SelectItem key={route.id} value={route.id}>
+                                {route.name}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
         </div>
       </div>
 
@@ -149,7 +172,10 @@ export default function BoardingPage() {
         <div className="flex h-full min-h-[400px] w-full flex-col items-center justify-center rounded-lg border border-dashed">
             <CalendarClock className="h-16 w-16 text-muted-foreground" />
             <h3 className="mt-4 text-lg font-semibold">No Trips Scheduled</h3>
-            <p className="text-sm text-muted-foreground">There are no trips scheduled for {format(date, 'PPP')}.</p>
+            <p className="text-sm text-muted-foreground">
+                There are no trips scheduled for {format(date, 'PPP')}
+                {filterRouteId !== 'all' && routes ? ` on the ${routes.find(r => r.id === filterRouteId)?.name} route` : ''}.
+            </p>
         </div>
       )}
     </div>
