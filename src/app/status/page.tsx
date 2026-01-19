@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, where } from 'firebase/firestore';
 import { format } from 'date-fns';
@@ -14,8 +14,14 @@ import { PublicFooter } from '@/components/public-footer';
 
 export default function StatusPage() {
   const firestore = useFirestore();
+  const [todayFormatted, setTodayFormatted] = useState<string | null>(null);
 
-  const todayStr = format(new Date(), 'yyyy-MM-dd');
+  useEffect(() => {
+    // This ensures the date is only formatted on the client, after initial hydration.
+    setTodayFormatted(format(new Date(), 'PPP'));
+  }, []);
+
+  const todayStr = useMemo(() => format(new Date(), 'yyyy-MM-dd'), []);
 
   // Query for all schedule templates and any special schedules for today
   const schedulesQuery = useMemoFirebase(() => {
@@ -83,7 +89,7 @@ export default function StatusPage() {
                     <CardHeader className="text-center">
                     <CardTitle className="text-3xl font-bold tracking-tight">Live Trip Status</CardTitle>
                     <CardDescription>
-                        Real-time updates for all trips scheduled for today, {format(new Date(), 'PPP')}.
+                        Real-time updates for all trips scheduled for today{todayFormatted ? `, ${todayFormatted}` : '.'}
                     </CardDescription>
                     </CardHeader>
                     <CardContent>
