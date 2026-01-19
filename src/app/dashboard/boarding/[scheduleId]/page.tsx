@@ -1,16 +1,16 @@
 
 'use client';
 
-import React, { useMemo, useCallback, useState, Fragment, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import React, { useMemo, useCallback, useState, useEffect, Suspense } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useCollection, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, doc, query, where, serverTimestamp, updateDoc, writeBatch } from 'firebase/firestore';
+import { collection, doc, query, where, serverTimestamp, updateDoc, writeBatch, runTransaction, getDoc, DocumentReference, getDocs } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, ArrowLeft, UserCheck, UserX, LogIn, LogOut, Users, Ticket, UserMinus, Play, Square, Ship, Printer, CheckCircle } from 'lucide-react';
-import { format, differenceInYears } from 'date-fns';
+import { format, differenceInYears, parseISO } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { PrintableManifest } from '@/components/printable-manifest';
@@ -18,25 +18,61 @@ import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 
-const TripStatusControl = ({ schedule, scheduleRef }: { schedule: any, scheduleRef: any }) => {
+const TripStatusControl = ({ baseSchedule, effectiveSchedule, tripDateStr }: { baseSchedule: any, effectiveSchedule: any, tripDateStr: string }) => {
+    const firestore = useFirestore();
     const { toast } = useToast();
     const [isUpdating, setIsUpdating] = useState(false);
-
+    
     const handleStatusUpdate = async (newStatus: string) => {
-        if (!scheduleRef) return;
+        if (!firestore || !baseSchedule) return;
         setIsUpdating(true);
+
         try {
-            await updateDoc(scheduleRef, { status: newStatus });
+            await runTransaction(firestore, async (transaction) => {
+                let scheduleToUpdateRef: DocumentReference;
+                
+                if (baseSchedule.tripType === 'Daily') {
+                    // Find or create a special instance for this daily template on this date
+                    const specialInstanceQuery = query(
+                        collection(firestore, 'schedules'),
+                        where('sourceScheduleId', '==', baseSchedule.id),
+                        where('date', '==', tripDateStr)
+                    );
+                    
+                    const querySnapshot = await getDocs(specialInstanceQuery);
+
+                    if (!querySnapshot.empty) {
+                        scheduleToUpdateRef = querySnapshot.docs[0].ref;
+                        transaction.update(scheduleToUpdateRef, { status: newStatus });
+                    } else {
+                        scheduleToUpdateRef = doc(collection(firestore, 'schedules'));
+                        const newInstanceData = {
+                            ...baseSchedule,
+                            tripType: 'Special',
+                            date: tripDateStr,
+                            sourceScheduleId: baseSchedule.id,
+                            id: scheduleToUpdateRef.id,
+                            status: newStatus,
+                        };
+                        transaction.set(scheduleToUpdateRef, newInstanceData);
+                    }
+                } else {
+                    scheduleToUpdateRef = doc(firestore, 'schedules', baseSchedule.id);
+                    transaction.update(scheduleToUpdateRef, { status: newStatus });
+                }
+            });
+
             toast({
                 title: 'Trip Status Updated',
-                description: `The trip status has been set to ${newStatus}.`
+                description: `The trip status has been set to ${newStatus}.`,
             });
+            // The page will auto-refresh due to the listener on the document.
         } catch (error) {
             console.error("Failed to update trip status:", error);
             toast({
                 variant: 'destructive',
                 title: 'Update Failed',
-                description: 'Could not update the trip status.'
+                description: 'Could not update the trip status.',
             });
         } finally {
             setIsUpdating(false);
@@ -44,7 +80,7 @@ const TripStatusControl = ({ schedule, scheduleRef }: { schedule: any, scheduleR
     };
     
     const tripStatusOptions = ["On Time", "Delayed", "Cancelled"];
-    const currentStatus = schedule.status || 'On Time';
+    const currentStatus = effectiveSchedule?.status || 'On Time';
 
     if (currentStatus === 'Departed' || currentStatus === 'Arrived') {
         return <Badge variant="secondary">Status: {currentStatus}</Badge>
@@ -67,34 +103,77 @@ const TripStatusControl = ({ schedule, scheduleRef }: { schedule: any, scheduleR
     );
 };
 
-export default function BoardingManifestPage() {
+
+function ManifestPageContent() {
   const firestore = useFirestore();
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
-  const scheduleId = params.scheduleId as string;
-  const [isPrintViewOpen, setIsPrintViewOpen] = useState(false);
 
-  const scheduleRef = useMemoFirebase(() => {
+  const scheduleId = params.scheduleId as string;
+  const dateParam = searchParams.get('date');
+  const tripDate = useMemo(() => dateParam ? parseISO(dateParam) : new Date(), [dateParam]);
+  const tripDateStr = useMemo(() => format(tripDate, 'yyyy-MM-dd'), [tripDate]);
+
+  const [isPrintViewOpen, setIsPrintViewOpen] = useState(false);
+  const [effectiveSchedule, setEffectiveSchedule] = useState<any>(null);
+
+  const baseScheduleRef = useMemoFirebase(() => {
     if (!firestore || !scheduleId) return null;
     return doc(firestore, 'schedules', scheduleId);
   }, [firestore, scheduleId]);
 
+  const { data: baseSchedule, isLoading: isLoadingBaseSchedule } = useDoc(baseScheduleRef);
+
+  useEffect(() => {
+    if (!baseSchedule || !firestore) return;
+
+    const findEffectiveSchedule = async () => {
+        if (baseSchedule.tripType === 'Special') {
+            setEffectiveSchedule(baseSchedule);
+        } else {
+            const q = query(
+                collection(firestore, 'schedules'),
+                where('sourceScheduleId', '==', baseSchedule.id),
+                where('date', '==', tripDateStr)
+            );
+            const querySnapshot = await getDocs(q);
+            if (!querySnapshot.empty) {
+                setEffectiveSchedule({ ...querySnapshot.docs[0].data(), id: querySnapshot.docs[0].id });
+            } else {
+                setEffectiveSchedule({ ...baseSchedule, date: tripDateStr }); // A virtual schedule object
+            }
+        }
+    };
+    findEffectiveSchedule();
+  }, [baseSchedule, firestore, tripDateStr]);
+  
+  const effectiveScheduleRef = useMemoFirebase(() => {
+    if (!firestore || !effectiveSchedule?.id) return null;
+    return doc(firestore, 'schedules', effectiveSchedule.id);
+  }, [firestore, effectiveSchedule]);
+  
+  // We use useDoc on the effective ref to get realtime updates after a transaction
+  const { data: realtimeEffectiveSchedule } = useDoc(effectiveScheduleRef);
+
+  // The schedule to display is the realtime one if it exists, otherwise the one from state
+  const displaySchedule = realtimeEffectiveSchedule || effectiveSchedule;
+
   const bookingsQuery = useMemoFirebase(() => {
-    if (!firestore || !scheduleId) return null;
-    return query(collection(firestore, 'bookings'), where('scheduleId', '==', scheduleId));
-  }, [firestore, scheduleId]);
+    if (!firestore || !displaySchedule?.id) return null;
+    return query(collection(firestore, 'bookings'), where('scheduleId', '==', displaySchedule.id));
+  }, [firestore, displaySchedule]);
 
   const boardingRecordsQuery = useMemoFirebase(() => {
-    if (!firestore || !scheduleId) return null;
-    return query(collection(firestore, 'boarding'), where('scheduleId', '==', scheduleId));
-  }, [firestore, scheduleId]);
+    if (!firestore || !displaySchedule?.id) return null;
+    return query(collection(firestore, 'boarding'), where('scheduleId', '==', displaySchedule.id));
+  }, [firestore, displaySchedule]);
   
-  const { data: schedule, isLoading: isLoadingSchedule } = useDoc(scheduleRef);
   const { data: bookings, isLoading: isLoadingBookings } = useCollection(bookingsQuery, { idField: 'firestoreId' });
   const { data: boardingRecords, isLoading: isLoadingBoarding } = useCollection(boardingRecordsQuery);
-  const { data: route, isLoading: isLoadingRoute } = useDoc(useMemoFirebase(() => (firestore && schedule?.routeId) ? doc(firestore, 'routes', schedule.routeId) : null, [firestore, schedule]));
-  const { data: ship, isLoading: isLoadingShip } = useDoc(useMemoFirebase(() => (firestore && schedule?.shipId) ? doc(firestore, 'ships', schedule.shipId) : null, [firestore, schedule]));
+  const { data: route, isLoading: isLoadingRoute } = useDoc(useMemoFirebase(() => (firestore && displaySchedule?.routeId) ? doc(firestore, 'routes', displaySchedule.routeId) : null, [firestore, displaySchedule]));
+  const { data: ship, isLoading: isLoadingShip } = useDoc(useMemoFirebase(() => (firestore && displaySchedule?.shipId) ? doc(firestore, 'ships', displaySchedule.shipId) : null, [firestore, displaySchedule]));
   const { data: allShips, isLoading: isLoadingAllShips } = useCollection(useMemoFirebase(() => firestore ? collection(firestore, 'ships') : null, [firestore]));
 
   const passengers = useMemo(() => {
@@ -132,7 +211,7 @@ export default function BoardingManifestPage() {
   }, [passengers, boardedPassengers]);
 
   const handleBoarding = useCallback(async (passenger: typeof passengers[0]) => {
-    if (!firestore) return;
+    if (!firestore || !displaySchedule?.id) return;
     
     const batch = writeBatch(firestore);
 
@@ -142,7 +221,7 @@ export default function BoardingManifestPage() {
         passengerId: passenger.id,
         passengerName: passenger.fullName,
         bookingId: passenger.firestoreBookingId,
-        scheduleId,
+        scheduleId: displaySchedule.id,
         status: 'Boarded',
         boardingTime: serverTimestamp()
     });
@@ -155,14 +234,10 @@ export default function BoardingManifestPage() {
         toast({ title: "Passenger Boarded", description: `${passenger.fullName} has been marked as boarded and booking is completed.` });
     } catch (error) {
         console.error("Failed to update records:", error);
-        toast({
-            variant: "destructive",
-            title: "Boarding Incomplete",
-            description: "Could not update the main booking status. Please check logs."
-        });
+        toast({ variant: "destructive", title: "Boarding Incomplete", description: "Could not update the main booking status." });
     }
 
-  }, [firestore, scheduleId, toast]);
+  }, [firestore, displaySchedule, toast]);
 
   const handleDeboarding = useCallback(async (passenger: typeof passengers[0]) => {
     if (!firestore || !passenger.boardingRecordId) return;
@@ -179,11 +254,7 @@ export default function BoardingManifestPage() {
         toast({ title: "Passenger Deboarded", description: `${passenger.fullName}'s status has been reset and booking is now Confirmed.` });
     } catch(error) {
         console.error("Failed to deboard passenger:", error);
-        toast({
-            variant: "destructive",
-            title: "Deboarding Failed",
-            description: "Could not update records. Please check logs."
-        });
+        toast({ variant: "destructive", title: "Deboarding Failed", description: "Could not update records." });
     }
   }, [firestore, toast]);
   
@@ -202,84 +273,104 @@ export default function BoardingManifestPage() {
     } catch { return 'N/A'; }
   };
 
-  const isLoading = isLoadingSchedule || isLoadingBookings || isLoadingRoute || isLoadingBoarding || isLoadingShip || isLoadingAllShips;
-  const isBoardingActive = schedule?.boardingStatus === 'Boarding';
+  const isLoading = isLoadingBaseSchedule || !displaySchedule || isLoadingBookings || isLoadingRoute || isLoadingBoarding || isLoadingShip || isLoadingAllShips;
+  const isBoardingActive = displaySchedule?.boardingStatus === 'Boarding';
 
   if (isLoading) {
     return (
       <div className="flex h-full min-h-[400px] w-full items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        <p className="ml-2">Loading boarding manifest...</p>
+        <p className="ml-2">Loading trip manifest...</p>
       </div>
     );
   }
-
-  if (!schedule) {
+  
+  if (!displaySchedule) {
      return (
         <div className="flex h-full min-h-[400px] w-full items-center justify-center">
-            <p>Schedule not found.</p>
+            <p>Schedule not found for the selected date.</p>
         </div>
     )
   }
 
   const BoardingWorkflowButtons = () => {
-    const [selectedShipId, setSelectedShipId] = useState(schedule?.shipId || '');
+    const [selectedShipId, setSelectedShipId] = useState(displaySchedule?.shipId || '');
     
-    const availableShips = useMemo(() => {
-        return allShips?.filter(s => s.status === 'In Service') || [];
-    }, [allShips]);
+    const availableShips = useMemo(() => allShips?.filter(s => s.status === 'In Service') || [], [allShips]);
     
     const handleStatusChange = useCallback(async (newStatus: 'Boarding' | 'Boarding Closed' | 'Departed' | 'Arrived') => {
-      if (!scheduleRef) return;
-      
-      const updateData: { boardingStatus?: string; status?: string, shipId?: string; shipName?: string; } = {};
-      
-      if (newStatus === 'Boarding') {
-          updateData.boardingStatus = newStatus;
-          if (!selectedShipId) {
-              toast({ variant: 'destructive', title: 'No Ship Assigned', description: 'Please assign a ship to the trip before starting boarding.' });
-              return;
-          }
-          const selectedShip = allShips?.find(s => s.id === selectedShipId);
-          if (selectedShip) {
-              updateData.shipId = selectedShipId;
-              updateData.shipName = selectedShip.name;
-          }
-      } else if (newStatus === 'Departed') {
-          updateData.boardingStatus = newStatus;
-          updateData.status = 'Departed';
-      } else if (newStatus === 'Arrived') {
-          updateData.status = 'Arrived';
-      }
-      else {
-          updateData.boardingStatus = newStatus;
-      }
+        if (!baseSchedule) return;
 
-      try {
-        await updateDoc(scheduleRef, updateData);
-        toast({
-          title: `Trip Status Updated`,
-          description: `The trip is now: ${newStatus}`,
-        });
-      } catch (error) {
-        toast({
-          variant: 'destructive',
-          title: 'Update Failed',
-          description: 'Could not update the trip status.',
-        });
-      }
-    }, [scheduleRef, toast, selectedShipId, allShips]);
+        try {
+            await runTransaction(firestore, async (transaction) => {
+                let scheduleToUpdateRef: DocumentReference;
+                
+                const updateData: { boardingStatus?: string; status?: string, shipId?: string; shipName?: string; } = {};
+
+                if (newStatus === 'Boarding') {
+                    updateData.boardingStatus = newStatus;
+                    if (!selectedShipId) {
+                        throw new Error('Please assign a ship to the trip before starting boarding.');
+                    }
+                    const selectedShip = allShips?.find(s => s.id === selectedShipId);
+                    if (selectedShip) {
+                        updateData.shipId = selectedShipId;
+                        updateData.shipName = selectedShip.name;
+                    }
+                } else if (newStatus === 'Departed') {
+                    updateData.boardingStatus = newStatus;
+                    updateData.status = 'Departed';
+                } else if (newStatus === 'Arrived') {
+                    updateData.status = 'Arrived';
+                } else {
+                    updateData.boardingStatus = newStatus;
+                }
+
+                if (baseSchedule.tripType === 'Daily') {
+                    const specialInstanceQuery = query(
+                        collection(firestore, 'schedules'),
+                        where('sourceScheduleId', '==', baseSchedule.id),
+                        where('date', '==', tripDateStr)
+                    );
+                    const querySnapshot = await getDocs(specialInstanceQuery);
+
+                    if (!querySnapshot.empty) {
+                        scheduleToUpdateRef = querySnapshot.docs[0].ref;
+                        transaction.update(scheduleToUpdateRef, updateData);
+                    } else {
+                        scheduleToUpdateRef = doc(collection(firestore, 'schedules'));
+                        const newInstanceData = {
+                            ...baseSchedule,
+                            tripType: 'Special',
+                            date: tripDateStr,
+                            sourceScheduleId: baseSchedule.id,
+                            id: scheduleToUpdateRef.id,
+                            ...updateData,
+                        };
+                        transaction.set(scheduleToUpdateRef, newInstanceData);
+                    }
+                } else { // It's a special trip already
+                    scheduleToUpdateRef = doc(firestore, 'schedules', baseSchedule.id);
+                    transaction.update(scheduleToUpdateRef, updateData);
+                }
+            });
+
+            toast({ title: `Trip Status Updated`, description: `The trip is now: ${newStatus}` });
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Update Failed', description: error.message || 'Could not update the trip status.' });
+        }
+    }, [baseSchedule, toast, selectedShipId, allShips, firestore, tripDateStr]);
 
 
-    if (schedule.status === 'Arrived') {
+    if (displaySchedule.status === 'Arrived') {
         return <p className="text-sm font-medium text-green-600 flex items-center gap-2"><CheckCircle className="h-4 w-4" /> Trip Completed</p>;
     }
     
-    if (schedule.boardingStatus === 'Departed') {
+    if (displaySchedule.boardingStatus === 'Departed') {
         return <Button onClick={() => handleStatusChange('Arrived')}><CheckCircle className="mr-2 h-4 w-4" /> Mark as Arrived</Button>;
     }
 
-    switch (schedule.boardingStatus) {
+    switch (displaySchedule.boardingStatus) {
       case 'Boarding':
         return <Button onClick={() => handleStatusChange('Boarding Closed')}><Square className="mr-2 h-4 w-4" /> Close Boarding</Button>;
       case 'Boarding Closed':
@@ -287,7 +378,7 @@ export default function BoardingManifestPage() {
       default: // 'Awaiting'
         return (
             <div className="flex items-end gap-2">
-                {!schedule.shipId && (
+                {!displaySchedule.shipId && (
                     <div className="space-y-1">
                         <Label htmlFor="ship-select">Assign Ship</Label>
                         <Select onValueChange={setSelectedShipId} value={selectedShipId}>
@@ -302,7 +393,7 @@ export default function BoardingManifestPage() {
                         </Select>
                     </div>
                 )}
-                <Button onClick={() => handleStatusChange('Boarding')} disabled={!selectedShipId || schedule.status === 'Cancelled'}><Play className="mr-2 h-4 w-4" /> Start Boarding</Button>
+                <Button onClick={() => handleStatusChange('Boarding')} disabled={!selectedShipId || displaySchedule.status === 'Cancelled'}><Play className="mr-2 h-4 w-4" /> Start Boarding</Button>
             </div>
         );
     }
@@ -319,13 +410,13 @@ export default function BoardingManifestPage() {
         <div>
           <CardTitle className="text-2xl font-bold tracking-tight">Passenger Manifest</CardTitle>
           <CardDescription>
-            Manifest for {route?.name} departing at {schedule.departureTime} on {format(new Date(schedule.date || Date.now()), 'PPP')}
+            Manifest for {route?.name} departing at {displaySchedule.departureTime} on {format(tripDate, 'PPP')}
           </CardDescription>
         </div>
         <div className="flex items-center gap-4">
-            <TripStatusControl schedule={schedule} scheduleRef={scheduleRef} />
+            <TripStatusControl baseSchedule={baseSchedule} effectiveSchedule={displaySchedule} tripDateStr={tripDateStr} />
             <BoardingWorkflowButtons />
-            {schedule.boardingStatus === 'Boarding Closed' && (
+            {displaySchedule.boardingStatus === 'Boarding Closed' && (
               <Button variant="outline" onClick={() => setIsPrintViewOpen(true)}>
                 <Printer className="mr-2 h-4 w-4" /> Print Manifest
               </Button>
@@ -371,7 +462,7 @@ export default function BoardingManifestPage() {
         <CardHeader>
           <CardTitle>Passenger List</CardTitle>
           <CardDescription>
-            {isBoardingActive ? "Boarding is in progress." : `Boarding is currently ${schedule.boardingStatus || 'Awaiting'}.`}
+            {isBoardingActive ? "Boarding is in progress." : `Boarding is currently ${displaySchedule.boardingStatus || 'Awaiting'}.`}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -431,11 +522,25 @@ export default function BoardingManifestPage() {
           <PrintableManifest 
             passengers={boardedPassengers}
             route={route}
-            schedule={schedule}
+            schedule={displaySchedule}
             ship={ship}
           />
       </DialogContent>
     </Dialog>
     </>
+  );
+}
+
+
+export default function BoardingManifestPage() {
+  return (
+    <Suspense fallback={
+        <div className="flex h-full min-h-[400px] w-full items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <p className="ml-2">Loading...</p>
+        </div>
+    }>
+      <ManifestPageContent />
+    </Suspense>
   );
 }

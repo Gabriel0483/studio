@@ -1,21 +1,23 @@
 
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, where } from 'firebase/firestore';
+import { collection } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, CalendarClock, Loader2, Play } from 'lucide-react';
+import { ArrowRight, CalendarClock, Loader2, Calendar as CalendarIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useRouter } from 'next/navigation';
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { cn } from '@/lib/utils';
 
 export default function BoardingPage() {
   const firestore = useFirestore();
   const router = useRouter();
-
-  const todayStr = format(new Date(), 'yyyy-MM-dd');
+  const [date, setDate] = useState<Date>(new Date());
 
   const schedulesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -31,68 +33,96 @@ export default function BoardingPage() {
   const { data: allSchedules, isLoading: isLoadingSchedules } = useCollection(schedulesQuery);
   const { data: routes, isLoading: isLoadingRoutes } = useCollection(routesQuery);
 
-  const todaySchedules = useMemo(() => {
+  const selectedDateSchedules = useMemo(() => {
     if (!allSchedules) return [];
     
-    const specialTripsForToday = allSchedules.filter(s => s.tripType === 'Special' && s.date === todayStr);
+    const selectedDateStr = format(date, 'yyyy-MM-dd');
+    
+    const specialTripsForDate = allSchedules.filter(s => s.tripType === 'Special' && s.date === selectedDateStr);
     const dailyTrips = allSchedules.filter(s => s.tripType === 'Daily');
 
-    // For each daily trip, check if a special instance already exists for today. If so, use that instance.
+    // For each daily trip, check if a special instance already exists for the selected date. If so, use that instance.
     // Otherwise, use the daily template itself so it can be managed.
-    const dailyInstancesForToday = dailyTrips.map(daily => {
-        const existingInstance = specialTripsForToday.find(st => st.sourceScheduleId === daily.id);
+    const dailyInstancesForDate = dailyTrips.map(daily => {
+        const existingInstance = specialTripsForDate.find(st => st.sourceScheduleId === daily.id);
         return existingInstance || daily;
     });
 
     const combinedSchedules = [
-        ...specialTripsForToday.filter(st => !st.sourceScheduleId), // Standalone special trips
-        ...dailyInstancesForToday
+        ...specialTripsForDate.filter(st => !st.sourceScheduleId), // Standalone special trips
+        ...dailyInstancesForDate
     ];
     
     return combinedSchedules
-        .filter(schedule => schedule.status !== 'Departed' && schedule.status !== 'Arrived' && schedule.status !== 'Cancelled')
+        .filter(schedule => schedule.status !== 'Departed' && schedule.status !== 'Arrived')
         .sort((a, b) => a.departureTime.localeCompare(b.departureTime));
 
-  }, [allSchedules, todayStr]);
+  }, [allSchedules, date]);
 
   const getRouteName = (routeId: string) => routes?.find(r => r.id === routeId)?.name || 'Unknown Route';
 
-  const getBoardingStatusVariant = (status?: string) => {
+  const getStatusVariant = (status?: string) => {
     switch(status) {
+      case 'On Time':
       case 'Boarding':
         return 'default';
       case 'Boarding Closed':
         return 'destructive';
       case 'Departed':
         return 'secondary';
+      case 'Cancelled':
+      case 'Delayed':
+        return 'destructive';
       default: // Awaiting
         return 'outline';
     }
-  }
+  };
+
+  const handleManageTrip = (scheduleId: string) => {
+    const dateParam = format(date, 'yyyy-MM-dd');
+    router.push(`/dashboard/boarding/${scheduleId}?date=${dateParam}`);
+  };
 
   const isLoading = isLoadingSchedules || isLoadingRoutes;
 
-  if (isLoading) {
-    return (
-      <div className="flex h-full min-h-[400px] w-full items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        <p className="ml-2">Loading today's trips...</p>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Boarding Management</h1>
-        <p className="text-muted-foreground">
-          View all active and upcoming trips for today, {format(new Date(), 'PPP')}.
-        </p>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Trip Management</h1>
+          <p className="text-muted-foreground">
+            View and manage all trips for the selected date.
+          </p>
+        </div>
+        <Popover>
+            <PopoverTrigger asChild>
+                <Button
+                variant={"outline"}
+                className={cn("w-full sm:w-[280px] justify-start text-left font-normal", !date && "text-muted-foreground")}
+                >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {date ? format(date, "PPP") : <span>Pick a date</span>}
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0">
+                <Calendar
+                mode="single"
+                selected={date}
+                onSelect={(d) => setDate(d || new Date())}
+                initialFocus
+                />
+            </PopoverContent>
+        </Popover>
       </div>
 
-      {todaySchedules.length > 0 ? (
+      {isLoading ? (
+        <div className="flex h-full min-h-[400px] w-full items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <p className="ml-2">Loading trips for {format(date, 'PPP')}...</p>
+        </div>
+      ) : selectedDateSchedules.length > 0 ? (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {todaySchedules.map(schedule => (
+          {selectedDateSchedules.map(schedule => (
             <Card key={schedule.id} className="flex flex-col">
               <CardHeader>
                 <CardTitle className="tracking-tight">{getRouteName(schedule.routeId)}</CardTitle>
@@ -107,12 +137,12 @@ export default function BoardingPage() {
                  </div>
               </CardContent>
               <CardFooter className="flex-col items-start gap-4">
-                <div>
-                  <p className="text-xs font-semibold text-muted-foreground">Boarding Status</p>
-                  <Badge variant={getBoardingStatusVariant(schedule.boardingStatus)}>{schedule.boardingStatus || 'Awaiting'}</Badge>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant={getStatusVariant(schedule.status || 'On Time')}>{schedule.status || 'On Time'}</Badge>
+                  <Badge variant={getStatusVariant(schedule.boardingStatus)}>{schedule.boardingStatus || 'Awaiting'}</Badge>
                 </div>
-                <Button className="w-full" onClick={() => router.push(`/dashboard/boarding/${schedule.id}`)}>
-                  {schedule.boardingStatus === 'Boarding' ? 'View Manifest' : 'Manage Trip'}
+                <Button className="w-full" onClick={() => handleManageTrip(schedule.id)}>
+                  Manage Trip
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </CardFooter>
@@ -122,8 +152,8 @@ export default function BoardingPage() {
       ) : (
         <div className="flex h-full min-h-[400px] w-full flex-col items-center justify-center rounded-lg border border-dashed">
             <CalendarClock className="h-16 w-16 text-muted-foreground" />
-            <h3 className="mt-4 text-lg font-semibold">No More Trips Today</h3>
-            <p className="text-sm text-muted-foreground">All scheduled trips for today have departed or there are no more trips scheduled.</p>
+            <h3 className="mt-4 text-lg font-semibold">No Trips Scheduled</h3>
+            <p className="text-sm text-muted-foreground">There are no trips scheduled for {format(date, 'PPP')}.</p>
         </div>
       )}
     </div>
