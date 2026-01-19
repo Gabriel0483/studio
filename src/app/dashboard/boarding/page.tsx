@@ -4,7 +4,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection } from 'firebase/firestore';
-import { format } from 'date-fns';
+import { format, addDays } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowRight, CalendarClock, Loader2, Calendar as CalendarIcon } from 'lucide-react';
@@ -23,7 +23,8 @@ export default function BoardingPage() {
   useEffect(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    setDisabledDays({ before: today });
+    const fiveDaysFromNow = addDays(today, 4);
+    setDisabledDays({ before: today, after: fiveDaysFromNow });
   }, []);
 
   const schedulesQuery = useMemoFirebase(() => {
