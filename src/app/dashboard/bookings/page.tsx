@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Card,
   CardContent,
@@ -36,13 +36,18 @@ import {
   runTransaction,
   updateDoc,
 } from 'firebase/firestore';
-import { BookCopy, Pencil, Search, Trash2, XCircle, CreditCard, Loader2 } from 'lucide-react';
+import { BookCopy, Pencil, Search, Trash2, XCircle, CreditCard, Loader2, Calendar as CalendarIcon, FilterX } from 'lucide-react';
 import { format } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { Calendar } from '@/components/ui/calendar';
+import { cn } from '@/lib/utils';
 
 interface Booking {
   firestoreId: string; // The actual firestore document ID
@@ -59,49 +64,98 @@ interface Booking {
   paymentStatus: 'Paid' | 'Unpaid' | 'Refunded';
 }
 
+const bookingStatuses = ['Confirmed', 'Reserved', 'Waitlisted', 'Cancelled', 'Refunded', 'Completed'] as const;
+
 
 export default function BookingsPage() {
   const firestore = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
+  
+  // State for filters
   const [search, setSearch] = useState('');
+  const [filterRoute, setFilterRoute] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterDate, setFilterDate] = useState<Date | undefined>();
+  const [filterSchedule, setFilterSchedule] = useState('all');
+
+  // State for dialogs
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [isPaidDialogOpen, setIsPaidDialogOpen] = useState(false);
   const [bookingToProcess, setBookingToProcess] = useState<Booking | null>(null);
 
-  const bookingsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return collection(firestore, 'bookings');
-  }, [firestore]);
+  // Data fetching
+  const bookingsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'bookings') : null, [firestore]);
+  const routesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'routes') : null, [firestore]);
+  const schedulesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'schedules') : null, [firestore]);
 
   const { data: bookings, isLoading: isLoadingBookings } = useCollection<Booking>(bookingsQuery, { idField: 'firestoreId' });
+  const { data: routes, isLoading: isLoadingRoutes } = useCollection(routesQuery);
+  const { data: schedules, isLoading: isLoadingSchedules } = useCollection(schedulesQuery);
+
+  const availableSchedules = useMemo(() => {
+    if (!schedules || !filterDate) return [];
+    
+    const selectedDateStr = format(filterDate, 'yyyy-MM-dd');
+
+    const specialTripsForDate = schedules.filter(s => s.tripType === 'Special' && s.date === selectedDateStr);
+    const dailyTrips = schedules.filter(s => s.tripType === 'Daily');
+
+    const dailyInstancesForDate = dailyTrips.map(daily => {
+        const existingInstance = specialTripsForDate.find(st => st.sourceScheduleId === daily.id);
+        return existingInstance || daily;
+    });
+
+    let combinedSchedules = [
+        ...specialTripsForDate.filter(st => !st.sourceScheduleId),
+        ...dailyInstancesForDate
+    ];
+    
+    if (filterRoute !== 'all') {
+      combinedSchedules = combinedSchedules.filter(s => s.routeId === filterRoute);
+    }
+
+    return combinedSchedules.sort((a,b) => a.departureTime.localeCompare(b.departureTime));
+
+  }, [schedules, filterDate, filterRoute]);
+
+  useEffect(() => {
+    setFilterSchedule('all');
+  }, [filterDate, filterRoute]);
 
   const filteredBookings = useMemo(() => {
     if (!bookings) return [];
     
-    const sortedBookings = [...bookings].sort((a, b) => {
-        const dateA = a.bookingDate ? a.bookingDate.toMillis() : 0;
-        const dateB = b.bookingDate ? b.bookingDate.toMillis() : 0;
-        return dateB - dateA;
-    });
+    const sortedBookings = [...bookings].sort((a, b) => b.bookingDate.toMillis() - a.bookingDate.toMillis());
     
-    if (!search) return sortedBookings;
+    const selectedRoute = routes?.find(r => r.id === filterRoute);
 
     return sortedBookings.filter((booking) => {
       const searchTerm = search.toLowerCase();
-      const passengerNames = Array.isArray(booking.passengerInfo)
-        ? booking.passengerInfo.map((p) => p.fullName.toLowerCase()).join(' ')
-        : '';
-
-      return (
+      const passengerNames = Array.isArray(booking.passengerInfo) ? booking.passengerInfo.map(p => p.fullName.toLowerCase()).join(' ') : '';
+      const searchMatch = !search ||
         passengerNames.includes(searchTerm) ||
         booking.id.toLowerCase().includes(searchTerm) ||
         booking.passengerEmail.toLowerCase().includes(searchTerm) ||
-        booking.routeName.toLowerCase().includes(searchTerm)
-      );
+        booking.routeName.toLowerCase().includes(searchTerm);
+
+      const statusMatch = filterStatus === 'all' || booking.status === filterStatus;
+      const dateMatch = !filterDate || format(booking.travelDate.toDate(), 'yyyy-MM-dd') === format(filterDate, 'yyyy-MM-dd');
+      const routeMatch = filterRoute === 'all' || booking.routeName === selectedRoute?.name;
+      const scheduleMatch = filterSchedule === 'all' || booking.scheduleId === filterSchedule;
+
+      return searchMatch && statusMatch && dateMatch && routeMatch && scheduleMatch;
     });
-  }, [bookings, search]);
+  }, [bookings, search, filterStatus, filterDate, filterRoute, filterSchedule, routes]);
+  
+  const clearFilters = () => {
+    setSearch('');
+    setFilterRoute('all');
+    setFilterStatus('all');
+    setFilterDate(undefined);
+    setFilterSchedule('all');
+  };
 
   const formatDate = (timestamp: Timestamp | undefined, dateFormat = 'PPP p') => {
     if (!timestamp) return 'N/A';
@@ -151,37 +205,22 @@ export default function BookingsPage() {
   };
 
   const handleDelete = async () => {
-    if (!firestore || !bookingToProcess) {
-      return;
-    }
-
+    if (!firestore || !bookingToProcess) return;
     const bookingRef = doc(firestore, 'bookings', bookingToProcess.firestoreId);
     const scheduleRef = doc(firestore, 'schedules', bookingToProcess.scheduleId);
-
     try {
       await runTransaction(firestore, async (transaction) => {
         const scheduleDoc = await transaction.get(scheduleRef);
-
         if (scheduleDoc.exists() && (bookingToProcess.status === 'Reserved' || bookingToProcess.status === 'Confirmed')) {
           const currentSeats = scheduleDoc.data().availableSeats || 0;
-          const newSeats = currentSeats + bookingToProcess.numberOfSeats;
-          transaction.update(scheduleRef, { availableSeats: newSeats });
+          transaction.update(scheduleRef, { availableSeats: currentSeats + bookingToProcess.numberOfSeats });
         }
-        
         transaction.delete(bookingRef);
       });
-
-      toast({
-        title: 'Booking Deleted',
-        description: 'The booking has been permanently deleted and seats have been returned.',
-      });
+      toast({ title: 'Booking Deleted', description: 'The booking has been permanently deleted and seats returned.' });
     } catch (e: any) {
       console.error(e);
-      toast({
-        variant: 'destructive',
-        title: 'Error Deleting Booking',
-        description: e.message || 'There was a problem deleting the booking.',
-      });
+      toast({ variant: 'destructive', title: 'Error Deleting Booking', description: e.message || 'There was a problem deleting the booking.' });
     } finally {
         setIsDeleteDialogOpen(false);
         setBookingToProcess(null);
@@ -189,39 +228,21 @@ export default function BookingsPage() {
   };
 
   const handleCancel = async () => {
-    if (!firestore || !bookingToProcess) {
-        return;
-    }
-
+    if (!firestore || !bookingToProcess) return;
     const bookingRef = doc(firestore, 'bookings', bookingToProcess.firestoreId);
     const scheduleRef = doc(firestore, 'schedules', bookingToProcess.scheduleId);
-
     try {
         await runTransaction(firestore, async (transaction) => {
             const scheduleDoc = await transaction.get(scheduleRef);
-
-            // Only return seats if the booking was reserved or confirmed
             if (scheduleDoc.exists() && (bookingToProcess.status === 'Reserved' || bookingToProcess.status === 'Confirmed')) {
-                const currentSeats = scheduleDoc.data().availableSeats || 0;
-                const newSeats = currentSeats + bookingToProcess.numberOfSeats;
-                transaction.update(scheduleRef, { availableSeats: newSeats });
+                transaction.update(scheduleRef, { availableSeats: scheduleDoc.data().availableSeats + bookingToProcess.numberOfSeats });
             }
-
             transaction.update(bookingRef, { status: 'Cancelled' });
         });
-
-        toast({
-            title: 'Booking Cancelled',
-            description: 'The booking has been successfully cancelled.',
-        });
-
+        toast({ title: 'Booking Cancelled', description: 'The booking has been successfully cancelled.' });
     } catch (e: any) {
         console.error(e);
-        toast({
-            variant: 'destructive',
-            title: 'Error Cancelling Booking',
-            description: e.message || 'There was a problem cancelling the booking.',
-        });
+        toast({ variant: 'destructive', title: 'Error Cancelling Booking', description: e.message || 'There was a problem.' });
     } finally {
         setIsCancelDialogOpen(false);
         setBookingToProcess(null);
@@ -229,23 +250,14 @@ export default function BookingsPage() {
   };
 
   const handleMarkAsPaid = async () => {
-    if (!firestore || !bookingToProcess) {
-      return;
-    }
+    if (!firestore || !bookingToProcess) return;
     const bookingRef = doc(firestore, 'bookings', bookingToProcess.firestoreId);
     try {
       await updateDoc(bookingRef, { paymentStatus: 'Paid', status: 'Confirmed' });
-      toast({
-        title: 'Booking Paid & Confirmed',
-        description: `Booking #${bookingToProcess.id} is now Paid and Confirmed.`,
-      });
+      toast({ title: 'Booking Paid & Confirmed', description: `Booking #${bookingToProcess.id} is now Paid and Confirmed.` });
     } catch (e: any) {
       console.error(e);
-      toast({
-        variant: 'destructive',
-        title: 'Update Failed',
-        description: e.message || 'Could not mark the booking as paid.',
-      });
+      toast({ variant: 'destructive', title: 'Update Failed', description: e.message || 'Could not mark the booking as paid.' });
     } finally {
       setIsPaidDialogOpen(false);
       setBookingToProcess(null);
@@ -254,35 +266,24 @@ export default function BookingsPage() {
 
   const getStatusVariant = (status: Booking['status']) => {
     switch (status) {
-      case 'Confirmed':
-      case 'Completed':
-        return 'default';
-      case 'Reserved':
-        return 'secondary';
-      case 'Waitlisted':
-        return 'outline';
-      case 'Cancelled':
-      case 'Refunded':
-        return 'destructive';
-      default:
-        return 'outline';
+      case 'Confirmed': case 'Completed': return 'default';
+      case 'Reserved': return 'secondary';
+      case 'Waitlisted': return 'outline';
+      case 'Cancelled': case 'Refunded': return 'destructive';
+      default: return 'outline';
     }
   };
   
   const getPaymentStatusVariant = (status: Booking['paymentStatus']) => {
     switch (status) {
-        case 'Paid':
-            return 'default';
-        case 'Unpaid':
-            return 'secondary';
-        case 'Refunded':
-             return 'destructive';
-        default:
-            return 'outline';
+        case 'Paid': return 'default';
+        case 'Unpaid': return 'secondary';
+        case 'Refunded': return 'destructive';
+        default: return 'outline';
     }
   };
   
-  const isLoading = isLoadingBookings;
+  const isLoading = isLoadingBookings || isLoadingRoutes || isLoadingSchedules;
 
   return (
     <>
@@ -290,7 +291,7 @@ export default function BookingsPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Booking Management</h1>
           <p className="text-muted-foreground">
-            View and manage all passenger bookings.
+            View, manage, and filter all passenger bookings.
           </p>
         </div>
 
@@ -300,16 +301,63 @@ export default function BookingsPage() {
             <CardDescription>
               A real-time list of all passenger bookings.
             </CardDescription>
-            <div className="pt-2">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search by name, email, or route..."
-                  className="pl-10 w-full"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-              </div>
+            <div className="pt-4 space-y-4">
+                <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input placeholder="Search by name, email, or route..." className="pl-10 w-full" value={search} onChange={(e) => setSearch(e.target.value)} />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="space-y-1">
+                        <Label htmlFor="filter-date">Travel Date</Label>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button id="filter-date" variant={"outline"} className={cn("w-full justify-start text-left font-normal", !filterDate && "text-muted-foreground")}>
+                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                    {filterDate ? format(filterDate, "PPP") : <span>Pick a date</span>}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                                <Calendar mode="single" selected={filterDate} onSelect={setFilterDate} initialFocus />
+                            </PopoverContent>
+                        </Popover>
+                    </div>
+                    <div className="space-y-1">
+                        <Label htmlFor="filter-route">Route</Label>
+                        <Select value={filterRoute} onValueChange={setFilterRoute}>
+                            <SelectTrigger id="filter-route"><SelectValue placeholder="All Routes" /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Routes</SelectItem>
+                                {routes?.map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                     <div className="space-y-1">
+                        <Label htmlFor="filter-status">Booking Status</Label>
+                        <Select value={filterStatus} onValueChange={setFilterStatus}>
+                            <SelectTrigger id="filter-status"><SelectValue placeholder="All Statuses" /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Statuses</SelectItem>
+                                {bookingStatuses.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-1">
+                        <Label htmlFor="filter-schedule">Schedule</Label>
+                        <Select value={filterSchedule} onValueChange={setFilterSchedule} disabled={!filterDate}>
+                            <SelectTrigger id="filter-schedule"><SelectValue placeholder="All Schedules" /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Schedules</SelectItem>
+                                {availableSchedules.map(s => <SelectItem key={s.id} value={s.id}>{s.departureTime} - {s.arrivalTime}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </div>
+                 <div className="flex justify-end">
+                    <Button variant="ghost" onClick={clearFilters} disabled={!search && filterRoute === 'all' && filterStatus === 'all' && !filterDate && filterSchedule === 'all'}>
+                        <FilterX className="mr-2 h-4 w-4" />
+                        Clear All Filters
+                    </Button>
+                </div>
             </div>
           </CardHeader>
           <CardContent>
@@ -432,7 +480,7 @@ export default function BookingsPage() {
                         <TableCell colSpan={10} className="h-24 text-center">
                         <div className="flex flex-col items-center gap-2">
                             <BookCopy className="h-8 w-8 text-muted-foreground" />
-                            <p className="text-muted-foreground">No bookings found.</p>
+                            <p className="text-muted-foreground">No bookings found for the current filters.</p>
                         </div>
                         </TableCell>
                     </TableRow>
@@ -467,7 +515,7 @@ export default function BookingsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Confirm Booking Cancellation</AlertDialogTitle>
             <AlertDialogDescription>
-              This will cancel the booking and change its status to "Cancelled". If the booking was reserved, the seats will be returned to the schedule. The booking record will be kept.
+              This will cancel the booking and change its status to "Cancelled". If the booking was reserved or confirmed, the seats will be returned to the schedule. The booking record will be kept.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -497,6 +545,5 @@ export default function BookingsPage() {
       </AlertDialog>
     </>
   );
-}
 
     
