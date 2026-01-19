@@ -8,13 +8,11 @@ import { ChartConfig, ChartContainer, ChartTooltipContent } from "@/components/u
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, Timestamp } from 'firebase/firestore';
 import { format, getMonth, getYear } from 'date-fns';
-import { Calendar as CalendarIcon, DollarSign, Users, Ticket, CheckCircle, Clock, CreditCard, XCircle, ClipboardCheck, Ban, Check, Bot, Ship, BarChart as BarChartIcon } from 'lucide-react';
+import { DollarSign, Users, Ticket, CheckCircle, Clock, CreditCard, XCircle, ClipboardCheck, Ban, Check, Bot, Ship, BarChart as BarChartIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { cn } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 
 const chartColors = [
   "hsl(var(--chart-1))",
@@ -221,29 +219,19 @@ export default function DashboardPage() {
           <p className="text-muted-foreground">Here's a real-time look at your operations for the selected date.</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-            <Popover>
-            <PopoverTrigger asChild>
-                <Button
-                variant={"outline"}
-                className={cn(
-                    "w-full sm:w-[280px] justify-start text-left font-normal",
-                    !date && "text-muted-foreground"
-                )}
-                >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {date ? format(date, "PPP") : <span>Pick a date</span>}
-                </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0">
-                <Calendar
-                mode="single"
-                selected={date}
-                onSelect={(newDate) => setDate(newDate || new Date())}
-                initialFocus
-                />
-            </PopoverContent>
-            </Popover>
-
+            <Input
+              type="date"
+              value={format(date, 'yyyy-MM-dd')}
+              onChange={(e) => {
+                if (e.target.value) {
+                  const [year, month, day] = e.target.value.split('-').map(Number);
+                  setDate(new Date(year, month - 1, day));
+                } else {
+                  setDate(new Date());
+                }
+              }}
+              className="w-full sm:w-[280px] h-10"
+            />
              <Select value={scheduleFilter} onValueChange={setScheduleFilter}>
                 <SelectTrigger className="w-full sm:w-[280px]">
                     <SelectValue placeholder="Filter by trip..." />
