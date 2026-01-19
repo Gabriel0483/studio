@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection } from 'firebase/firestore';
 import { format } from 'date-fns';
@@ -18,6 +18,13 @@ export default function BoardingPage() {
   const firestore = useFirestore();
   const router = useRouter();
   const [date, setDate] = useState<Date>(new Date());
+  const [disabledDays, setDisabledDays] = useState<any>(null);
+
+  useEffect(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    setDisabledDays({ before: today });
+  }, []);
 
   const schedulesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -108,8 +115,11 @@ export default function BoardingPage() {
                 <Calendar
                 mode="single"
                 selected={date}
-                onSelect={(d) => setDate(d || new Date())}
+                onSelect={(d) => {
+                  if (d) setDate(d);
+                }}
                 initialFocus
+                disabled={disabledDays}
                 />
             </PopoverContent>
         </Popover>
