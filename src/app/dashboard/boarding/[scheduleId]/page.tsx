@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, ArrowLeft, UserCheck, UserX, LogIn, LogOut, Users, Ticket, UserMinus, Play, Square, Ship, Printer } from 'lucide-react';
+import { Loader2, ArrowLeft, UserCheck, UserX, LogIn, LogOut, Users, Ticket, UserMinus, Play, Square, Ship, Printer, CheckCircle } from 'lucide-react';
 import { format, differenceInYears } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -17,6 +17,55 @@ import { PrintableManifest } from '@/components/printable-manifest';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+
+const TripStatusControl = ({ schedule, scheduleRef }: { schedule: any, scheduleRef: any }) => {
+    const { toast } = useToast();
+    const [isUpdating, setIsUpdating] = useState(false);
+
+    const handleStatusUpdate = async (newStatus: string) => {
+        if (!scheduleRef) return;
+        setIsUpdating(true);
+        try {
+            await updateDoc(scheduleRef, { status: newStatus });
+            toast({
+                title: 'Trip Status Updated',
+                description: `The trip status has been set to ${newStatus}.`
+            });
+        } catch (error) {
+            console.error("Failed to update trip status:", error);
+            toast({
+                variant: 'destructive',
+                title: 'Update Failed',
+                description: 'Could not update the trip status.'
+            });
+        } finally {
+            setIsUpdating(false);
+        }
+    };
+    
+    const tripStatusOptions = ["On Time", "Delayed", "Cancelled"];
+    const currentStatus = schedule.status || 'On Time';
+
+    if (currentStatus === 'Departed' || currentStatus === 'Arrived') {
+        return <Badge variant="secondary">Status: {currentStatus}</Badge>
+    }
+
+    return (
+        <div className="flex items-center gap-2">
+             <Label htmlFor="trip-status" className="text-sm shrink-0">Trip Status</Label>
+             <Select onValueChange={handleStatusUpdate} value={currentStatus} disabled={isUpdating}>
+                <SelectTrigger id="trip-status" className="w-[150px]">
+                    <SelectValue placeholder="Set status" />
+                </SelectTrigger>
+                <SelectContent>
+                    {tripStatusOptions.map(status => (
+                        <SelectItem key={status} value={status}>{status}</SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+        </div>
+    );
+};
 
 export default function BoardingManifestPage() {
   const firestore = useFirestore();
@@ -180,12 +229,13 @@ export default function BoardingManifestPage() {
         return allShips?.filter(s => s.status === 'In Service') || [];
     }, [allShips]);
     
-    const handleStatusChange = useCallback(async (newStatus: 'Boarding' | 'Boarding Closed' | 'Departed') => {
+    const handleStatusChange = useCallback(async (newStatus: 'Boarding' | 'Boarding Closed' | 'Departed' | 'Arrived') => {
       if (!scheduleRef) return;
       
-      const updateData: { boardingStatus: string, shipId?: string, shipName?: string } = { boardingStatus: newStatus };
+      const updateData: { boardingStatus?: string; status?: string, shipId?: string; shipName?: string; } = {};
       
       if (newStatus === 'Boarding') {
+          updateData.boardingStatus = newStatus;
           if (!selectedShipId) {
               toast({ variant: 'destructive', title: 'No Ship Assigned', description: 'Please assign a ship to the trip before starting boarding.' });
               return;
@@ -195,6 +245,14 @@ export default function BoardingManifestPage() {
               updateData.shipId = selectedShipId;
               updateData.shipName = selectedShip.name;
           }
+      } else if (newStatus === 'Departed') {
+          updateData.boardingStatus = newStatus;
+          updateData.status = 'Departed';
+      } else if (newStatus === 'Arrived') {
+          updateData.status = 'Arrived';
+      }
+      else {
+          updateData.boardingStatus = newStatus;
       }
 
       try {
@@ -213,13 +271,19 @@ export default function BoardingManifestPage() {
     }, [scheduleRef, toast, selectedShipId, allShips]);
 
 
+    if (schedule.status === 'Arrived') {
+        return <p className="text-sm font-medium text-green-600 flex items-center gap-2"><CheckCircle className="h-4 w-4" /> Trip Completed</p>;
+    }
+    
+    if (schedule.boardingStatus === 'Departed') {
+        return <Button onClick={() => handleStatusChange('Arrived')}><CheckCircle className="mr-2 h-4 w-4" /> Mark as Arrived</Button>;
+    }
+
     switch (schedule.boardingStatus) {
       case 'Boarding':
         return <Button onClick={() => handleStatusChange('Boarding Closed')}><Square className="mr-2 h-4 w-4" /> Close Boarding</Button>;
       case 'Boarding Closed':
         return <Button onClick={() => handleStatusChange('Departed')}><Ship className="mr-2 h-4 w-4" /> Mark as Departed</Button>;
-      case 'Departed':
-        return <p className="text-sm font-medium text-muted-foreground">Trip has departed.</p>;
       default: // 'Awaiting'
         return (
             <div className="flex items-end gap-2">
@@ -238,7 +302,7 @@ export default function BoardingManifestPage() {
                         </Select>
                     </div>
                 )}
-                <Button onClick={() => handleStatusChange('Boarding')} disabled={!selectedShipId}><Play className="mr-2 h-4 w-4" /> Start Boarding</Button>
+                <Button onClick={() => handleStatusChange('Boarding')} disabled={!selectedShipId || schedule.status === 'Cancelled'}><Play className="mr-2 h-4 w-4" /> Start Boarding</Button>
             </div>
         );
     }
@@ -258,7 +322,8 @@ export default function BoardingManifestPage() {
             Manifest for {route?.name} departing at {schedule.departureTime} on {format(new Date(schedule.date || Date.now()), 'PPP')}
           </CardDescription>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-4">
+            <TripStatusControl schedule={schedule} scheduleRef={scheduleRef} />
             <BoardingWorkflowButtons />
             {schedule.boardingStatus === 'Boarding Closed' && (
               <Button variant="outline" onClick={() => setIsPrintViewOpen(true)}>
@@ -374,5 +439,3 @@ export default function BoardingManifestPage() {
     </>
   );
 }
-
-    
