@@ -262,6 +262,7 @@ function ManifestPageContent() {
     switch (status) {
       case 'Awaiting': return 'secondary';
       case 'Boarded': return 'default';
+      case 'No-show': return 'destructive';
       default: return 'outline';
     }
   };
@@ -293,7 +294,7 @@ function ManifestPageContent() {
     )
   }
 
-  const BoardingWorkflowButtons = () => {
+  const BoardingWorkflowButtons = ({ baseSchedule, displaySchedule, allShips, passengers, tripDateStr }: { baseSchedule: any, displaySchedule: any, allShips: any[], passengers: any[], tripDateStr: string }) => {
     const [selectedShipId, setSelectedShipId] = useState(displaySchedule?.shipId || '');
     
     const availableShips = useMemo(() => allShips?.filter(s => s.status === 'In Service') || [], [allShips]);
@@ -305,27 +306,7 @@ function ManifestPageContent() {
             await runTransaction(firestore, async (transaction) => {
                 let scheduleToUpdateRef: DocumentReference;
                 
-                const updateData: { boardingStatus?: string; status?: string, shipId?: string; shipName?: string; } = {};
-
-                if (newStatus === 'Boarding') {
-                    updateData.boardingStatus = newStatus;
-                    if (!selectedShipId) {
-                        throw new Error('Please assign a ship to the trip before starting boarding.');
-                    }
-                    const selectedShip = allShips?.find(s => s.id === selectedShipId);
-                    if (selectedShip) {
-                        updateData.shipId = selectedShipId;
-                        updateData.shipName = selectedShip.name;
-                    }
-                } else if (newStatus === 'Departed') {
-                    updateData.boardingStatus = newStatus;
-                    updateData.status = 'Departed';
-                } else if (newStatus === 'Arrived') {
-                    updateData.status = 'Arrived';
-                } else {
-                    updateData.boardingStatus = newStatus;
-                }
-
+                // This block finds or creates the special schedule instance for the day
                 if (baseSchedule.tripType === 'Daily') {
                     const specialInstanceQuery = query(
                         collection(firestore, 'schedules'),
@@ -336,21 +317,63 @@ function ManifestPageContent() {
 
                     if (!querySnapshot.empty) {
                         scheduleToUpdateRef = querySnapshot.docs[0].ref;
-                        transaction.update(scheduleToUpdateRef, updateData);
                     } else {
                         scheduleToUpdateRef = doc(collection(firestore, 'schedules'));
-                        const newInstanceData = {
-                            ...baseSchedule,
-                            tripType: 'Special',
-                            date: tripDateStr,
-                            sourceScheduleId: baseSchedule.id,
-                            id: scheduleToUpdateRef.id,
-                            ...updateData,
-                        };
-                        transaction.set(scheduleToUpdateRef, newInstanceData);
                     }
-                } else { // It's a special trip already
+                } else { 
                     scheduleToUpdateRef = doc(firestore, 'schedules', baseSchedule.id);
+                }
+                
+                const scheduleIdForRecords = scheduleToUpdateRef.id;
+                let updateData: any = {};
+                
+                if (newStatus === 'Boarding') {
+                    updateData.boardingStatus = newStatus;
+                    if (!selectedShipId) {
+                        throw new Error('Please assign a ship to the trip before starting boarding.');
+                    }
+                    const selectedShip = allShips?.find(s => s.id === selectedShipId);
+                    if (selectedShip) {
+                        updateData.shipId = selectedShipId;
+                        updateData.shipName = selectedShip.name;
+                    }
+                } else if (newStatus === 'Boarding Closed') {
+                    updateData.boardingStatus = newStatus;
+                    const noShowPassengers = passengers.filter(p => p.boardingStatus === 'Awaiting');
+                    
+                    noShowPassengers.forEach(passenger => {
+                        const newBoardingRef = doc(collection(firestore, 'boarding'));
+                        transaction.set(newBoardingRef, {
+                            id: newBoardingRef.id,
+                            passengerId: passenger.id,
+                            passengerName: passenger.fullName,
+                            bookingId: passenger.firestoreBookingId,
+                            scheduleId: scheduleIdForRecords,
+                            status: 'No-show',
+                            boardingTime: serverTimestamp(),
+                        });
+                    });
+                } else if (newStatus === 'Departed') {
+                    updateData.boardingStatus = newStatus;
+                    updateData.status = 'Departed';
+                } else if (newStatus === 'Arrived') {
+                    updateData.status = 'Arrived';
+                } else {
+                    updateData.boardingStatus = newStatus;
+                }
+
+                // If it was a daily template, we need to set the full data for the new special instance
+                if (baseSchedule.tripType === 'Daily' && (await transaction.get(scheduleToUpdateRef)).exists() === false) {
+                     const newInstanceData = {
+                        ...baseSchedule,
+                        tripType: 'Special',
+                        date: tripDateStr,
+                        sourceScheduleId: baseSchedule.id,
+                        id: scheduleToUpdateRef.id,
+                        ...updateData,
+                    };
+                    transaction.set(scheduleToUpdateRef, newInstanceData);
+                } else { // Otherwise just update the existing special instance
                     transaction.update(scheduleToUpdateRef, updateData);
                 }
             });
@@ -359,7 +382,7 @@ function ManifestPageContent() {
         } catch (error: any) {
             toast({ variant: 'destructive', title: 'Update Failed', description: error.message || 'Could not update the trip status.' });
         }
-    }, [baseSchedule, toast, selectedShipId, allShips, firestore, tripDateStr]);
+    }, [baseSchedule, toast, selectedShipId, allShips, firestore, tripDateStr, passengers]);
 
 
     if (displaySchedule.status === 'Arrived') {
@@ -415,7 +438,13 @@ function ManifestPageContent() {
         </div>
         <div className="flex items-center gap-4">
             <TripStatusControl baseSchedule={baseSchedule} effectiveSchedule={displaySchedule} tripDateStr={tripDateStr} />
-            <BoardingWorkflowButtons />
+            <BoardingWorkflowButtons 
+                baseSchedule={baseSchedule}
+                displaySchedule={displaySchedule}
+                allShips={allShips}
+                passengers={passengers}
+                tripDateStr={tripDateStr}
+            />
             {displaySchedule.boardingStatus === 'Boarding Closed' && (
               <Button variant="outline" onClick={() => setIsPrintViewOpen(true)}>
                 <Printer className="mr-2 h-4 w-4" /> Print Manifest
@@ -489,11 +518,12 @@ function ManifestPageContent() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                       {passenger.boardingStatus === 'Awaiting' ? (
+                       {passenger.boardingStatus === 'Awaiting' && (
                           <Button variant="outline" size="sm" onClick={() => handleBoarding(passenger)} disabled={!isBoardingActive}>
                               <LogIn className="mr-2 h-4 w-4" /> Board
                           </Button>
-                       ) : (
+                       )}
+                       {passenger.boardingStatus === 'Boarded' && (
                           <Button variant="secondary" size="sm" onClick={() => handleDeboarding(passenger)} disabled={!isBoardingActive}>
                              <LogOut className="mr-2 h-4 w-4" /> Deboard
                           </Button>
