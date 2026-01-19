@@ -19,25 +19,41 @@ export default function BoardingPage() {
 
   const schedulesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return query(collection(firestore, 'schedules'), where('date', '==', todayStr));
-  }, [firestore, todayStr]);
+    // Fetch all schedules, as we need to process daily templates.
+    return collection(firestore, 'schedules');
+  }, [firestore]);
   
   const routesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return collection(firestore, 'routes');
   }, [firestore]);
 
-  const { data: schedules, isLoading: isLoadingSchedules } = useCollection(schedulesQuery);
+  const { data: allSchedules, isLoading: isLoadingSchedules } = useCollection(schedulesQuery);
   const { data: routes, isLoading: isLoadingRoutes } = useCollection(routesQuery);
 
   const todaySchedules = useMemo(() => {
-    if (!schedules) return [];
+    if (!allSchedules) return [];
     
-    return schedules
-        .filter(schedule => schedule.status !== 'Departed' && schedule.status !== 'Arrived')
+    const specialTripsForToday = allSchedules.filter(s => s.tripType === 'Special' && s.date === todayStr);
+    const dailyTrips = allSchedules.filter(s => s.tripType === 'Daily');
+
+    // For each daily trip, check if a special instance already exists for today. If so, use that instance.
+    // Otherwise, use the daily template itself so it can be managed.
+    const dailyInstancesForToday = dailyTrips.map(daily => {
+        const existingInstance = specialTripsForToday.find(st => st.sourceScheduleId === daily.id);
+        return existingInstance || daily;
+    });
+
+    const combinedSchedules = [
+        ...specialTripsForToday.filter(st => !st.sourceScheduleId), // Standalone special trips
+        ...dailyInstancesForToday
+    ];
+    
+    return combinedSchedules
+        .filter(schedule => schedule.status !== 'Departed' && schedule.status !== 'Arrived' && schedule.status !== 'Cancelled')
         .sort((a, b) => a.departureTime.localeCompare(b.departureTime));
 
-  }, [schedules]);
+  }, [allSchedules, todayStr]);
 
   const getRouteName = (routeId: string) => routes?.find(r => r.id === routeId)?.name || 'Unknown Route';
 
