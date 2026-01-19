@@ -1,20 +1,22 @@
-
 'use client';
 
 import React, { useMemo, useState, useEffect } from 'react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, where } from 'firebase/firestore';
+import { collection } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, Ship, AlertCircle } from 'lucide-react';
+import { Loader2, Ship } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { PublicHeader } from '@/components/public-header';
 import { PublicFooter } from '@/components/public-footer';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 
 export default function StatusPage() {
   const firestore = useFirestore();
   const [todayFormatted, setTodayFormatted] = useState<string | null>(null);
+  const [filterRouteId, setFilterRouteId] = useState('all');
 
   useEffect(() => {
     // This ensures the date is only formatted on the client, after initial hydration.
@@ -45,9 +47,14 @@ export default function StatusPage() {
         return existingInstance || daily;
     });
 
-    return [...specialTripsForToday.filter(st => !st.sourceScheduleId), ...dailyInstancesForToday]
-        .sort((a, b) => a.departureTime.localeCompare(b.departureTime));
-  }, [allSchedules, todayStr]);
+    let combinedSchedules = [...specialTripsForToday.filter(st => !st.sourceScheduleId), ...dailyInstancesForToday]
+
+    if (filterRouteId !== 'all') {
+        combinedSchedules = combinedSchedules.filter(schedule => schedule.routeId === filterRouteId);
+    }
+    
+    return combinedSchedules.sort((a, b) => a.departureTime.localeCompare(b.departureTime));
+  }, [allSchedules, todayStr, filterRouteId]);
 
   const getRouteName = (routeId: string) => routes?.find(r => r.id === routeId)?.name || 'Unknown Route';
 
@@ -93,6 +100,22 @@ export default function StatusPage() {
                     </CardDescription>
                     </CardHeader>
                     <CardContent>
+                    <div className="mb-6">
+                        <Label htmlFor="filter-route">Filter by Route</Label>
+                        <Select value={filterRouteId} onValueChange={setFilterRouteId} disabled={isLoadingRoutes}>
+                            <SelectTrigger id="filter-route" className="w-full sm:w-[300px] mt-1">
+                                <SelectValue placeholder="Filter by route..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Routes</SelectItem>
+                                {routes?.map((route) => (
+                                    <SelectItem key={route.id} value={route.id}>
+                                        {route.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
                     <Table>
                         <TableHeader>
                         <TableRow>
@@ -132,7 +155,10 @@ export default function StatusPage() {
                             <TableCell colSpan={5} className="h-24 text-center">
                                 <div className="flex flex-col items-center gap-2">
                                 <Ship className="h-8 w-8 text-muted-foreground" />
-                                <p className="text-muted-foreground">No trips scheduled for today.</p>
+                                <p className="text-muted-foreground">
+                                    No trips scheduled for today
+                                    {filterRouteId !== 'all' && routes ? ` on the ${routes.find(r => r.id === filterRouteId)?.name} route` : ''}.
+                                </p>
                                 </div>
                             </TableCell>
                             </TableRow>
