@@ -1,3 +1,4 @@
+
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -68,7 +69,7 @@ type BookingSummary = {
 type ConfirmedBooking = BookingFormData & {
   id: string;
   bookingDate: Date;
-  status: 'Reserved' | 'Waitlisted';
+  status: 'Reserved' | 'Waitlisted' | 'Confirmed';
   routeName: string;
   departureTime: string;
   arrivalTime: string;
@@ -137,7 +138,9 @@ export default function BookingPage() {
     const maxDate = format(fiveDaysFromNow, "yyyy-MM-dd");
     
     setDateRange({ min: minDate, max: maxDate });
-    form.setValue('travelDate', minDate);
+    if (!form.getValues('travelDate')) {
+        form.setValue('travelDate', minDate);
+    }
   }, [form]);
 
   useEffect(() => {
