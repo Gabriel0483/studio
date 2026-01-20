@@ -14,7 +14,7 @@ type ConfirmedBooking = {
   arrivalTime: string;
   passengers: { fullName: string; fareType: string }[];
   totalPrice: number;
-  status: 'Reserved' | 'Waitlisted';
+  status: 'Reserved' | 'Waitlisted' | 'Confirmed';
   bookingDate: Date;
   primaryEmail: string;
   primaryPhone: string;
@@ -29,6 +29,7 @@ export const TripItinerary: React.FC<TripItineraryProps> = ({ booking }) => {
   const getStatusVariant = (status: string) => {
     switch (status) {
       case 'Reserved':
+      case 'Confirmed':
         return 'default';
       case 'Waitlisted':
         return 'secondary';
