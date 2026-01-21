@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { Calendar as CalendarIcon, Download, Loader2, DollarSign, RefreshCw, TrendingUp, TrendingDown, BookCopy, PlaneTakeoff } from 'lucide-react';
+import { Calendar as CalendarIcon, Download, Loader2, DollarSign, RefreshCw, TrendingUp, TrendingDown, BookCopy, PlaneTakeoff, UserX, Ban } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { DateRange } from 'react-day-picker';
@@ -27,6 +27,9 @@ interface Booking {
   totalPrice: number;
   paymentStatus: 'Paid' | 'Unpaid' | 'Refunded';
   refundAmount?: number;
+  rebookingHistory?: { fee: number }[];
+  noShowFee?: number;
+  cancellationFee?: number;
 }
 
 interface BoardingRecord {
@@ -67,6 +70,9 @@ export default function ReportsPage() {
       netRevenue: 0,
       earnedRevenue: 0,
       totalBookings: 0,
+      totalRebookingFees: 0,
+      totalNoShowFees: 0,
+      totalCancellationFees: 0,
     };
     if (!bookings || !boardingRecords || !dateRange?.from || !dateRange?.to) {
       return defaultData;
@@ -75,6 +81,24 @@ export default function ReportsPage() {
     const transactions = bookings.filter(b => {
       const bookingDate = b.bookingDate?.toDate();
       return bookingDate && isWithinInterval(bookingDate, { start: dateRange.from!, end: dateRange.to! });
+    });
+
+    let totalRebookingFees = 0;
+    let totalNoShowFees = 0;
+    let totalCancellationFees = 0;
+
+    transactions.forEach(t => {
+        if (t.paymentStatus === 'Paid' || t.paymentStatus === 'Refunded') {
+            if (t.rebookingHistory) {
+                totalRebookingFees += t.rebookingHistory.reduce((acc, item) => acc + item.fee, 0);
+            }
+            if (t.noShowFee) {
+                totalNoShowFees += t.noShowFee;
+            }
+        }
+        if (t.paymentStatus === 'Refunded' && t.cancellationFee) {
+            totalCancellationFees += t.cancellationFee;
+        }
     });
 
     const grossRevenue = transactions
@@ -122,11 +146,14 @@ export default function ReportsPage() {
       netRevenue,
       earnedRevenue,
       totalBookings: transactions.length,
+      totalRebookingFees,
+      totalNoShowFees,
+      totalCancellationFees,
     };
   }, [bookings, boardingRecords, dateRange]);
 
   const exportToCSV = () => {
-    const headers = ['Booking Ref', 'Booking Date', 'Passenger', 'Route', 'Total Price', 'Payment Status', 'Refund Amount'];
+    const headers = ['Booking Ref', 'Booking Date', 'Passenger', 'Route', 'Total Price', 'Payment Status', 'Rebooking Fees', 'No-Show Fee', 'Cancellation Fee', 'Refund Amount'];
     const rows = filteredData.transactions.map(t => [
       t.id,
       format(t.bookingDate.toDate(), 'yyyy-MM-dd HH:mm'),
@@ -134,6 +161,9 @@ export default function ReportsPage() {
       t.routeName,
       t.totalPrice.toFixed(2),
       t.paymentStatus,
+      (t.rebookingHistory?.reduce((acc, item) => acc + item.fee, 0) || 0).toFixed(2),
+      (t.noShowFee || 0).toFixed(2),
+      (t.cancellationFee || 0).toFixed(2),
       t.refundAmount?.toFixed(2) || '0.00'
     ]);
 
@@ -171,7 +201,7 @@ export default function ReportsPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-            <h1 className="text-2xl font-bold tracking-tight">Sales & Accounting Report</h1>
+            <h1 className="text-2xl font-bold tracking-tight">Sales &amp; Accounting Report</h1>
             <p className="text-muted-foreground">Generate reports for financial and booking analysis.</p>
         </div>
         <div className="flex items-center gap-2">
@@ -217,7 +247,7 @@ export default function ReportsPage() {
         </div>
       </div>
       
-       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Gross Revenue</CardTitle>
@@ -230,6 +260,16 @@ export default function ReportsPage() {
             </Card>
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Net Revenue</CardTitle>
+                    <DollarSign className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">₱{filteredData.netRevenue.toFixed(2)}</div>
+                    <p className="text-xs text-muted-foreground">Gross revenue minus refunds.</p>
+                </CardContent>
+            </Card>
+             <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Earned Revenue</CardTitle>
                     <PlaneTakeoff className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
@@ -240,32 +280,52 @@ export default function ReportsPage() {
             </Card>
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total Refunds</CardTitle>
-                    <TrendingDown className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold text-destructive">- ₱{filteredData.totalRefunds.toFixed(2)}</div>
-                    <p className="text-xs text-muted-foreground">Total amount refunded in period.</p>
-                </CardContent>
-            </Card>
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Net Revenue</CardTitle>
-                    <DollarSign className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold">₱{filteredData.netRevenue.toFixed(2)}</div>
-                    <p className="text-xs text-muted-foreground">Gross revenue minus refunds.</p>
-                </CardContent>
-            </Card>
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Total Bookings</CardTitle>
                     <BookCopy className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                     <div className="text-2xl font-bold">{filteredData.totalBookings}</div>
                     <p className="text-xs text-muted-foreground">Total bookings made in the period.</p>
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Rebooking Fees</CardTitle>
+                    <RefreshCw className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">₱{filteredData.totalRebookingFees.toFixed(2)}</div>
+                    <p className="text-xs text-muted-foreground">Fees from changed bookings.</p>
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">No-Show Fees</CardTitle>
+                    <UserX className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">₱{filteredData.totalNoShowFees.toFixed(2)}</div>
+                    <p className="text-xs text-muted-foreground">Fees from passengers who did not board.</p>
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Cancellation Fees</CardTitle>
+                    <Ban className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">₱{filteredData.totalCancellationFees.toFixed(2)}</div>
+                    <p className="text-xs text-muted-foreground">Revenue retained from refunds.</p>
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total Refunds</CardTitle>
+                    <TrendingDown className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold text-destructive">- ₱{filteredData.totalRefunds.toFixed(2)}</div>
+                    <p className="text-xs text-muted-foreground">Total amount refunded in period.</p>
                 </CardContent>
             </Card>
         </div>
@@ -286,15 +346,18 @@ export default function ReportsPage() {
                 <TableHead>Booking Date</TableHead>
                 <TableHead>Passenger</TableHead>
                 <TableHead>Route</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>Payment Status</TableHead>
-                <TableHead>Refunded Amount</TableHead>
+                <TableHead>Total Price</TableHead>
+                <TableHead>Payment</TableHead>
+                <TableHead>Rebooking Fees</TableHead>
+                <TableHead>No-Show Fee</TableHead>
+                <TableHead>Cancellation Fee</TableHead>
+                <TableHead>Refund</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-24 text-center">
+                  <TableCell colSpan={10} className="h-24 text-center">
                     <Loader2 className="mx-auto h-6 w-6 animate-spin" />
                   </TableCell>
                 </TableRow>
@@ -309,6 +372,15 @@ export default function ReportsPage() {
                     <TableCell>
                       <Badge variant={getPaymentStatusVariant(transaction.paymentStatus)}>{transaction.paymentStatus}</Badge>
                     </TableCell>
+                    <TableCell>
+                      ₱{(transaction.rebookingHistory?.reduce((acc, item) => acc + item.fee, 0) || 0).toFixed(2)}
+                    </TableCell>
+                    <TableCell>
+                      ₱{(transaction.noShowFee || 0).toFixed(2)}
+                    </TableCell>
+                    <TableCell>
+                      ₱{(transaction.cancellationFee || 0).toFixed(2)}
+                    </TableCell>
                      <TableCell className="text-destructive">
                         {transaction.refundAmount ? `₱${transaction.refundAmount.toFixed(2)}` : 'N/A'}
                     </TableCell>
@@ -316,7 +388,7 @@ export default function ReportsPage() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-24 text-center">
+                  <TableCell colSpan={10} className="h-24 text-center">
                     No transactions found for the selected date range.
                   </TableCell>
                 </TableRow>
