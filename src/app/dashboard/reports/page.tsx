@@ -14,6 +14,16 @@ import { Calendar as CalendarIcon, Download, Loader2, DollarSign, RefreshCw, Tre
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { DateRange } from 'react-day-picker';
+import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, PieChart, Pie, Cell } from "recharts";
+import { ChartConfig, ChartContainer, ChartTooltipContent, ChartLegend, ChartLegendContent } from "@/components/ui/chart";
+
+const chartColors = [
+  "hsl(var(--chart-1))",
+  "hsl(var(--chart-2))",
+  "hsl(var(--chart-3))",
+  "hsl(var(--chart-4))",
+  "hsl(var(--chart-5))",
+];
 
 interface Booking {
   firestoreId: string;
@@ -73,6 +83,8 @@ export default function ReportsPage() {
       totalRebookingFees: 0,
       totalNoShowFees: 0,
       totalCancellationFees: 0,
+      salesByFareType: {},
+      bookingsByRoute: {},
     };
     if (!bookings || !boardingRecords || !dateRange?.from || !dateRange?.to) {
       return defaultData;
@@ -86,14 +98,25 @@ export default function ReportsPage() {
     let totalRebookingFees = 0;
     let totalNoShowFees = 0;
     let totalCancellationFees = 0;
+    const salesByFareType: { [key: string]: number } = {};
+    const bookingsByRoute: { [key: string]: number } = {};
 
     transactions.forEach(t => {
+        if (t.routeName) {
+            bookingsByRoute[t.routeName] = (bookingsByRoute[t.routeName] || 0) + 1;
+        }
+
         if (t.paymentStatus === 'Paid' || t.paymentStatus === 'Refunded') {
             if (t.rebookingHistory) {
                 totalRebookingFees += t.rebookingHistory.reduce((acc, item) => acc + item.fee, 0);
             }
             if (t.noShowFee) {
                 totalNoShowFees += t.noShowFee;
+            }
+            if(t.paymentStatus === 'Paid' && t.fareDetails) {
+                 t.fareDetails.forEach(detail => {
+                    salesByFareType[detail.passengerType] = (salesByFareType[detail.passengerType] || 0) + detail.pricePerTicket;
+                });
             }
         }
         if (t.paymentStatus === 'Refunded' && t.cancellationFee) {
@@ -149,8 +172,72 @@ export default function ReportsPage() {
       totalRebookingFees,
       totalNoShowFees,
       totalCancellationFees,
+      salesByFareType,
+      bookingsByRoute,
     };
   }, [bookings, boardingRecords, dateRange]);
+  
+    const revenueData = useMemo(() => {
+        if (!bookings) return [];
+
+        const currentYear = new Date().getFullYear();
+        const monthlyRevenue = Array.from({ length: 12 }, (_, i) => ({
+            name: format(new Date(currentYear, i), 'MMM'),
+            total: 0,
+        }));
+
+        bookings.forEach(booking => {
+            if (booking.paymentStatus === 'Paid') {
+                const bookingDate = booking.bookingDate.toDate();
+                if (bookingDate.getFullYear() === currentYear) {
+                    const month = bookingDate.getMonth();
+                    monthlyRevenue[month].total += booking.totalPrice;
+                }
+            }
+        });
+        return monthlyRevenue;
+    }, [bookings]);
+    
+    const { bookingsByRouteData, bookingsByRouteConfig } = useMemo(() => {
+        if (!filteredData.bookingsByRoute) return { bookingsByRouteData: [], bookingsByRouteConfig: {} };
+
+        const data = Object.entries(filteredData.bookingsByRoute)
+            .map(([name, value], index) => ({
+                name,
+                value,
+                fill: chartColors[index % chartColors.length],
+            }))
+            .sort((a, b) => b.value - a.value);
+        
+        const config = data.reduce((acc, cur) => {
+            acc[cur.name] = { label: cur.name, color: cur.fill };
+            return acc;
+        }, {} as ChartConfig);
+
+        return { bookingsByRouteData: data, bookingsByRouteConfig: config };
+    }, [filteredData.bookingsByRoute]);
+    
+    const { salesByFareTypeData, salesByFareTypeConfig } = useMemo(() => {
+        if (!filteredData.salesByFareType) return { salesByFareTypeData: [], salesByFareTypeConfig: {} };
+
+        const data = Object.entries(filteredData.salesByFareType)
+            .map(([name, value], index) => ({
+                name,
+                value,
+                fill: chartColors[index % chartColors.length],
+            }))
+            .sort((a, b) => b.value - a.value);
+        
+        const config = data.reduce((acc, cur) => {
+            acc[cur.name] = { label: cur.name, color: cur.fill };
+            return acc;
+        }, {} as ChartConfig);
+
+        return { salesByFareTypeData: data, salesByFareTypeConfig: config };
+    }, [filteredData.salesByFareType]);
+
+
+  const revenueChartConfig: ChartConfig = { total: { label: "Revenue" } };
 
   const exportToCSV = () => {
     const headers = ['Booking Ref', 'Booking Date', 'Passenger', 'Route', 'Total Price', 'Payment Status', 'Rebooking Fees', 'No-Show Fee', 'Cancellation Fee', 'Refund Amount'];
@@ -330,6 +417,83 @@ export default function ReportsPage() {
             </Card>
         </div>
 
+        <div className="grid grid-cols-1 gap-6">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Annual Revenue Overview</CardTitle>
+                    <CardDescription>Monthly revenue totals for the current year from all paid bookings.</CardDescription>
+                </CardHeader>
+                <CardContent className="pl-2">
+                    <ChartContainer config={revenueChartConfig} className="h-[300px] w-full">
+                    <ResponsiveContainer>
+                        <BarChart data={revenueData}>
+                            <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
+                            <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `₱${value/1000}k`} />
+                            <Tooltip cursor={{fill: 'hsl(var(--secondary))'}} content={<ChartTooltipContent formatter={(value) => `₱${(value as number).toLocaleString()}`} />} />
+                            <Bar dataKey="total" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                    </ResponsiveContainer>
+                    </ChartContainer>
+                </CardContent>
+            </Card>
+        </div>
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Bookings by Route</CardTitle>
+                    <CardDescription>A breakdown of all passenger bookings across different routes for the selected period.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {bookingsByRouteData.length > 0 ? (
+                        <ChartContainer config={bookingsByRouteConfig} className="h-[300px] w-full">
+                            <ResponsiveContainer>
+                                <PieChart>
+                                    <Tooltip content={<ChartTooltipContent nameKey="name" hideLabel />} />
+                                    <Pie data={bookingsByRouteData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={110} >
+                                    {bookingsByRouteData.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={entry.fill} />
+                                        ))}
+                                    </Pie>
+                                    <ChartLegend content={<ChartLegendContent nameKey="name" />} className="pt-4" />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        </ChartContainer>
+                    ) : (
+                        <div className="flex h-[300px] items-center justify-center text-muted-foreground">
+                            No booking data available.
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader>
+                    <CardTitle>Sales by Fare Type</CardTitle>
+                    <CardDescription>Revenue from paid bookings by fare type for the selected period.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {salesByFareTypeData.length > 0 ? (
+                        <ChartContainer config={salesByFareTypeConfig} className="h-[300px] w-full">
+                            <ResponsiveContainer>
+                                <PieChart>
+                                    <Tooltip content={<ChartTooltipContent nameKey="name" formatter={(value) => `₱${(value as number).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} hideLabel />} />
+                                    <Pie data={salesByFareTypeData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={110} >
+                                    {salesByFareTypeData.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={entry.fill} />
+                                        ))}
+                                    </Pie>
+                                    <ChartLegend content={<ChartLegendContent nameKey="name" />} className="pt-4" />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        </ChartContainer>
+                    ) : (
+                        <div className="flex h-[300px] items-center justify-center text-muted-foreground">
+                            No sales data for fare types in this period.
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+        </div>
+
 
       <Card>
         <CardHeader>
@@ -400,3 +564,4 @@ export default function ReportsPage() {
     </div>
   );
 }
+
