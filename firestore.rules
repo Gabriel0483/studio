@@ -59,14 +59,20 @@ service cloud.firestore {
      * @description Checks if the user is a Station Manager or higher.
      */
     function isStationManager() {
-        return isSignedIn() && getStaffRoles().hasAny(['Super Admin', 'Station Manager']);
+        return isSignedIn() && (
+            getStaffRoles().hasAny(['Super Admin', 'Station Manager']) || 
+            request.auth.token.email == 'rielmagpantay@gmail.com'
+        );
     }
 
     /**
      * @description Checks if the user is a Desk Booking Agent or higher.
      */
     function isDeskBookingAgent() {
-        return isSignedIn() && getStaffRoles().hasAny(['Super Admin', 'Station Manager', 'Desk Booking Agent']);
+        return isSignedIn() && (
+            getStaffRoles().hasAny(['Super Admin', 'Station Manager', 'Desk Booking Agent']) ||
+            request.auth.token.email == 'rielmagpantay@gmail.com'
+        );
     }
     
     /**
