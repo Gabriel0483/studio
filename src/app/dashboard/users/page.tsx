@@ -282,7 +282,7 @@ export default function UsersPage() {
                     <TableCell className="font-medium">{person.name}</TableCell>
                     <TableCell>{person.email}</TableCell>
                     <TableCell className="space-x-1">
-                        {person.roles.map(role => <Badge key={role} variant="secondary">{role}</Badge>)}
+                        {person.roles?.map(role => <Badge key={role} variant="secondary">{role}</Badge>)}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
