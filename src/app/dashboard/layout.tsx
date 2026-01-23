@@ -21,17 +21,31 @@ import { UserNav } from '@/components/dashboard/user-nav';
 import { navLinks } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import { Home, Loader2 } from 'lucide-react';
-import { useUser, useAuthContext } from '@/firebase';
+import { useUser, useAuthContext, initializeFirebase } from '@/firebase';
 import type { User } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
 
-const isAdminUser = async (user: User): Promise<boolean> => {
-  try {
-    const idTokenResult = await user.getIdTokenResult(true);
-    return idTokenResult.claims.admin === true || user.email === 'rielmagpantay@gmail.com';
-  } catch (error) {
-    console.error('Error getting user token for admin check:', error);
-    return false;
-  }
+
+const hasAdminRole = async (user: User): Promise<boolean> => {
+    // Fallback for the initial super admin
+    if (user.email === 'rielmagpantay@gmail.com') return true;
+
+    try {
+        // We need a firestore instance here. Since this is not a component, we can't use hooks.
+        const { firestore } = initializeFirebase();
+        const staffDocRef = doc(firestore, 'staff', user.uid);
+        const staffDoc = await getDoc(staffDocRef);
+
+        if (staffDoc.exists()) {
+            const roles = staffDoc.data().roles || [];
+            // Any assigned role grants dashboard access. Finer control is handled by security rules.
+            return roles.length > 0;
+        }
+        return false;
+    } catch (error) {
+        console.error('Error checking for admin role in Firestore:', error);
+        return false;
+    }
 };
 
 export default function DashboardLayout({
@@ -52,11 +66,11 @@ export default function DashboardLayout({
     }
 
     if (user) {
-      isAdminUser(user).then(isAdmin => {
+      hasAdminRole(user).then(isAdmin => {
         if (isAdmin) {
           setAuthStatus('authorized');
         } else {
-          console.warn('User is not an admin. Redirecting to login.');
+          console.warn('User does not have an admin role. Redirecting to login.');
           setAuthStatus('unauthorized');
           router.replace('/admin/login');
         }
@@ -92,7 +106,7 @@ export default function DashboardLayout({
               <SidebarMenuItem key={link.href}>
                 <SidebarMenuButton
                   asChild
-                  isActive={pathname === link.href}
+                  isActive={pathname.startsWith(link.href)}
                   tooltip={{ children: link.label }}
                 >
                   <Link href={link.href}>

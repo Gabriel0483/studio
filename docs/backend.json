@@ -145,23 +145,32 @@
         "vesselType"
       ]
     },
-    "Staff": {
+    "AdminUser": {
       "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Staff",
+      "title": "AdminUser",
       "type": "object",
-      "description": "Represents a staff member in the TransitFlow system.",
+      "description": "Represents an administrative user or staff member in the TransitFlow system.",
       "properties": {
-        "id": {
+        "uid": {
           "type": "string",
-          "description": "Unique identifier for the Staff entity."
+          "description": "The Firebase Authentication UID of the user."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "The email address associated with the user's account."
         },
         "name": {
           "type": "string",
           "description": "The name of the staff member."
         },
-        "role": {
-          "type": "string",
-          "description": "The role of the staff member (e.g., Captain, Crew)."
+        "roles": {
+          "type": "array",
+          "description": "A list of roles assigned to the user.",
+          "items": {
+            "type": "string",
+            "enum": ["Super Admin", "Station Manager", "Desk Booking Agent", "Crew"]
+          }
         },
         "assignedShipId": {
           "type": "string",
@@ -173,9 +182,10 @@
         }
       },
       "required": [
-        "id",
+        "uid",
+        "email",
         "name",
-        "role"
+        "roles"
       ]
     },
     "Route": {
@@ -591,15 +601,15 @@
       {
         "path": "/staff/{staffId}",
         "definition": {
-            "entityName": "Staff",
+            "entityName": "AdminUser",
             "schema": {
-                "$ref": "#/backend/entities/Staff"
+                "$ref": "#/backend/entities/AdminUser"
             },
-            "description": "Stores staff information. Access is restricted to authorized personnel.",
+            "description": "Stores administrative user information and roles. Document ID is the user's Firebase UID. Write access is restricted to Super Admins.",
             "params": [
                 {
                     "name": "staffId",
-                    "description": "The unique identifier of the staff member."
+                    "description": "The unique identifier of the staff member (matches Firebase UID)."
                 }
             ]
         }
@@ -704,5 +714,3 @@
     "reasoning": "The Firestore data structure is designed to support the TransitFlow application's requirements for managing passengers, ships, routes, schedules, bookings, and maintenance records. The structure prioritizes authorization independence to ensure secure and scalable operations. Path-based ownership is used for user-specific data (passengers), while collaborative data (if any in future) will leverage membership maps. Structural segregation is employed to maintain a homogeneous security posture within collections.\n\nAuthorization Independence: Denormalization is applied where necessary to avoid get() calls in security rules. For instance, if access to Bookings needed to be restricted to passengers who made them, the passengerId is used in the Booking document, avoiding the need to get the Passenger document in rules.\n\nQAPs Support:  Segregation ensures that list operations are secure. For example, listing ships does not require filtering based on complex rules; all documents in the /ships collection have the same basic access control requirements."
   }
 }
-
-    

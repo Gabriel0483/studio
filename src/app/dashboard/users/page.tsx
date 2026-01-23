@@ -1,10 +1,11 @@
+
 'use client';
 
 import React, { useState } from 'react';
-import { collection, doc, deleteDoc } from 'firebase/firestore'; // Import deleteDoc
+import { collection, doc, deleteDoc } from 'firebase/firestore';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import {
-  addDocumentNonBlocking,
+  setDocumentNonBlocking,
   updateDocumentNonBlocking,
 } from '@/firebase/non-blocking-updates';
 import { Button } from '@/components/ui/button';
@@ -52,76 +53,65 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Pencil, Plus, Trash2, UserPlus, Users } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { Firestore } from 'firebase/firestore';
+import { Badge } from '@/components/ui/badge';
 
-interface Ship {
-  id: string;
+interface AdminUser {
+  id: string; // Firestore document ID, which is the UID
+  uid: string;
+  email: string;
   name: string;
-  capacity: number;
-  status: string;
-  vesselType: string;
-}
-
-interface Staff {
-  id: string;
-  name: string;
-  role: string;
+  roles: string[];
   assignedShipId?: string;
   assignedShipName?: string;
 }
 
-const StaffForm = ({
+const ROLES = ["Super Admin", "Station Manager", "Desk Booking Agent", "Crew"];
+
+const UserForm = ({
   firestore,
-  staffMember,
-  ships,
+  user,
   onFinished,
 }: {
   firestore: Firestore;
-  staffMember?: Staff;
-  ships: Ship[];
+  user?: AdminUser;
   onFinished: () => void;
 }) => {
-  const [name, setName] = useState(staffMember?.name || '');
-  const [role, setRole] = useState(staffMember?.role || '');
-  const [assignedShipId, setAssignedShipId] = useState(staffMember?.assignedShipId || 'unassigned');
+  const [uid, setUid] = useState(user?.uid || '');
+  const [email, setEmail] = useState(user?.email || '');
+  const [name, setName] = useState(user?.name || '');
+  const [roles, setRoles] = useState<string[]>(user?.roles || []);
   const { toast } = useToast();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !role) {
+    if (!uid || !email || !name || roles.length === 0) {
       toast({
         variant: 'destructive',
         title: 'Missing Fields',
-        description: 'Please fill out name and role.',
+        description: 'Please provide UID, email, name, and at least one role.',
       });
       return;
     }
-    
-    const finalShipId = assignedShipId === 'unassigned' ? null : assignedShipId;
-    const selectedShip = ships.find(s => s.id === finalShipId);
 
-    const staffData = {
-      name,
-      role,
-      assignedShipId: finalShipId,
-      assignedShipName: selectedShip ? selectedShip.name : 'Unassigned',
-    };
+    const userData = { uid, email, name, roles };
 
-    if (staffMember) {
-      const staffRef = doc(firestore, 'staff', staffMember.id);
-      updateDocumentNonBlocking(staffRef, staffData);
+    const userDocRef = doc(firestore, 'staff', uid);
+
+    if (user) {
+      updateDocumentNonBlocking(userDocRef, userData);
       toast({
-        title: 'Staff Updated',
+        title: 'User Updated',
         description: `Details for ${name} have been updated.`,
       });
     } else {
-      const staffCol = collection(firestore, 'staff');
-      addDocumentNonBlocking(staffCol, staffData);
+      setDocumentNonBlocking(userDocRef, userData, { merge: false });
       toast({
-        title: 'Staff Added',
-        description: `${name} has been added to the staff.`,
+        title: 'User Added',
+        description: `${name} has been added to the system.`,
       });
     }
     onFinished();
@@ -129,8 +119,30 @@ const StaffForm = ({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+       <div className="space-y-2">
+        <Label htmlFor="uid">User UID</Label>
+        <Input
+          id="uid"
+          value={uid}
+          onChange={(e) => setUid(e.target.value)}
+          placeholder="Firebase Authentication UID"
+          disabled={!!user}
+        />
+        <p className="text-sm text-muted-foreground">The user must already have an account. You can get the UID from the Firebase Console.</p>
+      </div>
+       <div className="space-y-2">
+        <Label htmlFor="email">User Email</Label>
+        <Input
+          id="email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="user@example.com"
+          disabled={!!user}
+        />
+      </div>
       <div className="space-y-2">
-        <Label htmlFor="name">Staff Name</Label>
+        <Label htmlFor="name">Full Name</Label>
         <Input
           id="name"
           value={name}
@@ -139,128 +151,103 @@ const StaffForm = ({
         />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="role">Role</Label>
-         <Select onValueChange={setRole} defaultValue={role}>
-            <SelectTrigger id="role">
-                <SelectValue placeholder="Select a role" />
-            </SelectTrigger>
-            <SelectContent>
-                <SelectItem value="Captain">Captain</SelectItem>
-                <SelectItem value="First Mate">First Mate</SelectItem>
-                <SelectItem value="Engineer">Engineer</SelectItem>
-                <SelectItem value="Deckhand">Deckhand</SelectItem>
-                <SelectItem value="Customer Service">Customer Service</SelectItem>
-            </SelectContent>
-        </Select>
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="assignedShipId">Assign to Ship</Label>
-        <Select onValueChange={setAssignedShipId} defaultValue={assignedShipId}>
-          <SelectTrigger id="assignedShipId">
-            <SelectValue placeholder="Select a ship (optional)" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="unassigned">Unassigned</SelectItem>
-            {ships.map((ship) => (
-              <SelectItem key={ship.id} value={ship.id}>
-                {ship.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Label>Roles</Label>
+        <div className="space-y-2 rounded-md border p-4">
+          {ROLES.map((role) => (
+             <div key={role} className="flex items-center space-x-2">
+                <Checkbox
+                    id={`role-${role}`}
+                    checked={roles.includes(role)}
+                    onCheckedChange={(checked) => {
+                        return checked
+                        ? setRoles([...roles, role])
+                        : setRoles(roles.filter((r) => r !== role))
+                    }}
+                />
+                <label
+                    htmlFor={`role-${role}`}
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                    {role}
+                </label>
+             </div>
+          ))}
+        </div>
       </div>
       <DialogFooter>
         <DialogClose asChild>
           <Button type="button" variant="outline">Cancel</Button>
         </DialogClose>
-        <Button type="submit">{staffMember ? 'Update Staff' : 'Add Staff'}</Button>
+        <Button type="submit">{user ? 'Update User' : 'Add User'}</Button>
       </DialogFooter>
     </form>
   );
 };
 
-export default function StaffPage() {
+export default function UsersPage() {
   const firestore = useFirestore();
 
-  const staffQuery = useMemoFirebase(() => {
+  const usersQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return collection(firestore, 'staff');
   }, [firestore]);
 
-  const shipsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return collection(firestore, 'ships');
-  }, [firestore]);
-
-  const { data: staff, isLoading: isLoadingStaff } = useCollection<Omit<Staff, 'id'>>(staffQuery);
-  const { data: ships, isLoading: isLoadingShips } = useCollection<Omit<Ship, 'id'>>(shipsQuery);
+  const { data: users, isLoading: isLoadingUsers } = useCollection<Omit<AdminUser, 'id'>>(usersQuery);
 
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingStaff, setEditingStaff] = useState<Staff | undefined>(undefined);
-  const [staffToDelete, setStaffToDelete] = useState<Staff | null>(null);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<AdminUser | undefined>(undefined);
+  const [userToDelete, setUserToDelete] = useState<AdminUser | null>(null);
 
   const { toast } = useToast();
 
-  const confirmDelete = (staffMember: Staff) => {
-    setStaffToDelete(staffMember);
-    setIsDeleteDialogOpen(true);
-  };
-
-  const executeDelete = async () => {
-    if (!firestore || !staffToDelete) {
-      return;
-    }
+  const handleDelete = async () => {
+    if (!firestore || !userToDelete) return;
     try {
-      const staffRef = doc(firestore, 'staff', staffToDelete.id);
-      await deleteDoc(staffRef);
+      const userRef = doc(firestore, 'staff', userToDelete.id);
+      await deleteDoc(userRef);
       toast({
-        title: 'Staff Deleted',
-        description: `${staffToDelete.name} has been removed from the staff.`,
+        title: 'User Deleted',
+        description: `${userToDelete.name} has been removed from the system.`,
       });
     } catch (error: any) {
-      console.error('Error deleting staff:', error);
+      console.error('Error deleting user:', error);
       toast({
         variant: 'destructive',
         title: 'Deletion Failed',
         description: error.message || 'An unexpected error occurred.',
       });
     } finally {
-      setIsDeleteDialogOpen(false);
-      setStaffToDelete(null);
+        setUserToDelete(null);
     }
   };
-
-  const isLoading = isLoadingStaff || isLoadingShips;
 
   return (
     <>
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Staff Management</h1>
+          <h1 className="text-2xl font-bold tracking-tight">User Management</h1>
           <p className="text-muted-foreground">
-            Create, view, edit, and assign your staff members.
+            Add admin users and assign their roles and permissions.
           </p>
         </div>
         <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
           <DialogTrigger asChild>
-            <Button onClick={() => setEditingStaff(undefined)}>
+            <Button onClick={() => setEditingUser(undefined)}>
               <UserPlus className="mr-2 h-4 w-4" />
-              Add Staff
+              Add User
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
-              <DialogTitle>{editingStaff ? 'Edit Staff Member' : 'Add a New Staff Member'}</DialogTitle>
+              <DialogTitle>{editingUser ? 'Edit User' : 'Add a New User'}</DialogTitle>
               <DialogDescription>
-                Fill in the details below. Click save when you're done.
+                Fill in the user's details below. Click save when you're done.
               </DialogDescription>
             </DialogHeader>
-            <StaffForm
+            <UserForm
               firestore={firestore}
-              staffMember={editingStaff}
-              ships={ships || []}
+              user={editingUser}
               onFinished={() => setIsFormOpen(false)}
             />
           </DialogContent>
@@ -269,39 +256,41 @@ export default function StaffPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>All Staff</CardTitle>
-          <CardDescription>A list of all staff members in your company.</CardDescription>
+          <CardTitle>All Admin Users</CardTitle>
+          <CardDescription>A list of all users with access to the dashboard.</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Assignment</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Roles</TableHead>
                 <TableHead className="w-[100px] text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading ? (
+              {isLoadingUsers ? (
                 <TableRow>
                   <TableCell colSpan={4} className="text-center">
-                    Loading staff...
+                    Loading users...
                   </TableCell>
                 </TableRow>
-              ) : staff && staff.length > 0 ? (
-                staff.map((person) => (
+              ) : users && users.length > 0 ? (
+                users.map((person) => (
                   <TableRow key={person.id}>
                     <TableCell className="font-medium">{person.name}</TableCell>
-                    <TableCell>{person.role}</TableCell>
-                    <TableCell>{person.assignedShipName || 'Unassigned'}</TableCell>
+                    <TableCell>{person.email}</TableCell>
+                    <TableCell className="space-x-1">
+                        {person.roles.map(role => <Badge key={role} variant="secondary">{role}</Badge>)}
+                    </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
                         <Button
                           variant="ghost"
                           size="icon"
                           onClick={() => {
-                            setEditingStaff(person);
+                            setEditingUser(person);
                             setIsFormOpen(true);
                           }}
                         >
@@ -311,7 +300,7 @@ export default function StaffPage() {
                           variant="ghost"
                           size="icon"
                           className="text-destructive hover:text-destructive"
-                          onClick={() => confirmDelete(person)}
+                          onClick={() => setUserToDelete(person)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -324,10 +313,10 @@ export default function StaffPage() {
                   <TableCell colSpan={4} className="h-24 text-center">
                     <div className="flex flex-col items-center gap-2">
                         <Users className="h-8 w-8 text-muted-foreground" />
-                        <p className="text-muted-foreground">No staff found.</p>
-                        <Button variant="secondary" size="sm" onClick={() => { setEditingStaff(undefined); setIsFormOpen(true); }}>
+                        <p className="text-muted-foreground">No admin users found.</p>
+                        <Button variant="secondary" size="sm" onClick={() => { setEditingUser(undefined); setIsFormOpen(true); }}>
                             <UserPlus className="mr-2 h-4 w-4" />
-                            Add your first staff member
+                            Add your first user
                         </Button>
                     </div>
                   </TableCell>
@@ -338,17 +327,17 @@ export default function StaffPage() {
         </CardContent>
       </Card>
     </div>
-    <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+    <AlertDialog open={!!userToDelete} onOpenChange={(open) => !open && setUserToDelete(null)}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
           <AlertDialogDescription>
-            This will permanently delete the staff member "{staffToDelete?.name}". This action cannot be undone.
+            This will permanently delete the user "{userToDelete?.name}". This action cannot be undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={executeDelete} className="bg-destructive hover:bg-destructive/90">
+          <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">
             Delete
           </AlertDialogAction>
         </AlertDialogFooter>

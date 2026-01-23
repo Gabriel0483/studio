@@ -1,3 +1,4 @@
+
 import { Ship, Users, LineChart, Route as RouteIcon, Anchor, BarChart, Warehouse, Ticket, BookCopy, Receipt, ClipboardCheck, Megaphone, FileText, CalendarClock, Laptop } from 'lucide-react';
 
 export const navLinks = [
@@ -6,6 +7,7 @@ export const navLinks = [
   { href: '/dashboard/desk-booking', label: 'Desk Booking', icon: Laptop },
   { href: '/dashboard/boarding', label: 'Trip Management', icon: CalendarClock },
   { href: '/dashboard/operations', label: 'Operations', icon: Anchor },
+  { href: '/dashboard/users', label: 'Users', icon: Users },
   { href: '/dashboard/announcements', label: 'Announcements', icon: Megaphone },
   { href: '/dashboard/ports', label: 'Ports', icon: Warehouse },
   { href: '/dashboard/routes', label: 'Routes', icon: RouteIcon },

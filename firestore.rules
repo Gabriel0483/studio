@@ -1,39 +1,4 @@
 
-/**
- * @title Firebase Security Rules for Isla Konek (Prototyping Mode)
- * @author Firebase Security Rules Architect
- * @version 1.9
- *
- * @description
- * This ruleset is designed for the Isla Konek application during its prototyping phase.
- * It prioritizes strict authorization (who can access what) while maintaining
- * flexibility in data schemas to allow for rapid development and iteration.
- *
- * @philosophy
- * The core security philosophy is a hybrid model:
- * 1. User-Ownership: Passengers have direct control over their own data, such as their
- *    personal information and bookings. Access is strictly limited to the data owner.
- * 2. Role-Based Access Control (RBAC): System-level data, such as ships, routes,
- *    schedules, and maintenance records, is managed by authorized personnel with an
- *    'admin' custom claim. This prevents unauthorized modification of critical data.
- * 3. Public Read: Non-sensitive, publicly relevant information like routes and schedules
- *    is readable by anyone, including unauthenticated users, to support the application's
- *    core user experience.
- *
- * @structure
- * The data structure consists of several top-level collections. There are no nested
- * user subcollections. This design choice ensures that security rules for each
- * collection are straightforward and that list operations are performant and secure.
- *
- * @decisions
- * - Default Deny: All paths are closed by default. Access is granted explicitly.
- * - No User Listing: Listing documents in the `/passengers` collection is disabled to
- *   protect user privacy and prevent data scraping, except by admins.
- * - Denormalization for Authorization: Booking documents contain a `passengerId` field.
- *   This avoids costly `get()` calls in security rules, allowing for fast ownership checks.
- * - Custom Claims for Admin: The `isAdmin()` function now checks for `request.auth.token.admin == true`.
- *   This is the standard, scalable way to manage roles in Firebase.
- */
 rules_version = '2';
 
 service cloud.firestore {
@@ -67,14 +32,50 @@ service cloud.firestore {
     function isExistingOwner(userId) {
       return isOwner(userId) && resource != null;
     }
+    
+    /**
+     * @description Retrieves the roles of the currently authenticated user from the /staff collection.
+     * Returns an empty list if the user has no staff document.
+     */
+    function getStaffRoles() {
+      // Use exists() to avoid errors on non-existent documents.
+      return exists(/databases/$(database)/documents/staff/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/staff/$(request.auth.uid)).data.roles
+        : [];
+    }
 
     /**
-     * @description Checks if the signed-in user has an admin custom claim or is the fallback admin email.
-     * This is the recommended way to handle roles.
+     * @description Checks if the signed-in user has the 'Super Admin' role or is the fallback admin.
+     * The fallback email is for initial setup and should be replaced with a proper Super Admin user.
      */
-    function isAdmin() {
-      return isSignedIn() && (request.auth.token.admin == true || request.auth.token.email == 'rielmagpantay@gmail.com');
+    function isSuperAdmin() {
+      return isSignedIn() && (
+        'Super Admin' in getStaffRoles() ||
+        request.auth.token.email == 'rielmagpantay@gmail.com'
+      );
     }
+    
+    /**
+     * @description Checks if the user is a Station Manager or higher.
+     */
+    function isStationManager() {
+        return isSignedIn() && getStaffRoles().hasAny(['Super Admin', 'Station Manager']);
+    }
+
+    /**
+     * @description Checks if the user is a Desk Booking Agent or higher.
+     */
+    function isDeskBookingAgent() {
+        return isSignedIn() && getStaffRoles().hasAny(['Super Admin', 'Station Manager', 'Desk Booking Agent']);
+    }
+    
+    /**
+     * @description Checks if the user has any admin-level role. Used for general dashboard access.
+     */
+    function isAnyAdmin() {
+        return isSignedIn() && getStaffRoles().size() > 0 || request.auth.token.email == 'rielmagpantay@gmail.com';
+    }
+
 
     // ----------------------------------------------------------------------
     // Collection Rules
@@ -82,126 +83,115 @@ service cloud.firestore {
     
     /**
      * @description Manages public announcements. This data is safe for anyone to read.
-     *   Writes are restricted to administrators.
+     *   Writes are restricted to Station Managers and Super Admins.
      * @path /announcements/{announcementId}
      */
     match /announcements/{announcementId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isStationManager();
     }
     
     /**
-     * @description Manages public port information. This data is safe for anyone to read,
-     *   allowing the app to display available ports to all users. Writes are
-     *   restricted to administrators to prevent tampering.
+     * @description Manages public port information. Writes are restricted to Station Managers and Super Admins.
      * @path /ports/{portId}
-     * @principle Implements a "Public Read with Admin-Only Writes" pattern.
      */
     match /ports/{portId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isStationManager();
     }
 
     /**
-     * @description Secures passenger profiles. Each passenger can create their own profile
-     *   and has full control over it. Admins can also view profiles.
+     * @description Secures passenger profiles. Each passenger can create/manage their own profile.
+     *   Admins can also view profiles.
      * @path /passengers/{passengerId}
-     * @principle Restricts access to a user's own data tree (Self-Creation & Ownership).
      */
     match /passengers/{passengerId} {
-      allow get: if isOwner(passengerId) || isAdmin();
-      allow list: if isAdmin();
+      allow get: if isOwner(passengerId) || isDeskBookingAgent();
+      allow list: if isDeskBookingAgent();
       allow create: if isOwner(passengerId) && request.resource.data.id == passengerId;
-      allow update: if (isExistingOwner(passengerId) && request.resource.data.id == resource.data.id) || isAdmin();
-      allow delete: if isExistingOwner(passengerId) || isAdmin();
+      allow update: if (isExistingOwner(passengerId) && request.resource.data.id == resource.data.id) || isDeskBookingAgent();
+      allow delete: if isExistingOwner(passengerId) || isDeskBookingAgent();
     }
 
     /**
-     * @description Secures ship information. This is considered sensitive operational data.
-     *   Only authorized administrators can read or modify this data.
+     * @description Secures ship information. This is operational data.
+     *   Only Station Managers and Super Admins can manage this data.
      * @path /ships/{shipId}
-     * @principle Enforces strict Role-Based Access Control (RBAC) for sensitive data.
      */
     match /ships/{shipId} {
-      allow read: if isAdmin();
-      allow write: if isAdmin();
+      allow read: if isStationManager();
+      allow write: if isStationManager();
     }
     
     /**
-     * @description Secures staff information. This is operational data that should
-     * only be accessible to administrators.
+     * @description Secures staff/admin user information. A user can read their own roles.
+     *   Only Super Admins can create, update, or delete user role documents.
      * @path /staff/{staffId}
      */
     match /staff/{staffId} {
-      allow read: if isAdmin();
-      allow write: if isAdmin();
+      allow get: if isOwner(staffId) || isSuperAdmin();
+      allow list: if isSuperAdmin();
+      allow write: if isSuperAdmin();
     }
 
     /**
-     * @description Manages public route information. This data is safe for anyone to read.
-     *   Writes are restricted to administrators to prevent tampering.
+     * @description Manages public route information. Writes are restricted to Station Managers and Super Admins.
      * @path /routes/{routeId}
-     * @principle Implements a "Public Read with Admin-Only Writes" pattern.
      */
     match /routes/{routeId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isStationManager();
     }
 
     /**
-     * @description Manages fare information. This data is safe for anyone to read.
-     *   Writes are restricted to administrators.
+     * @description Manages fare information. Writes are restricted to Station Managers and Super Admins.
      * @path /fares/{fareId}
      */
     match /fares/{fareId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isStationManager();
     }
 
     /**
-     * @description Manages public schedule information. Like routes, schedules are readable by
-     *   everyone. Modifications are restricted to administrators.
+     * @description Manages schedule templates. Writes are restricted to Station Managers and Super Admins.
+     *   All authenticated users can read schedules to facilitate booking.
      * @path /schedules/{scheduleId}
-     * @principle Implements a "Public Read with Admin-Only Writes" pattern.
      */
     match /schedules/{scheduleId} {
-      allow read: if isAdmin();
-      allow write: if isAdmin();
+      allow read: if isSignedIn();
+      allow write: if isStationManager();
     }
 
     /**
      * @description Secures individual booking records. A passenger can only access their
-     *   own bookings. Admins can view all bookings.
+     *   own bookings. Desk agents and higher can manage all bookings.
      * @path /bookings/{bookingId}
-     * @principle Enforces document ownership for writes and reads via a denormalized field.
      */
     match /bookings/{bookingId} {
-      allow get: if isOwner(resource.data.passengerId) || isAdmin();
-      allow list: if isAdmin();
-      allow create: if isAdmin() || (isSignedIn() && request.resource.data.passengerId == request.auth.uid);
-      allow update: if (isExistingOwner(resource.data.passengerId) && request.resource.data.passengerId == resource.data.passengerId) || isAdmin();
-      allow delete: if isExistingOwner(resource.data.passengerId) || isAdmin();
+      allow get: if isOwner(resource.data.passengerId) || isDeskBookingAgent();
+      allow list: if isDeskBookingAgent();
+      allow create: if isSignedIn() && request.resource.data.passengerId == request.auth.uid || isDeskBookingAgent();
+      allow update: if (isExistingOwner(resource.data.passengerId) && request.resource.data.passengerId == resource.data.passengerId) || isDeskBookingAgent();
+      allow delete: if isExistingOwner(resource.data.passengerId) || isDeskBookingAgent();
     }
 
     /**
-     * @description Secures ship maintenance records. This is sensitive operational data
-     *   that should only be accessible to authorized administrators.
+     * @description Secures ship maintenance records. Only Station Managers and Super Admins can manage this data.
      * @path /maintenanceRecords/{maintenanceRecordId}
-     * @principle Enforces strict Role-Based Access Control (RBAC) for sensitive data.
      */
     match /maintenanceRecords/{maintenanceRecordId} {
-      allow read: if isAdmin();
-      allow write: if isAdmin();
+      allow read: if isStationManager();
+      allow write: if isStationManager();
     }
     
     /**
-     * @description Secures passenger boarding records. This is operational data that should
-     * only be accessible to authorized administrators.
+     * @description Secures passenger boarding records. This is operational data accessible
+     *   to Station Managers and Super Admins for trip management.
      * @path /boarding/{boardingId}
      */
     match /boarding/{boardingId} {
-        allow read: if isAdmin();
-        allow write: if isAdmin();
+        allow read: if isStationManager();
+        allow write: if isStationManager();
     }
   }
 }

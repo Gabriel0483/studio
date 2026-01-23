@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -18,16 +19,13 @@ export default function OperationsLayout({
     <div className="space-y-6">
        <div>
         <h1 className="text-2xl font-bold tracking-tight">Operational Management</h1>
-        <p className="text-muted-foreground">Manage your fleet, staff, schedules, and maintenance.</p>
+        <p className="text-muted-foreground">Manage your fleet, schedules, and maintenance.</p>
       </div>
 
       <Tabs value={activeTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="ships" asChild>
             <Link href="/dashboard/operations/ships">Fleet</Link>
-          </TabsTrigger>
-          <TabsTrigger value="staff" asChild>
-            <Link href="/dashboard/operations/staff">Staff</Link>
           </TabsTrigger>
           <TabsTrigger value="schedules" asChild>
             <Link href="/dashboard/operations/schedules">Schedules</Link>
