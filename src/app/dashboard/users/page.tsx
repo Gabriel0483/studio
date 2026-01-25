@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState } from 'react';
@@ -76,19 +75,28 @@ interface Port {
     name: string;
 }
 
+interface Ship {
+    id: string;
+    name: string;
+}
+
 const ROLES = ["Super Admin", "Station Manager", "Desk Booking Agent", "Crew"];
 
 const UserForm = ({
   firestore,
   user,
   ports,
+  ships,
   isLoadingPorts,
+  isLoadingShips,
   onFinished,
 }: {
   firestore: Firestore;
   user?: AdminUser;
   ports: Port[];
+  ships: Ship[];
   isLoadingPorts: boolean;
+  isLoadingShips: boolean;
   onFinished: () => void;
 }) => {
   const [uid, setUid] = useState(user?.uid || '');
@@ -96,7 +104,11 @@ const UserForm = ({
   const [name, setName] = useState(user?.name || '');
   const [roles, setRoles] = useState<string[]>(user?.roles || []);
   const [assignedPortId, setAssignedPortId] = useState(user?.assignedPortId || 'none');
+  const [assignedShipId, setAssignedShipId] = useState(user?.assignedShipId || 'none');
   const { toast } = useToast();
+  
+  const showPortAssignment = roles.includes('Desk Booking Agent');
+  const showShipAssignment = roles.includes('Crew');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,15 +122,30 @@ const UserForm = ({
     }
 
     const selectedPort = ports.find(p => p.id === assignedPortId);
+    const selectedShip = ships.find(s => s.id === assignedShipId);
 
-    const userData = {
+    const userData: any = {
         uid,
         email,
         name,
         roles,
-        assignedPortId: selectedPort ? selectedPort.id : null,
-        assignedPortName: selectedPort ? selectedPort.name : null,
     };
+    
+    if (showPortAssignment) {
+        userData.assignedPortId = selectedPort ? selectedPort.id : null;
+        userData.assignedPortName = selectedPort ? selectedPort.name : null;
+    } else {
+        userData.assignedPortId = null;
+        userData.assignedPortName = null;
+    }
+    
+    if (showShipAssignment) {
+        userData.assignedShipId = selectedShip ? selectedShip.id : null;
+        userData.assignedShipName = selectedShip ? selectedShip.name : null;
+    } else {
+        userData.assignedShipId = null;
+        userData.assignedShipName = null;
+    }
 
     const userDocRef = doc(firestore, 'staff', uid);
 
@@ -195,19 +222,37 @@ const UserForm = ({
           ))}
         </div>
       </div>
-      <div className="space-y-2">
-        <Label htmlFor="assignedPortId">Assigned Port</Label>
-        <Select onValueChange={setAssignedPortId} defaultValue={assignedPortId}>
-            <SelectTrigger id="assignedPortId" disabled={isLoadingPorts}>
-                <SelectValue placeholder={isLoadingPorts ? "Loading ports..." : "No assigned port"} />
-            </SelectTrigger>
-            <SelectContent>
-                <SelectItem value="none">No assigned port</SelectItem>
-                {ports?.map((port) => <SelectItem key={port.id} value={port.id}>{port.name}</SelectItem>)}
-            </SelectContent>
-        </Select>
-        <p className="text-sm text-muted-foreground">Assign a port for location-based access control (e.g., for Desk Booking Agents).</p>
-      </div>
+      {showPortAssignment && (
+        <div className="space-y-2">
+            <Label htmlFor="assignedPortId">Assigned Port</Label>
+            <Select onValueChange={setAssignedPortId} defaultValue={assignedPortId}>
+                <SelectTrigger id="assignedPortId" disabled={isLoadingPorts}>
+                    <SelectValue placeholder={isLoadingPorts ? "Loading ports..." : "No assigned port"} />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="none">No assigned port</SelectItem>
+                    {ports?.map((port) => <SelectItem key={port.id} value={port.id}>{port.name}</SelectItem>)}
+                </SelectContent>
+            </Select>
+            <p className="text-sm text-muted-foreground">Assign a port for location-based access control for Desk Booking Agents.</p>
+        </div>
+      )}
+
+      {showShipAssignment && (
+        <div className="space-y-2">
+            <Label htmlFor="assignedShipId">Assigned Ship</Label>
+            <Select onValueChange={setAssignedShipId} defaultValue={assignedShipId}>
+                <SelectTrigger id="assignedShipId" disabled={isLoadingShips}>
+                    <SelectValue placeholder={isLoadingShips ? "Loading ships..." : "No assigned ship"} />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="none">No assigned ship</SelectItem>
+                    {ships?.map((ship) => <SelectItem key={ship.id} value={ship.id}>{ship.name}</SelectItem>)}
+                </SelectContent>
+            </Select>
+            <p className="text-sm text-muted-foreground">Assign a ship for crew members.</p>
+        </div>
+      )}
       <DialogFooter>
         <DialogClose asChild>
           <Button type="button" variant="outline">Cancel</Button>
@@ -231,8 +276,14 @@ export default function UsersPage() {
     return collection(firestore, 'ports');
   }, [firestore]);
 
+  const shipsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'ships');
+  }, [firestore]);
+
   const { data: users, isLoading: isLoadingUsers } = useCollection<Omit<AdminUser, 'id'>>(usersQuery);
   const { data: ports, isLoading: isLoadingPorts } = useCollection<Omit<Port, 'id'>>(portsQuery);
+  const { data: ships, isLoading: isLoadingShips } = useCollection<Omit<Ship, 'id'>>(shipsQuery);
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUser | undefined>(undefined);
@@ -289,7 +340,9 @@ export default function UsersPage() {
               firestore={firestore}
               user={editingUser}
               ports={ports || []}
+              ships={ships || []}
               isLoadingPorts={isLoadingPorts}
+              isLoadingShips={isLoadingShips}
               onFinished={() => setIsFormOpen(false)}
             />
           </DialogContent>
@@ -309,13 +362,14 @@ export default function UsersPage() {
                 <TableHead>Email</TableHead>
                 <TableHead>Roles</TableHead>
                 <TableHead>Assigned Port</TableHead>
+                <TableHead>Assigned Ship</TableHead>
                 <TableHead className="w-[100px] text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoadingUsers ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center">
+                  <TableCell colSpan={6} className="text-center">
                     Loading users...
                   </TableCell>
                 </TableRow>
@@ -328,6 +382,7 @@ export default function UsersPage() {
                         {person.roles?.map(role => <Badge key={role} variant="secondary">{role}</Badge>)}
                     </TableCell>
                     <TableCell>{person.assignedPortName || 'N/A'}</TableCell>
+                    <TableCell>{person.assignedShipName || 'N/A'}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
                         <Button
@@ -354,7 +409,7 @@ export default function UsersPage() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center">
+                  <TableCell colSpan={6} className="h-24 text-center">
                     <div className="flex flex-col items-center gap-2">
                         <Users className="h-8 w-8 text-muted-foreground" />
                         <p className="text-muted-foreground">No admin users found.</p>
