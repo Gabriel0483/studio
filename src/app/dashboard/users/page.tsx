@@ -67,6 +67,13 @@ interface AdminUser {
   roles: string[];
   assignedShipId?: string;
   assignedShipName?: string;
+  assignedPortId?: string;
+  assignedPortName?: string;
+}
+
+interface Port {
+    id: string;
+    name: string;
 }
 
 const ROLES = ["Super Admin", "Station Manager", "Desk Booking Agent", "Crew"];
@@ -74,16 +81,21 @@ const ROLES = ["Super Admin", "Station Manager", "Desk Booking Agent", "Crew"];
 const UserForm = ({
   firestore,
   user,
+  ports,
+  isLoadingPorts,
   onFinished,
 }: {
   firestore: Firestore;
   user?: AdminUser;
+  ports: Port[];
+  isLoadingPorts: boolean;
   onFinished: () => void;
 }) => {
   const [uid, setUid] = useState(user?.uid || '');
   const [email, setEmail] = useState(user?.email || '');
   const [name, setName] = useState(user?.name || '');
   const [roles, setRoles] = useState<string[]>(user?.roles || []);
+  const [assignedPortId, setAssignedPortId] = useState(user?.assignedPortId || 'none');
   const { toast } = useToast();
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -97,7 +109,16 @@ const UserForm = ({
       return;
     }
 
-    const userData = { uid, email, name, roles };
+    const selectedPort = ports.find(p => p.id === assignedPortId);
+
+    const userData = {
+        uid,
+        email,
+        name,
+        roles,
+        assignedPortId: selectedPort ? selectedPort.id : null,
+        assignedPortName: selectedPort ? selectedPort.name : null,
+    };
 
     const userDocRef = doc(firestore, 'staff', uid);
 
@@ -174,6 +195,19 @@ const UserForm = ({
           ))}
         </div>
       </div>
+      <div className="space-y-2">
+        <Label htmlFor="assignedPortId">Assigned Port</Label>
+        <Select onValueChange={setAssignedPortId} defaultValue={assignedPortId}>
+            <SelectTrigger id="assignedPortId" disabled={isLoadingPorts}>
+                <SelectValue placeholder={isLoadingPorts ? "Loading ports..." : "No assigned port"} />
+            </SelectTrigger>
+            <SelectContent>
+                <SelectItem value="none">No assigned port</SelectItem>
+                {ports?.map((port) => <SelectItem key={port.id} value={port.id}>{port.name}</SelectItem>)}
+            </SelectContent>
+        </Select>
+        <p className="text-sm text-muted-foreground">Assign a port for location-based access control (e.g., for Desk Booking Agents).</p>
+      </div>
       <DialogFooter>
         <DialogClose asChild>
           <Button type="button" variant="outline">Cancel</Button>
@@ -191,8 +225,14 @@ export default function UsersPage() {
     if (!firestore) return null;
     return collection(firestore, 'staff');
   }, [firestore]);
+  
+  const portsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'ports');
+  }, [firestore]);
 
   const { data: users, isLoading: isLoadingUsers } = useCollection<Omit<AdminUser, 'id'>>(usersQuery);
+  const { data: ports, isLoading: isLoadingPorts } = useCollection<Omit<Port, 'id'>>(portsQuery);
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUser | undefined>(undefined);
@@ -248,6 +288,8 @@ export default function UsersPage() {
             <UserForm
               firestore={firestore}
               user={editingUser}
+              ports={ports || []}
+              isLoadingPorts={isLoadingPorts}
               onFinished={() => setIsFormOpen(false)}
             />
           </DialogContent>
@@ -266,13 +308,14 @@ export default function UsersPage() {
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Roles</TableHead>
+                <TableHead>Assigned Port</TableHead>
                 <TableHead className="w-[100px] text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoadingUsers ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center">
+                  <TableCell colSpan={5} className="text-center">
                     Loading users...
                   </TableCell>
                 </TableRow>
@@ -284,6 +327,7 @@ export default function UsersPage() {
                     <TableCell className="space-x-1">
                         {person.roles?.map(role => <Badge key={role} variant="secondary">{role}</Badge>)}
                     </TableCell>
+                    <TableCell>{person.assignedPortName || 'N/A'}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
                         <Button
@@ -310,7 +354,7 @@ export default function UsersPage() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={4} className="h-24 text-center">
+                  <TableCell colSpan={5} className="h-24 text-center">
                     <div className="flex flex-col items-center gap-2">
                         <Users className="h-8 w-8 text-muted-foreground" />
                         <p className="text-muted-foreground">No admin users found.</p>

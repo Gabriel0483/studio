@@ -27,7 +27,7 @@ import {
 import { toast } from "@/hooks/use-toast"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, doc, serverTimestamp, runTransaction, Timestamp, where, query, getDocs } from "firebase/firestore"
+import { collection, doc, serverTimestamp, runTransaction, Timestamp, where, query, getDocs, getDoc } from "firebase/firestore"
 import React, { useMemo, useState, useEffect } from "react"
 import { Separator } from "@/components/ui/separator"
 import { format, addDays } from "date-fns"
@@ -70,6 +70,7 @@ type ConfirmedBooking = BookingFormData & {
   bookingDate: Date;
   status: 'Reserved' | 'Waitlisted' | 'Confirmed';
   routeName: string;
+  departurePortName: string;
   departureTime: string;
   arrivalTime: string;
   totalPrice: number;
@@ -329,6 +330,7 @@ export default function DeskBookingPage() {
           numberOfSeats: totalSeats,
           totalPrice: summary.totalPrice,
           routeName: getRouteName(scheduleDataForUpdate.routeId),
+          departurePortName: scheduleDataForUpdate.departurePortName,
           status: status,
           paymentStatus: paymentStatus,
           refundStatus: 'Not Applicable',
@@ -354,6 +356,7 @@ export default function DeskBookingPage() {
         bookingDate: new Date(),
         status: bookingStatus,
         routeName: getRouteName(watchRouteId),
+        departurePortName: currentSchedule?.departurePortName,
         departureTime: currentSchedule?.departureTime,
         arrivalTime: currentSchedule?.arrivalTime,
         totalPrice: summary.totalPrice,

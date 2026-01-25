@@ -179,6 +179,14 @@
         "assignedShipName": {
             "type": "string",
             "description": "The denormalized name of the assigned ship."
+        },
+        "assignedPortId": {
+            "type": "string",
+            "description": "The ID of the port the staff member is assigned to."
+        },
+        "assignedPortName": {
+            "type": "string",
+            "description": "The denormalized name of the assigned port."
         }
       },
       "required": [
@@ -284,6 +292,10 @@
         "shipId": { "type": "string", "description": "Reference to Ship. (Relationship: Ship 1:N Schedule)" },
         "shipName": { "type": "string", "description": "Denormalized name of the ship for display purposes." },
         "routeId": { "type": "string", "description": "Reference to Route. (Relationship: Route 1:N Schedule)" },
+        "departurePortName": {
+            "type": "string",
+            "description": "Denormalized name of the departure port for authorization."
+        },
         "date": {
             "type": "string",
             "description": "The date of the scheduled trip (for 'Special' trips).",
@@ -303,7 +315,7 @@
             "enum": ["Awaiting", "Boarding", "Boarding Closed", "Departed"]
         }
       },
-      "required": [ "id", "tripType", "routeId", "departureTime", "arrivalTime", "availableSeats" ]
+      "required": [ "id", "tripType", "routeId", "departurePortName", "departureTime", "arrivalTime", "availableSeats" ]
     },
     "Booking": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -359,6 +371,10 @@
         "routeName": {
           "type": "string",
           "description": "Denormalized name of the route for display purposes."
+        },
+        "departurePortName": {
+            "type": "string",
+            "description": "Denormalized name of the departure port for authorization."
         },
         "bookingDate": {
           "type": "string",
@@ -434,6 +450,8 @@
         "passengerEmail",
         "scheduleId",
         "fareDetails",
+        "routeName",
+        "departurePortName",
         "bookingDate",
         "travelDate",
         "numberOfSeats",

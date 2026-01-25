@@ -66,6 +66,7 @@ interface Ship {
 interface Route {
   id: string;
   name: string;
+  departure: string;
 }
 
 interface Staff {
@@ -81,6 +82,7 @@ interface Schedule {
   shipId?: string | null;
   shipName?: string | null;
   routeId: string;
+  departurePortName: string;
   date?: string;
   departureTime: string;
   arrivalTime: string;
@@ -145,12 +147,14 @@ const ScheduleForm = ({
     
     const finalShipId = shipId === 'unassigned' ? null : shipId;
     const selectedShip = ships.find(s => s.id === finalShipId);
+    const selectedRoute = routes.find(r => r.id === routeId);
 
     const scheduleData: Partial<Schedule> = {
       tripType: 'Daily',
       shipId: finalShipId,
       shipName: selectedShip ? selectedShip.name : null,
       routeId,
+      departurePortName: selectedRoute ? selectedRoute.departure : '',
       departureTime,
       arrivalTime,
       availableSeats: seatsNum,

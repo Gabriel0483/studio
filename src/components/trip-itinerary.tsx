@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from 'react';
@@ -10,6 +11,7 @@ type ConfirmedBooking = {
   id: string;
   travelDate: string;
   routeName: string;
+  departurePortName: string;
   departureTime: string;
   arrivalTime: string;
   passengers: { fullName: string; fareType: string }[];

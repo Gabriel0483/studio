@@ -319,6 +319,7 @@ export default function EditBookingPage() {
                 numberOfSeats: newSeats,
                 totalPrice: bookingSummary.totalPrice,
                 routeName: getRouteName(newScheduleData.routeId),
+                departurePortName: newScheduleData.departurePortName,
                 status: newStatus,
                 paymentStatus: data.paymentStatus,
                 rebookingHistory: newRebookingHistory,

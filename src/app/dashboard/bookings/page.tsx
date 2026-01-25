@@ -28,7 +28,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc } from '@/firebase';
 import {
   collection,
   Timestamp,
@@ -57,6 +57,7 @@ interface Booking {
   passengerInfo?: { fullName: string; birthDate?: string }[];
   passengerEmail: string;
   routeName: string;
+  departurePortName?: string;
   travelDate: Timestamp;
   bookingDate: Timestamp;
   numberOfSeats: number;
@@ -72,6 +73,7 @@ export default function BookingsPage() {
   const firestore = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
+  const { user } = useUser();
   
   // State for filters
   const [search, setSearch] = useState('');
@@ -91,10 +93,12 @@ export default function BookingsPage() {
   const bookingsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'bookings') : null, [firestore]);
   const routesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'routes') : null, [firestore]);
   const schedulesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'schedules') : null, [firestore]);
+  const staffDocRef = useMemoFirebase(() => firestore && user ? doc(firestore, 'staff', user.uid) : null, [firestore, user]);
 
   const { data: bookings, isLoading: isLoadingBookings } = useCollection<Booking>(bookingsQuery, { idField: 'firestoreId' });
   const { data: routes, isLoading: isLoadingRoutes } = useCollection(routesQuery);
   const { data: schedules, isLoading: isLoadingSchedules } = useCollection(schedulesQuery);
+  const { data: staffData, isLoading: isLoadingStaffData } = useDoc(staffDocRef);
 
   const availableSchedules = useMemo(() => {
     if (!schedules || !filterDate) return [];
@@ -147,9 +151,21 @@ export default function BookingsPage() {
       const routeMatch = filterRoute === 'all' || booking.routeName === selectedRoute?.name;
       const scheduleMatch = filterSchedule === 'all' || booking.scheduleId === filterSchedule;
 
-      return searchMatch && statusMatch && dateMatch && routeMatch && scheduleMatch;
+      const isDeskAgent = staffData?.roles?.includes('Desk Booking Agent');
+      const isManagerOrAdmin = staffData?.roles?.some((r: string) => ['Super Admin', 'Station Manager'].includes(r));
+
+      let locationMatch = true;
+      if (isDeskAgent && !isManagerOrAdmin) {
+        if (staffData.assignedPortName) {
+          locationMatch = booking.departurePortName === staffData.assignedPortName;
+        } else {
+          locationMatch = false; // Agent not assigned to port, sees nothing.
+        }
+      }
+
+      return searchMatch && statusMatch && dateMatch && routeMatch && scheduleMatch && locationMatch;
     });
-  }, [bookings, search, filterStatus, filterDate, filterRoute, filterSchedule, routes]);
+  }, [bookings, search, filterStatus, filterDate, filterRoute, filterSchedule, routes, staffData]);
   
   const clearFilters = () => {
     setSearch('');
@@ -285,7 +301,7 @@ export default function BookingsPage() {
     }
   };
   
-  const isLoading = isLoadingBookings || isLoadingRoutes || isLoadingSchedules;
+  const isLoading = isLoadingBookings || isLoadingRoutes || isLoadingSchedules || isLoadingStaffData;
 
   return (
     <>
@@ -564,9 +580,3 @@ export default function BookingsPage() {
       </AlertDialog>
     </>
   );
-
-    
-
-    
-
-    

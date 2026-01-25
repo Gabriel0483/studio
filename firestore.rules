@@ -44,6 +44,16 @@ service cloud.firestore {
         : [];
     }
 
+     /**
+     * @description Retrieves the full staff document for the currently authenticated user.
+     * Returns an empty map if the user has no staff document.
+     */
+    function getStaffData() {
+      return exists(/databases/$(database)/documents/staff/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/staff/$(request.auth.uid)).data
+        : {};
+    }
+
     /**
      * @description Checks if the signed-in user has the 'Super Admin' role or is the fallback admin.
      * The fallback email is for initial setup and should be replaced with a proper Super Admin user.
@@ -80,6 +90,27 @@ service cloud.firestore {
      */
     function isAnyAdmin() {
         return isSignedIn() && getStaffRoles().size() > 0 || request.auth.token.email == 'rielmagpantay@gmail.com';
+    }
+
+    /**
+     * @description Checks if an admin user has the permission to access a booking based on their role and assigned location.
+     * @param bookingResource The resource object for the booking, either from `resource` or `request.resource`.
+     */
+    function canAgentAccessBooking(bookingResource) {
+      if (!isDeskBookingAgent()) {
+        return false;
+      }
+      let staffData = getStaffData();
+      if (staffData.roles.hasAny(['Super Admin', 'Station Manager'])) {
+        return true;
+      }
+      if (staffData.roles.has('Desk Booking Agent')) {
+        if (!('assignedPortName' in staffData) || staffData.assignedPortName == null) {
+          return false;
+        }
+        return bookingResource.data.departurePortName == staffData.assignedPortName;
+      }
+      return false;
     }
 
 
@@ -170,15 +201,15 @@ service cloud.firestore {
 
     /**
      * @description Secures individual booking records. A passenger can only access their
-     *   own bookings. Desk agents and higher can manage all bookings.
+     *   own bookings. Desk agents and higher can manage all bookings, with location restrictions.
      * @path /bookings/{bookingId}
      */
     match /bookings/{bookingId} {
-      allow get: if isOwner(resource.data.passengerId) || isDeskBookingAgent();
+      allow get: if isOwner(resource.data.passengerId) || canAgentAccessBooking(resource);
       allow list: if isDeskBookingAgent();
-      allow create: if isSignedIn() && request.resource.data.passengerId == request.auth.uid || isDeskBookingAgent();
-      allow update: if (isExistingOwner(resource.data.passengerId) && request.resource.data.passengerId == resource.data.passengerId) || isDeskBookingAgent();
-      allow delete: if isExistingOwner(resource.data.passengerId) || isDeskBookingAgent();
+      allow create: if (isSignedIn() && request.resource.data.passengerId == request.auth.uid) || canAgentAccessBooking(request.resource);
+      allow update: if (isExistingOwner(resource.data.passengerId) && request.resource.data.passengerId == resource.data.passengerId) || canAgentAccessBooking(request.resource);
+      allow delete: if isExistingOwner(resource.data.passengerId) || canAgentAccessBooking(resource);
     }
 
     /**

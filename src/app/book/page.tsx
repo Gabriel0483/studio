@@ -71,6 +71,7 @@ type ConfirmedBooking = BookingFormData & {
   bookingDate: Date;
   status: 'Reserved' | 'Waitlisted' | 'Confirmed';
   routeName: string;
+  departurePortName: string;
   departureTime: string;
   arrivalTime: string;
   totalPrice: number;
@@ -141,7 +142,7 @@ export default function BookingPage() {
     if (!form.getValues('travelDate')) {
         form.setValue('travelDate', minDate);
     }
-  }, [form]);
+  }, []);
 
   useEffect(() => {
     if (user && passengerData) {
@@ -346,6 +347,7 @@ export default function BookingPage() {
           numberOfSeats: totalSeats,
           totalPrice: summary.totalPrice,
           routeName: getRouteName(scheduleDataForUpdate.routeId),
+          departurePortName: scheduleDataForUpdate.departurePortName,
           status: status,
           paymentStatus: 'Unpaid',
           refundStatus: 'Not Applicable',
@@ -382,6 +384,7 @@ export default function BookingPage() {
         bookingDate: new Date(),
         status: bookingStatus,
         routeName: getRouteName(watchRouteId),
+        departurePortName: currentSchedule?.departurePortName,
         departureTime: currentSchedule?.departureTime,
         arrivalTime: currentSchedule?.arrivalTime,
         totalPrice: summary.totalPrice,
