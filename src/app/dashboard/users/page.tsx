@@ -107,7 +107,7 @@ const UserForm = ({
   const [assignedShipId, setAssignedShipId] = useState(user?.assignedShipId || 'none');
   const { toast } = useToast();
   
-  const showPortAssignment = roles.includes('Desk Booking Agent');
+  const showPortAssignment = roles.includes('Desk Booking Agent') || roles.includes('Station Manager');
   const showShipAssignment = roles.includes('Crew');
 
   const handleSubmit = (e: React.FormEvent) => {
