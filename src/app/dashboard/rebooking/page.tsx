@@ -13,6 +13,7 @@ import { Separator } from "@/components/ui/separator";
 import { format } from "date-fns";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 export default function RebookingPage() {
   const firestore = useFirestore();
@@ -26,6 +27,7 @@ export default function RebookingPage() {
 
   const [isRefundDialogOpen, setIsRefundDialogOpen] = useState(false);
   const [cancellationFee, setCancellationFee] = useState(0);
+  const [cancellationReason, setCancellationReason] = useState('');
 
   const finalRefundAmount = useMemo(() => {
     if (!searchedBooking) return 0;
@@ -93,6 +95,7 @@ export default function RebookingPage() {
                 refundStatus: 'Refunded',
                 refundAmount: finalRefundAmount,
                 cancellationFee: cancellationFee,
+                cancellationReason: cancellationReason,
             };
 
             if ((searchedBooking.status === 'Reserved' || searchedBooking.status === 'Confirmed') && scheduleDoc.exists()) {
@@ -111,6 +114,7 @@ export default function RebookingPage() {
             refundStatus: 'Refunded',
             refundAmount: finalRefundAmount,
             cancellationFee: cancellationFee,
+            cancellationReason: cancellationReason,
         }));
 
         toast({
@@ -129,6 +133,7 @@ export default function RebookingPage() {
         setIsLoading(false);
         setIsRefundDialogOpen(false);
         setCancellationFee(0);
+        setCancellationReason('');
     }
   };
 
@@ -143,7 +148,8 @@ export default function RebookingPage() {
     return format(timestamp.toDate(), dateFormat);
   };
   
-  const isRefundable = searchedBooking?.paymentStatus === 'Paid' && searchedBooking?.status !== 'Refunded';
+  const isRefundable = searchedBooking?.paymentStatus === 'Paid' && !['Refunded', 'Completed'].includes(searchedBooking?.status);
+  const isRebookable = searchedBooking && !['Cancelled', 'Refunded', 'Completed'].includes(searchedBooking?.status);
 
   return (
     <>
@@ -225,13 +231,13 @@ export default function RebookingPage() {
                         <p>{searchedBooking.passengerInfo?.map((p: any) => p.fullName).join(', ')}</p>
                     </div>
                     <div>
-                        <p className="font-semibold text-muted-foreground">Total Price</p>
+                        <p className="font-semibold text-muted-foreground">Total Price Paid</p>
                         <p className="font-bold">₱{searchedBooking.totalPrice.toFixed(2)}</p>
                     </div>
                     {searchedBooking.cancellationFee > 0 && (
                         <div>
                             <p className="font-semibold text-muted-foreground">Cancellation Fee Applied</p>
-                            <p className="font-bold text-destructive">₱{searchedBooking.cancellationFee.toFixed(2)}</p>
+                            <p className="font-bold text-destructive">- ₱{searchedBooking.cancellationFee.toFixed(2)}</p>
                         </div>
                     )}
                     {searchedBooking.refundAmount > 0 && (
@@ -240,13 +246,19 @@ export default function RebookingPage() {
                             <p className="font-bold">₱{searchedBooking.refundAmount.toFixed(2)}</p>
                         </div>
                     )}
+                    {searchedBooking.cancellationReason && (
+                         <div className="sm:col-span-3">
+                            <p className="font-semibold text-muted-foreground">Cancellation Reason</p>
+                            <p>{searchedBooking.cancellationReason}</p>
+                        </div>
+                    )}
                 </div>
             </CardContent>
             <CardFooter className="flex-col sm:flex-row gap-2 justify-end bg-muted/50 py-4">
                 <Button variant="secondary" onClick={() => setIsRefundDialogOpen(true)} disabled={!isRefundable || isLoading}>
                     Process Refund
                 </Button>
-                <Button onClick={handleRebook} disabled={isLoading || searchedBooking.status === 'Cancelled' || searchedBooking.status === 'Refunded'}>
+                <Button onClick={handleRebook} disabled={!isRebookable || isLoading}>
                     Rebook
                 </Button>
             </CardFooter>
@@ -268,12 +280,12 @@ export default function RebookingPage() {
             <DialogHeader>
                 <DialogTitle>Process Refund for Booking #{searchedBooking?.id}</DialogTitle>
                 <DialogDescription>
-                    Enter a cancellation fee if applicable. The final refund amount will be calculated. To issue a full refund, leave the fee as 0.
+                    Enter a cancellation fee and reason if applicable. The final refund amount will be calculated. To issue a full refund, leave the fee as 0.
                 </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
                 <div className="flex justify-between items-center text-sm">
-                    <span className="text-muted-foreground">Total Price:</span>
+                    <span className="text-muted-foreground">Total Price Paid:</span>
                     <span className="font-medium">₱{searchedBooking?.totalPrice.toFixed(2)}</span>
                 </div>
                 <div className="space-y-2">
@@ -284,6 +296,15 @@ export default function RebookingPage() {
                         value={cancellationFee}
                         onChange={(e) => setCancellationFee(parseFloat(e.target.value) || 0)}
                         placeholder="0.00"
+                    />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="cancellation-reason">Reason for Cancellation</Label>
+                    <Textarea
+                        id="cancellation-reason"
+                        value={cancellationReason}
+                        onChange={(e) => setCancellationReason(e.target.value)}
+                        placeholder="e.g., Passenger request, service disruption..."
                     />
                 </div>
                  <Separator />
