@@ -308,6 +308,8 @@ export default function EditBookingPage() {
             if (rebookingFee > 0) {
                 newRebookingHistory.push({ fee: rebookingFee, date: serverTimestamp(), reason: rebookingReason || 'Rebooking Fee' });
             }
+            
+            const route = routes?.find(r => r.id === newScheduleData.routeId);
 
             transaction.update(bookingRef, {
                 passengerInfo: data.passengers.map((p) => ({ fullName: p.fullName, birthDate: p.birthDate || null, fareType: p.fareType })),
@@ -319,7 +321,7 @@ export default function EditBookingPage() {
                 numberOfSeats: newSeats,
                 totalPrice: bookingSummary.totalPrice,
                 routeName: getRouteName(newScheduleData.routeId),
-                departurePortName: newScheduleData.departurePortName,
+                departurePortName: newScheduleData.departurePortName || route?.departure || '',
                 status: newStatus,
                 paymentStatus: data.paymentStatus,
                 rebookingHistory: newRebookingHistory,
