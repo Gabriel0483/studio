@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useMemo, useState, useEffect } from 'react';
@@ -17,13 +18,14 @@ export default function StatusPage() {
   const firestore = useFirestore();
   const [todayFormatted, setTodayFormatted] = useState<string | null>(null);
   const [filterRouteId, setFilterRouteId] = useState('all');
+  const [todayStr, setTodayStr] = useState<string | null>(null);
 
   useEffect(() => {
     // This ensures the date is only formatted on the client, after initial hydration.
-    setTodayFormatted(format(new Date(), 'PPP'));
+    const now = new Date();
+    setTodayFormatted(format(now, 'PPP'));
+    setTodayStr(format(now, 'yyyy-MM-dd'));
   }, []);
-
-  const todayStr = useMemo(() => format(new Date(), 'yyyy-MM-dd'), []);
 
   // Query for all schedule templates and any special schedules for today
   const schedulesQuery = useMemoFirebase(() => {
@@ -36,7 +38,7 @@ export default function StatusPage() {
   const { data: routes, isLoading: isLoadingRoutes } = useCollection(useMemoFirebase(() => firestore ? collection(firestore, 'routes') : null, [firestore]));
 
   const todaySchedules = useMemo(() => {
-    if (!allSchedules) return [];
+    if (!allSchedules || !todayStr) return [];
     
     const specialTripsForToday = allSchedules.filter(s => s.tripType === 'Special' && s.date === todayStr);
     const dailyTrips = allSchedules.filter(s => s.tripType === 'Daily');
@@ -85,7 +87,7 @@ export default function StatusPage() {
   };
 
 
-  const isLoading = isLoadingSchedules || isLoadingRoutes;
+  const isLoading = isLoadingSchedules || isLoadingRoutes || !todayStr;
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -173,4 +175,5 @@ export default function StatusPage() {
     </div>
   );
 }
+
     

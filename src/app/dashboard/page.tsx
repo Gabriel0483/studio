@@ -47,8 +47,12 @@ const features = [
 
 export default function DashboardPage() {
   const firestore = useFirestore();
-  const [date, setDate] = useState<Date>(new Date());
+  const [date, setDate] = useState<Date>();
   const [scheduleFilter, setScheduleFilter] = useState('all');
+
+  useEffect(() => {
+    setDate(new Date());
+  }, []);
 
   const bookingsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'bookings') : null, [firestore]);
   const schedulesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'schedules') : null, [firestore]);
@@ -59,7 +63,7 @@ export default function DashboardPage() {
   const { data: boardingRecords, isLoading: isLoadingBoarding } = useCollection(boardingQuery);
   
   const dailySchedules = useMemo(() => {
-    if (!allSchedules) return [];
+    if (!allSchedules || !date) return [];
     const selectedDateStr = format(date, 'yyyy-MM-dd');
     return allSchedules.filter(s => {
         return s.tripType === 'Daily' || (s.tripType === 'Special' && s.date === selectedDateStr);
@@ -78,7 +82,7 @@ export default function DashboardPage() {
         tripsBoarding: 0, noShows: 0,
     };
 
-    if (!bookings || !allSchedules || !boardingRecords) {
+    if (!bookings || !allSchedules || !boardingRecords || !date) {
       return defaultStats;
     }
 
@@ -213,7 +217,7 @@ export default function DashboardPage() {
       { title: 'Total Passengers', value: filteredStats.totalPassengers.toString(), description: 'Passengers for selected scope.', icon: Users },
   ];
 
-  const isLoading = isLoadingBookings || isLoadingSchedules || isLoadingBoarding;
+  const isLoading = isLoadingBookings || isLoadingSchedules || isLoadingBoarding || !date;
 
   return (
     <div className="space-y-6">
@@ -225,7 +229,7 @@ export default function DashboardPage() {
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
             <Input
               type="date"
-              value={format(date, 'yyyy-MM-dd')}
+              value={date ? format(date, 'yyyy-MM-dd') : ''}
               onChange={(e) => {
                 if (e.target.value) {
                   const [year, month, day] = e.target.value.split('-').map(Number);
@@ -445,3 +449,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+    
