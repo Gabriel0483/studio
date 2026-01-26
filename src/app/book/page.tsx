@@ -29,7 +29,7 @@ import { PublicFooter } from "@/components/public-footer"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc, useAuthContext } from "@/firebase"
 import { collection, doc, serverTimestamp, runTransaction, Timestamp, where, query, getDocs, addDoc, getDoc, updateDoc } from "firebase/firestore"
-import React, { useMemo, useState, useEffect, useRef } from "react"
+import React, { useMemo, useState, useEffect } from "react"
 import { Separator } from "@/components/ui/separator"
 import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { format, addDays } from "date-fns"
@@ -91,7 +91,6 @@ export default function BookingPage() {
   const { user, isUserLoading } = useUser();
   const { isAuthReady } = useAuthContext();
   const router = useRouter();
-  const itineraryRef = useRef<HTMLDivElement>(null);
   
   const [step, setStep] = useState<'form' | 'summary' | 'confirmation'>('form');
   const [bookingSummary, setBookingSummary] = useState<BookingSummary>({ details: [], totalPrice: 0, totalTickets: 0 });
@@ -739,7 +738,7 @@ export default function BookingPage() {
             {step === 'confirmation' && confirmedBooking && (
               <>
                 <CardContent>
-                  <div ref={itineraryRef} className="p-4 sm:p-6">
+                  <div className="p-4 sm:p-6">
                     <TripItinerary booking={confirmedBooking} />
                   </div>
                 </CardContent>
