@@ -304,6 +304,8 @@ export default function DeskBookingPage() {
         const newBookingId = generateBookingReference();
         const passengerId = foundPassenger ? foundPassenger.id : nanoid();
   
+        const route = routes?.find(r => r.id === scheduleDataForUpdate.routeId);
+
         const newBookingData = {
           id: newBookingId,
           passengerId: passengerId,
@@ -330,7 +332,7 @@ export default function DeskBookingPage() {
           numberOfSeats: totalSeats,
           totalPrice: summary.totalPrice,
           routeName: getRouteName(scheduleDataForUpdate.routeId),
-          departurePortName: scheduleDataForUpdate.departurePortName,
+          departurePortName: scheduleDataForUpdate.departurePortName || route?.departure || '',
           status: status,
           paymentStatus: paymentStatus,
           refundStatus: 'Not Applicable',
@@ -724,3 +726,5 @@ export default function DeskBookingPage() {
     </div>
   );
 }
+
+    

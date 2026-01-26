@@ -319,6 +319,8 @@ export default function BookingPage() {
   
         const newBookingRef = doc(collection(firestore, 'bookings'));
         const newBookingId = generateBookingReference();
+
+        const route = routes?.find(r => r.id === scheduleDataForUpdate.routeId);
   
         const newBookingData = {
           id: newBookingId,
@@ -346,7 +348,7 @@ export default function BookingPage() {
           numberOfSeats: totalSeats,
           totalPrice: summary.totalPrice,
           routeName: getRouteName(scheduleDataForUpdate.routeId),
-          departurePortName: scheduleDataForUpdate.departurePortName,
+          departurePortName: scheduleDataForUpdate.departurePortName || route?.departure || '',
           status: status,
           paymentStatus: 'Unpaid',
           refundStatus: 'Not Applicable',
@@ -756,3 +758,5 @@ export default function BookingPage() {
     </div>
   )
 }
+
+    
