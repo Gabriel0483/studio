@@ -8,246 +8,165 @@ service cloud.firestore {
     // Helper Functions
     // ----------------------------------------------------------------------
 
-    /**
-     * @description Checks if a user is authenticated.
-     */
     function isSignedIn() {
       return request.auth != null;
     }
 
-    /**
-     * @description Checks if the currently authenticated user's UID matches the provided userId.
-     * This is the foundation of the user-ownership security model.
-     * @param userId The UID to check against the authenticated user.
-     */
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    /**
-     * @description A combination check for update/delete operations to ensure the user is the
-     * owner AND the document they are trying to modify actually exists.
-     * @param userId The UID of the document owner.
-     */
-    function isExistingOwner(userId) {
-      return isOwner(userId) && resource != null;
+    function getStaffDoc() {
+      return get(/databases/$(database)/documents/staff/$(request.auth.uid));
     }
     
-    /**
-     * @description Retrieves the roles of the currently authenticated user from the /staff collection.
-     * Returns an empty list if the user has no staff document.
-     */
+    function getStaffData() {
+        return getStaffDoc().data;
+    }
+
     function getStaffRoles() {
-      // Use exists() to avoid errors on non-existent documents.
       return exists(/databases/$(database)/documents/staff/$(request.auth.uid))
-        ? get(/databases/$(database)/documents/staff/$(request.auth.uid)).data.roles
+        ? getStaffData().roles
         : [];
     }
-
-     /**
-     * @description Retrieves the full staff document for the currently authenticated user.
-     * Returns an empty map if the user has no staff document.
-     */
-    function getStaffData() {
-      return exists(/databases/$(database)/documents/staff/$(request.auth.uid))
-        ? get(/databases/$(database)/documents/staff/$(request.auth.uid)).data
-        : {};
+    
+    function getCompanyId() {
+        return exists(/databases/$(database)/documents/staff/$(request.auth.uid))
+            ? getStaffData().companyId
+            : null;
     }
-
-    /**
-     * @description Checks if the signed-in user has the 'Super Admin' role or is the fallback admin.
-     * The fallback email is for initial setup and should be replaced with a proper Super Admin user.
-     */
+    
     function isSuperAdmin() {
-      return isSignedIn() && (
-        getStaffRoles().hasAny(['Super Admin']) ||
-        request.auth.token.email == 'rielmagpantay@gmail.com'
-      );
+      return isSignedIn() && getStaffRoles().hasAny(['Super Admin']);
     }
     
-    /**
-     * @description Checks if the user is a Station Manager or higher.
-     */
     function isStationManager() {
-        return isSignedIn() && (
-            getStaffRoles().hasAny(['Super Admin', 'Station Manager']) || 
-            request.auth.token.email == 'rielmagpantay@gmail.com'
-        );
+        return isSignedIn() && getStaffRoles().hasAny(['Super Admin', 'Station Manager']);
     }
 
-    /**
-     * @description Checks if the user is a Desk Booking Agent or higher.
-     */
     function isDeskBookingAgent() {
-        return isSignedIn() && (
-            getStaffRoles().hasAny(['Super Admin', 'Station Manager', 'Desk Booking Agent']) ||
-            request.auth.token.email == 'rielmagpantay@gmail.com'
-        );
+        return isSignedIn() && getStaffRoles().hasAny(['Super Admin', 'Station Manager', 'Desk Booking Agent']);
     }
     
-    /**
-     * @description Checks if the user has any admin-level role. Used for general dashboard access.
-     */
     function isAnyAdmin() {
-        return isSignedIn() && getStaffRoles().size() > 0 || request.auth.token.email == 'rielmagpantay@gmail.com';
+        return isSignedIn() && getCompanyId() != null;
     }
-
-    /**
-     * @description Checks if a staff member can access a booking. Super Admins have global access.
-     *   Station Managers and Desk Booking Agents have access based on their assigned port.
-     * @param bookingResource The resource object for the booking.
-     */
-    function canStaffAccessBooking(bookingResource) {
+    
+    function canStaffAccessBooking(bookingResource, companyId) {
+        if (!isAnyAdmin() || getCompanyId() != companyId) {
+            return false;
+        }
         if (isSuperAdmin()) {
             return true;
         }
         let staffData = getStaffData();
         if (staffData.roles.hasAny(['Station Manager', 'Desk Booking Agent'])) {
-            if (!('assignedPortName' in staffData) || staffData.assignedPortName == null) {
-                return false;
-            }
             return bookingResource.data.departurePortName == staffData.assignedPortName;
         }
         return false;
     }
     
-    /**
-     * @description Checks if a staff member can access a schedule. Super Admins have global access.
-     *  Station Managers can access schedules for their assigned port.
-     * @param scheduleResource The resource object for the schedule.
-     */
-    function canStaffAccessSchedule(scheduleResource) {
+    function canStaffAccessSchedule(scheduleResource, companyId) {
+        if (!isAnyAdmin() || getCompanyId() != companyId) {
+            return false;
+        }
         if (isSuperAdmin()) {
             return true;
         }
         let staffData = getStaffData();
         if (staffData.roles.has('Station Manager')) {
-            if (!('assignedPortName' in staffData) || staffData.assignedPortName == null) {
-                return false;
-            }
             return scheduleResource.data.departurePortName == staffData.assignedPortName;
         }
         return false;
     }
 
-
     // ----------------------------------------------------------------------
     // Collection Rules
     // ----------------------------------------------------------------------
     
-    /**
-     * @description Manages public announcements. This data is safe for anyone to read.
-     *   Writes are restricted to Station Managers and Super Admins.
-     * @path /announcements/{announcementId}
-     */
-    match /announcements/{announcementId} {
-      allow read: if true;
-      allow write: if isStationManager();
-    }
+    // Global Collections
     
-    /**
-     * @description Manages public port information. Writes are restricted to Super Admins.
-     * @path /ports/{portId}
-     */
-    match /ports/{portId} {
-      allow read: if true;
-      allow write: if isSuperAdmin();
+    match /companies/{companyId} {
+        allow read: if isSignedIn();
+        // Only a system-level admin should be able to create companies.
+        // For now, we restrict writes to Super Admins of that company.
+        allow write: if isSuperAdmin() && getCompanyId() == companyId;
     }
 
-    /**
-     * @description Secures passenger profiles. Each passenger can create/manage their own profile.
-     *   Admins can also view profiles.
-     * @path /passengers/{passengerId}
-     */
+    match /staff/{staffId} {
+      allow get: if isOwner(staffId) || (isSuperAdmin() && getStaffData().companyId == get(/databases/$(database)/documents/staff/$(staffId)).data.companyId);
+      allow list: if isSuperAdmin();
+      // Allow creation/update only if the user is a Super Admin of the same company.
+      allow write: if isSuperAdmin() && request.resource.data.companyId == getCompanyId();
+      allow delete: if isSuperAdmin() && getStaffData().companyId == resource.data.companyId;
+    }
+
     match /passengers/{passengerId} {
       allow get: if isOwner(passengerId) || isDeskBookingAgent();
       allow list: if isDeskBookingAgent();
       allow create: if isOwner(passengerId) && request.resource.data.id == passengerId;
-      allow update: if (isExistingOwner(passengerId) && request.resource.data.id == resource.data.id) || isDeskBookingAgent();
-      allow delete: if isExistingOwner(passengerId) || isDeskBookingAgent();
-    }
-
-    /**
-     * @description Secures ship information. This is operational data.
-     *   Only Super Admins can manage this data.
-     * @path /ships/{shipId}
-     */
-    match /ships/{shipId} {
-      allow read: if isAnyAdmin();
-      allow write: if isSuperAdmin();
+      allow update: if isOwner(passengerId) || isDeskBookingAgent();
+      allow delete: if isOwner(passengerId) || isDeskBookingAgent();
     }
     
-    /**
-     * @description Secures staff/admin user information. A user can read their own roles.
-     *   Only Super Admins can create, update, or delete user role documents.
-     * @path /staff/{staffId}
-     */
-    match /staff/{staffId} {
-      allow get: if isOwner(staffId) || isSuperAdmin();
-      allow list: if isSuperAdmin();
-      allow write: if isSuperAdmin();
+    // Tenant-Specific Subcollections
+    
+    match /companies/{companyId}/{document=**} {
+        allow read, write: if isAnyAdmin() && getCompanyId() == companyId;
     }
 
-    /**
-     * @description Manages public route information. Writes are restricted to Super Admins.
-     * @path /routes/{routeId}
-     */
-    match /routes/{routeId} {
+    match /companies/{companyId}/announcements/{announcementId} {
       allow read: if true;
-      allow write: if isSuperAdmin();
+      allow write: if isStationManager() && getCompanyId() == companyId;
     }
-
-    /**
-     * @description Manages fare information. Writes are restricted to Super Admins.
-     * @path /fares/{fareId}
-     */
-    match /fares/{fareId} {
+    
+    match /companies/{companyId}/ports/{portId} {
       allow read: if true;
-      allow write: if isSuperAdmin();
+      allow write: if isSuperAdmin() && getCompanyId() == companyId;
     }
 
-    /**
-     * @description Manages schedule templates. Writes are restricted based on role and location.
-     *   All authenticated users can read schedules to facilitate booking.
-     * @path /schedules/{scheduleId}
-     */
-    match /schedules/{scheduleId} {
+    match /companies/{companyId}/ships/{shipId} {
+      allow read: if isAnyAdmin() && getCompanyId() == companyId;
+      allow write: if isSuperAdmin() && getCompanyId() == companyId;
+    }
+
+    match /companies/{companyId}/routes/{routeId} {
+      allow read: if true;
+      allow write: if isSuperAdmin() && getCompanyId() == companyId;
+    }
+
+    match /companies/{companyId}/fares/{fareId} {
+      allow read: if true;
+      allow write: if isSuperAdmin() && getCompanyId() == companyId;
+    }
+
+    match /companies/{companyId}/schedules/{scheduleId} {
       allow read: if isSignedIn();
-      allow create: if canStaffAccessSchedule(request.resource);
-      allow update: if canStaffAccessSchedule(request.resource);
-      allow delete: if canStaffAccessSchedule(resource);
+      allow create: if canStaffAccessSchedule(request.resource, companyId);
+      allow update: if canStaffAccessSchedule(request.resource, companyId);
+      allow delete: if canStaffAccessSchedule(resource, companyId);
     }
 
-    /**
-     * @description Secures individual booking records. A passenger can only access their
-     *   own bookings. Staff access is role and location-based.
-     * @path /bookings/{bookingId}
-     */
-    match /bookings/{bookingId} {
-      allow get: if isOwner(resource.data.passengerId) || canStaffAccessBooking(resource);
-      allow list: if isDeskBookingAgent();
-      allow create: if (isSignedIn() && request.resource.data.passengerId == request.auth.uid) || canStaffAccessBooking(request.resource);
-      allow update: if (isExistingOwner(resource.data.passengerId) && request.resource.data.passengerId == resource.data.passengerId) || canStaffAccessBooking(request.resource);
-      allow delete: if isExistingOwner(resource.data.passengerId) || canStaffAccessBooking(resource);
+    match /companies/{companyId}/bookings/{bookingId} {
+      // A passenger can see their own booking, regardless of company.
+      allow get: if (isOwner(resource.data.passengerId) && getCompanyId() == null) || canStaffAccessBooking(resource, companyId);
+      allow list: if isDeskBookingAgent() && getCompanyId() == companyId;
+      // A passenger can create their own booking, or an agent can.
+      allow create: if (isOwner(request.resource.data.passengerId) && getCompanyId() == null) || canStaffAccessBooking(request.resource, companyId);
+      allow update: if (isOwner(resource.data.passengerId) && getCompanyId() == null) || canStaffAccessBooking(request.resource, companyId);
+      allow delete: if (isOwner(resource.data.passengerId) && getCompanyId() == null) || canStaffAccessBooking(resource, companyId);
     }
 
-    /**
-     * @description Secures ship maintenance records. Only Super Admins can manage this data.
-     * @path /maintenanceRecords/{maintenanceRecordId}
-     */
-    match /maintenanceRecords/{maintenanceRecordId} {
-      allow read: if isSuperAdmin();
-      allow write: if isSuperAdmin();
+    match /companies/{companyId}/maintenanceRecords/{maintenanceRecordId} {
+      allow read: if isSuperAdmin() && getCompanyId() == companyId;
+      allow write: if isSuperAdmin() && getCompanyId() == companyId;
     }
     
-    /**
-     * @description Secures passenger boarding records. This is operational data accessible
-     *   to Station Managers and Super Admins for trip management.
-     * @path /boarding/{boardingId}
-     */
-    match /boarding/{boardingId} {
-        allow read: if isStationManager();
-        allow write: if isStationManager();
+    match /companies/{companyId}/boarding/{boardingId} {
+        allow read: if isStationManager() && getCompanyId() == companyId;
+        allow write: if isStationManager() && getCompanyId() == companyId;
     }
   }
 }
+
+    
