@@ -30,12 +30,6 @@ service cloud.firestore {
         : [];
     }
     
-    function getCompanyId() {
-        return exists(/databases/$(database)/documents/staff/$(request.auth.uid))
-            ? getStaffData().companyId
-            : null;
-    }
-    
     function isSuperAdmin() {
       return isSignedIn() && getStaffRoles().hasAny(['Super Admin']);
     }
@@ -49,11 +43,11 @@ service cloud.firestore {
     }
     
     function isAnyAdmin() {
-        return isSignedIn() && getCompanyId() != null;
+        return isSignedIn() && exists(/databases/$(database)/documents/staff/$(request.auth.uid));
     }
     
-    function canStaffAccessBooking(bookingResource, companyId) {
-        if (!isAnyAdmin() || getCompanyId() != companyId) {
+    function canStaffAccessBooking(bookingResource) {
+        if (!isAnyAdmin()) {
             return false;
         }
         if (isSuperAdmin()) {
@@ -66,8 +60,8 @@ service cloud.firestore {
         return false;
     }
     
-    function canStaffAccessSchedule(scheduleResource, companyId) {
-        if (!isAnyAdmin() || getCompanyId() != companyId) {
+    function canStaffAccessSchedule(scheduleResource) {
+        if (!isAnyAdmin()) {
             return false;
         }
         if (isSuperAdmin()) {
@@ -84,21 +78,11 @@ service cloud.firestore {
     // Collection Rules
     // ----------------------------------------------------------------------
     
-    // Global Collections
-    
-    match /companies/{companyId} {
-        allow read: if isSignedIn();
-        // Only a system-level admin should be able to create companies.
-        // For now, we restrict writes to Super Admins of that company.
-        allow write: if isSuperAdmin() && getCompanyId() == companyId;
-    }
-
     match /staff/{staffId} {
-      allow get: if isOwner(staffId) || (isSuperAdmin() && getStaffData().companyId == get(/databases/$(database)/documents/staff/$(staffId)).data.companyId);
+      allow get: if isOwner(staffId) || isSuperAdmin();
       allow list: if isSuperAdmin();
-      // Allow creation/update only if the user is a Super Admin of the same company.
-      allow write: if isSuperAdmin() && request.resource.data.companyId == getCompanyId();
-      allow delete: if isSuperAdmin() && getStaffData().companyId == resource.data.companyId;
+      allow write: if isSuperAdmin();
+      allow delete: if isSuperAdmin();
     }
 
     match /passengers/{passengerId} {
@@ -109,62 +93,52 @@ service cloud.firestore {
       allow delete: if isOwner(passengerId) || isDeskBookingAgent();
     }
     
-    // Tenant-Specific Subcollections
-    
-    match /companies/{companyId}/{document=**} {
-        allow read, write: if isAnyAdmin() && getCompanyId() == companyId;
-    }
-
-    match /companies/{companyId}/announcements/{announcementId} {
+    match /announcements/{announcementId} {
       allow read: if true;
-      allow write: if isStationManager() && getCompanyId() == companyId;
+      allow write: if isStationManager();
     }
     
-    match /companies/{companyId}/ports/{portId} {
+    match /ports/{portId} {
       allow read: if true;
-      allow write: if isSuperAdmin() && getCompanyId() == companyId;
+      allow write: if isSuperAdmin();
     }
 
-    match /companies/{companyId}/ships/{shipId} {
-      allow read: if isAnyAdmin() && getCompanyId() == companyId;
-      allow write: if isSuperAdmin() && getCompanyId() == companyId;
+    match /ships/{shipId} {
+      allow read: if isAnyAdmin();
+      allow write: if isSuperAdmin();
     }
 
-    match /companies/{companyId}/routes/{routeId} {
+    match /routes/{routeId} {
       allow read: if true;
-      allow write: if isSuperAdmin() && getCompanyId() == companyId;
+      allow write: if isSuperAdmin();
     }
 
-    match /companies/{companyId}/fares/{fareId} {
+    match /fares/{fareId} {
       allow read: if true;
-      allow write: if isSuperAdmin() && getCompanyId() == companyId;
+      allow write: if isSuperAdmin();
     }
 
-    match /companies/{companyId}/schedules/{scheduleId} {
+    match /schedules/{scheduleId} {
       allow read: if isSignedIn();
-      allow create: if canStaffAccessSchedule(request.resource, companyId);
-      allow update: if canStaffAccessSchedule(request.resource, companyId);
-      allow delete: if canStaffAccessSchedule(resource, companyId);
+      allow create: if canStaffAccessSchedule(request.resource);
+      allow update: if canStaffAccessSchedule(request.resource);
+      allow delete: if canStaffAccessSchedule(resource);
     }
 
-    match /companies/{companyId}/bookings/{bookingId} {
-      // A passenger can see their own booking, regardless of company.
-      allow get: if (isOwner(resource.data.passengerId) && getCompanyId() == null) || canStaffAccessBooking(resource, companyId);
-      allow list: if isDeskBookingAgent() && getCompanyId() == companyId;
-      // A passenger can create their own booking, or an agent can.
-      allow create: if (isOwner(request.resource.data.passengerId) && getCompanyId() == null) || canStaffAccessBooking(request.resource, companyId);
-      allow update: if (isOwner(resource.data.passengerId) && getCompanyId() == null) || canStaffAccessBooking(request.resource, companyId);
-      allow delete: if (isOwner(resource.data.passengerId) && getCompanyId() == null) || canStaffAccessBooking(resource, companyId);
+    match /bookings/{bookingId} {
+      allow get: if (isOwner(resource.data.passengerId) && !isAnyAdmin()) || canStaffAccessBooking(resource);
+      allow list: if isDeskBookingAgent();
+      allow create: if (isOwner(request.resource.data.passengerId) && !isAnyAdmin()) || canStaffAccessBooking(request.resource);
+      allow update: if (isOwner(resource.data.passengerId) && !isAnyAdmin()) || canStaffAccessBooking(request.resource);
+      allow delete: if (isOwner(resource.data.passengerId) && !isAnyAdmin()) || canStaffAccessBooking(resource);
     }
 
-    match /companies/{companyId}/maintenanceRecords/{maintenanceRecordId} {
-      allow read: if isSuperAdmin() && getCompanyId() == companyId;
-      allow write: if isSuperAdmin() && getCompanyId() == companyId;
+    match /maintenanceRecords/{maintenanceRecordId} {
+      allow read, write: if isSuperAdmin();
     }
     
-    match /companies/{companyId}/boarding/{boardingId} {
-        allow read: if isStationManager() && getCompanyId() == companyId;
-        allow write: if isStationManager() && getCompanyId() == companyId;
+    match /boarding/{boardingId} {
+        allow read, write: if isStationManager();
     }
   }
 }
