@@ -157,7 +157,7 @@
         "roles": {
           "type": "array",
           "description": "A list of roles assigned to the user.",
-          "items": { "type": "string", "enum": ["Super Admin", "Station Manager", "Desk Booking Agent", "Crew"] }
+          "items": { "type": "string", "enum": ["Super Admin", "Operations Manager", "Station Manager", "Desk Booking Agent", "Crew", "Finance/Accounting"] }
         },
         "assignedShipId": { "type": "string", "description": "The ID of the ship the staff member is assigned to." },
         "assignedShipName": { "type": "string", "description": "The denormalized name of the assigned ship." },
@@ -332,5 +332,3 @@
     "reasoning": "The data model is designed for a single operator. Global collections for staff and passengers are at the root, while operational data like ships, routes, and bookings are also at the root level for direct access. Security rules are used to enforce role-based permissions."
   }
 }
-
-    

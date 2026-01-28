@@ -80,7 +80,7 @@ interface Ship {
     name: string;
 }
 
-const ROLES = ["Super Admin", "Station Manager", "Desk Booking Agent", "Crew"];
+const ROLES = ["Super Admin", "Operations Manager", "Station Manager", "Desk Booking Agent", "Crew", "Finance/Accounting"];
 
 const UserForm = ({
   firestore,

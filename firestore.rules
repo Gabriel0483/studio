@@ -33,6 +33,14 @@ service cloud.firestore {
     function isSuperAdmin() {
       return isSignedIn() && getStaffRoles().hasAny(['Super Admin']);
     }
+
+    function isOperationsManager() {
+      return isSignedIn() && getStaffRoles().hasAny(['Super Admin', 'Operations Manager']);
+    }
+
+    function isFinance() {
+      return isSignedIn() && getStaffRoles().hasAny(['Super Admin', 'Finance/Accounting']);
+    }
     
     function isStationManager() {
         return isSignedIn() && getStaffRoles().hasAny(['Super Admin', 'Station Manager']);
@@ -50,7 +58,7 @@ service cloud.firestore {
         if (!isAnyAdmin()) {
             return false;
         }
-        if (isSuperAdmin()) {
+        if (isSuperAdmin() || isOperationsManager()) {
             return true;
         }
         let staffData = getStaffData();
@@ -64,7 +72,7 @@ service cloud.firestore {
         if (!isAnyAdmin()) {
             return false;
         }
-        if (isSuperAdmin()) {
+        if (isSuperAdmin() || isOperationsManager()) {
             return true;
         }
         let staffData = getStaffData();
@@ -95,27 +103,27 @@ service cloud.firestore {
     
     match /announcements/{announcementId} {
       allow read: if true;
-      allow write: if isStationManager();
+      allow write: if isStationManager() || isOperationsManager();
     }
     
     match /ports/{portId} {
       allow read: if true;
-      allow write: if isSuperAdmin();
+      allow write: if isSuperAdmin() || isOperationsManager();
     }
 
     match /ships/{shipId} {
       allow read: if isAnyAdmin();
-      allow write: if isSuperAdmin();
+      allow write: if isSuperAdmin() || isOperationsManager();
     }
 
     match /routes/{routeId} {
       allow read: if true;
-      allow write: if isSuperAdmin();
+      allow write: if isSuperAdmin() || isOperationsManager();
     }
 
     match /fares/{fareId} {
       allow read: if true;
-      allow write: if isSuperAdmin();
+      allow write: if isSuperAdmin() || isOperationsManager();
     }
 
     match /schedules/{scheduleId} {
@@ -126,21 +134,19 @@ service cloud.firestore {
     }
 
     match /bookings/{bookingId} {
-      allow get: if (isOwner(resource.data.passengerId) && !isAnyAdmin()) || canStaffAccessBooking(resource);
-      allow list: if isDeskBookingAgent();
+      allow get: if (isOwner(resource.data.passengerId) && !isAnyAdmin()) || canStaffAccessBooking(resource) || isFinance();
+      allow list: if isDeskBookingAgent() || isFinance() || isOperationsManager();
       allow create: if (isOwner(request.resource.data.passengerId) && !isAnyAdmin()) || canStaffAccessBooking(request.resource);
       allow update: if (isOwner(resource.data.passengerId) && !isAnyAdmin()) || canStaffAccessBooking(request.resource);
       allow delete: if (isOwner(resource.data.passengerId) && !isAnyAdmin()) || canStaffAccessBooking(resource);
     }
 
     match /maintenanceRecords/{maintenanceRecordId} {
-      allow read, write: if isSuperAdmin();
+      allow read, write: if isSuperAdmin() || isOperationsManager();
     }
     
     match /boarding/{boardingId} {
-        allow read, write: if isStationManager();
+        allow read, write: if isStationManager() || isOperationsManager();
     }
   }
 }
-
-    
