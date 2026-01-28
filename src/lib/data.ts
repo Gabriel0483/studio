@@ -13,6 +13,7 @@ export const navLinks = [
   { href: '/dashboard/routes', label: 'Routes', icon: RouteIcon },
   { href: '/dashboard/fares', label: 'Fares', icon: Ticket },
   { href: '/dashboard/rebooking', label: 'Rebooking & Refunds', icon: Receipt },
+  { href: '/dashboard/protocols', label: 'Protocols', icon: FileText },
   { href: '/dashboard/reports', label: 'Reports', icon: BarChart },
 ];
 
