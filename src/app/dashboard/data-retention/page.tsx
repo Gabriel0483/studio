@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState } from 'react';
@@ -37,7 +36,9 @@ export default function DataRetentionPage() {
 
     const staffDocRef = useMemoFirebase(() => (firestore && user ? doc(firestore, 'staff', user.uid) : null), [firestore, user]);
     const { data: staffData, isLoading: isLoadingStaffData } = useDoc(staffDocRef);
-    const isSuperAdmin = staffData?.roles?.includes('Super Admin');
+    const canAccess = staffData?.roles?.some((role: string) => 
+        ['Super Admin', 'Operations Manager', 'Station Manager'].includes(role)
+    );
 
     const handlePurge = async () => {
         if (!firestore) return;
@@ -94,7 +95,7 @@ export default function DataRetentionPage() {
         );
     }
     
-    if (!isSuperAdmin) {
+    if (!canAccess) {
         return (
             <Card className="mx-auto max-w-lg">
                 <CardHeader>
@@ -104,7 +105,7 @@ export default function DataRetentionPage() {
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <p className="text-muted-foreground">You do not have the required permissions to access this page. This feature is available to Super Admins only.</p>
+                    <p className="text-muted-foreground">You do not have the required permissions to access this page. This feature is available to Super Admins, Operations Managers, and Station Managers only.</p>
                 </CardContent>
             </Card>
         );
