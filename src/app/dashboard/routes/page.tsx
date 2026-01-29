@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { collection, doc, deleteDoc } from 'firebase/firestore'; // Import deleteDoc
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import {
@@ -78,12 +78,14 @@ const RouteForm = ({
   route,
   ports,
   isLoadingPorts,
+  allPassengerTypes,
   onFinished,
 }: {
   firestore: Firestore;
   route?: Route;
   ports: Port[];
   isLoadingPorts: boolean;
+  allPassengerTypes: string[];
   onFinished: () => void;
 }) => {
   const [name, setName] = useState(route?.name || '');
@@ -95,16 +97,23 @@ const RouteForm = ({
 
   const { toast } = useToast();
 
-  const handleAddPassengerType = () => {
-    if (currentPassengerType && !passengerTypes.includes(currentPassengerType)) {
-      setPassengerTypes([...passengerTypes, currentPassengerType]);
-      setCurrentPassengerType('');
+  const handleAddPassengerType = (typeToAdd?: string) => {
+    const type = typeToAdd || currentPassengerType;
+    if (type && !passengerTypes.includes(type)) {
+      setPassengerTypes([...passengerTypes, type]);
+       if (!typeToAdd) { // only clear if it was from the input
+        setCurrentPassengerType('');
+      }
     }
   };
 
   const handleRemovePassengerType = (typeToRemove: string) => {
     setPassengerTypes(passengerTypes.filter(type => type !== typeToRemove));
   };
+
+  const suggestedTypes = useMemo(() => {
+    return allPassengerTypes.filter(type => !passengerTypes.includes(type));
+  }, [allPassengerTypes, passengerTypes]);
 
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -222,9 +231,29 @@ const RouteForm = ({
                 }
             }}
           />
-          <Button type="button" onClick={handleAddPassengerType}>Add Type</Button>
+          <Button type="button" onClick={() => handleAddPassengerType()}>Add Type</Button>
         </div>
-        <div className="flex flex-wrap gap-2 pt-2">
+         {suggestedTypes.length > 0 && (
+            <div className="pt-2">
+                <p className="text-xs text-muted-foreground mb-2">Or add a common type:</p>
+                <div className="flex flex-wrap gap-1">
+                    {suggestedTypes.map((type) => (
+                        <Button
+                            key={type}
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleAddPassengerType(type)}
+                            className="h-7"
+                        >
+                            <Plus className="mr-1 h-3 w-3" />
+                            {type}
+                        </Button>
+                    ))}
+                </div>
+            </div>
+        )}
+        <div className="flex flex-wrap gap-2 pt-2 min-h-[28px]">
           {passengerTypes.map((type) => (
             <Badge key={type} variant="secondary" className="flex items-center gap-1">
               {type}
@@ -270,6 +299,15 @@ export default function RoutesPage() {
   const [routeToDelete, setRouteToDelete] = useState<Route | null>(null);
 
   const { toast } = useToast();
+
+  const allPassengerTypes = useMemo(() => {
+    if (!routes) return [];
+    const allTypes = new Set<string>();
+    routes.forEach(route => {
+        route.passengerTypes?.forEach(type => allTypes.add(type));
+    });
+    return Array.from(allTypes);
+  }, [routes]);
 
   const handleDelete = async () => {
     if (!firestore || !routeToDelete) return;
@@ -323,6 +361,7 @@ export default function RoutesPage() {
               route={editingRoute}
               ports={ports || []}
               isLoadingPorts={isLoadingPorts}
+              allPassengerTypes={allPassengerTypes}
               onFinished={() => setIsFormOpen(false)}
             />
           </DialogContent>
