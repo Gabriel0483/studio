@@ -43,7 +43,7 @@ service cloud.firestore {
     }
     
     function isStationManager() {
-        return isSignedIn() && getStaffRoles().hasAny(['Super Admin', 'Station Manager']);
+        return isSignedIn() && getStaffRoles().hasAny(['Super Admin', 'Operations Manager', 'Station Manager']);
     }
 
     function isDeskBookingAgent() {
@@ -127,7 +127,7 @@ service cloud.firestore {
     }
 
     match /schedules/{scheduleId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow create: if canStaffAccessSchedule(request.resource);
       allow update: if canStaffAccessSchedule(request.resource);
       allow delete: if canStaffAccessSchedule(resource);
