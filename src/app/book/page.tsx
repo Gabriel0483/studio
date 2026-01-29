@@ -4,7 +4,7 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useFieldArray, useForm } from "react-hook-form"
 import * as z from "zod"
-import { PlusCircle, Trash2, ArrowLeft, RefreshCw, UserPlus, Loader2 } from "lucide-react"
+import { PlusCircle, Trash2, ArrowLeft, RefreshCw, UserPlus, Loader2, Users } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -123,7 +123,7 @@ export default function BookingPage() {
       routeId: "",
       travelDate: "",
       scheduleId: "",
-      passengers: [{ id: nanoid(), fullName: user?.displayName || "", birthDate: "", fareType: "" }],
+      passengers: [],
       primaryEmail: user?.email || "",
       primaryPhone: "",
     },
@@ -145,16 +145,14 @@ export default function BookingPage() {
 
   useEffect(() => {
     if (user && passengerData) {
-        form.setValue('passengers', [{ id: nanoid(), fullName: `${passengerData.firstName || ''} ${passengerData.lastName || ''}`.trim(), birthDate: passengerData.birthDate || "", fareType: "" }]);
         form.setValue('primaryEmail', passengerData.email || user.email || '');
         form.setValue('primaryPhone', passengerData.phone || '');
     } else if (user) {
-        form.setValue('passengers', [{ id: nanoid(), fullName: user.displayName || "", birthDate: "", fareType: "" }]);
         form.setValue('primaryEmail', user.email || '');
     }
   }, [user, passengerData, form]);
 
-  const { fields, append, remove, replace } = useFieldArray({
+  const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: "passengers",
   });
@@ -540,7 +538,11 @@ export default function BookingPage() {
                     />
                     <div className="space-y-6">
                       <h3 className="font-medium text-lg border-b pb-2">Passenger Details</h3>
-                      {fields.map((field, index) => (
+                      {fields.length === 0 ? (
+                        <div className="text-center text-muted-foreground p-4 border border-dashed rounded-lg">
+                            Please add at least one passenger to the booking.
+                        </div>
+                        ) : (fields.map((field, index) => (
                         <div key={field.id} className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end p-4 border rounded-lg relative">
                           <div className="sm:col-span-12">
                             <p className="font-semibold text-md">Passenger {index + 1}</p>
@@ -596,21 +598,19 @@ export default function BookingPage() {
                             )}
                           />
                           <div className="sm:col-span-1">
-                            {index > 0 && (
-                                <Button
-                                    type="button"
-                                    variant="destructive"
-                                    size="icon"
-                                    onClick={() => remove(index)}
-                                    className="w-full"
-                                >
-                                    <Trash2 className="h-4 w-4" />
-                                </Button>
-                            )}
+                            <Button
+                                type="button"
+                                variant="destructive"
+                                size="icon"
+                                onClick={() => remove(index)}
+                                className="w-full"
+                            >
+                                <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
                         </div>
-                      ))}
-                      <div className="flex gap-2">
+                      )))}
+                      <div className="flex gap-2 flex-wrap">
                         <Button
                           type="button"
                           variant="outline"
@@ -618,13 +618,26 @@ export default function BookingPage() {
                           onClick={() => append({ id: nanoid(), fullName: "", birthDate: "", fareType: "" })}
                           disabled={!watchScheduleId}
                         >
-                          <PlusCircle className="mr-2 h-4 w-4" /> Add Another Passenger
+                          <PlusCircle className="mr-2 h-4 w-4" /> Add Passenger
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => {
+                            const userName = (passengerData?.firstName && passengerData?.lastName) ? `${passengerData.firstName} ${passengerData.lastName}`.trim() : user?.displayName || '';
+                            const userBirthDate = passengerData?.birthDate || '';
+                            append({ id: nanoid(), fullName: userName, birthDate: userBirthDate, fareType: "" });
+                          }}
+                          disabled={!watchScheduleId}
+                        >
+                          <UserPlus className="mr-2 h-4 w-4" /> Add Myself
                         </Button>
                         {familyMembers.length > 0 && (
                             <Popover>
                                 <PopoverTrigger asChild>
                                     <Button type="button" variant="secondary" size="sm" disabled={!watchScheduleId}>
-                                        <UserPlus className="mr-2 h-4 w-4" /> Add Family Member
+                                        <Users className="mr-2 h-4 w-4" /> Add Family Member
                                     </Button>
                                 </PopoverTrigger>
                                 <PopoverContent className="w-80">
