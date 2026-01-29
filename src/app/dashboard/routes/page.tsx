@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState } from 'react';
@@ -45,8 +46,15 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select"
 import { Badge } from '@/components/ui/badge';
-import { Pencil, Plus, Trash2, Route as RouteIcon, X } from 'lucide-react';
+import { Pencil, Plus, Trash2, Route as RouteIcon, X, Warehouse } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { Firestore } from 'firebase/firestore';
 
@@ -59,13 +67,23 @@ interface Route {
   passengerTypes?: string[];
 }
 
+interface Port {
+  id: string;
+  name: string;
+  location: string;
+}
+
 const RouteForm = ({
   firestore,
   route,
+  ports,
+  isLoadingPorts,
   onFinished,
 }: {
   firestore: Firestore;
   route?: Route;
+  ports: Port[];
+  isLoadingPorts: boolean;
   onFinished: () => void;
 }) => {
   const [name, setName] = useState(route?.name || '');
@@ -108,6 +126,15 @@ const RouteForm = ({
         description: 'Distance must be a valid number.',
       });
       return;
+    }
+    
+    if (departure === destination) {
+        toast({
+            variant: 'destructive',
+            title: 'Invalid Ports',
+            description: 'Departure and destination ports cannot be the same.',
+        });
+        return;
     }
 
     const routeData = { name, departure, destination, distance: distanceNum, passengerTypes };
@@ -156,21 +183,29 @@ const RouteForm = ({
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
             <Label htmlFor="departure">Departure Port</Label>
-            <Input
-            id="departure"
-            value={departure}
-            onChange={(e) => setDeparture(e.target.value)}
-            placeholder="e.g., Port A"
-            />
+            <Select onValueChange={setDeparture} value={departure} disabled={isLoadingPorts}>
+                <SelectTrigger id="departure">
+                    <SelectValue placeholder={isLoadingPorts ? "Loading ports..." : "Select departure"} />
+                </SelectTrigger>
+                <SelectContent>
+                    {ports.map((port) => (
+                        <SelectItem key={port.id} value={port.name}>{port.name}</SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
         </div>
         <div className="space-y-2">
             <Label htmlFor="destination">Destination Port</Label>
-            <Input
-            id="destination"
-            value={destination}
-            onChange={(e) => setDestination(e.target.value)}
-            placeholder="e.g., Island B"
-            />
+             <Select onValueChange={setDestination} value={destination} disabled={isLoadingPorts}>
+                <SelectTrigger id="destination">
+                    <SelectValue placeholder={isLoadingPorts ? "Loading ports..." : "Select destination"} />
+                </SelectTrigger>
+                <SelectContent>
+                    {ports.map((port) => (
+                        <SelectItem key={port.id} value={port.name}>{port.name}</SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
         </div>
       </div>
        <div className="space-y-2">
@@ -216,12 +251,19 @@ const RouteForm = ({
 
 export default function RoutesPage() {
   const firestore = useFirestore();
+  
   const routesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return collection(firestore, 'routes');
   }, [firestore]);
+  
+  const portsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'ports');
+  }, [firestore]);
 
-  const { data: routes, isLoading } = useCollection<Omit<Route, 'id'>>(routesQuery);
+  const { data: routes, isLoading: isLoadingRoutes } = useCollection<Omit<Route, 'id'>>(routesQuery);
+  const { data: ports, isLoading: isLoadingPorts } = useCollection<Omit<Port, 'id'>>(portsQuery);
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingRoute, setEditingRoute] = useState<Route | undefined>(undefined);
@@ -249,6 +291,8 @@ export default function RoutesPage() {
         setRouteToDelete(null);
     }
   };
+  
+  const isLoading = isLoadingRoutes || isLoadingPorts;
 
   return (
     <>
@@ -262,7 +306,7 @@ export default function RoutesPage() {
         </div>
         <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
           <DialogTrigger asChild>
-            <Button onClick={() => setEditingRoute(undefined)}>
+            <Button onClick={() => setEditingRoute(undefined)} disabled={!ports || ports.length < 2}>
               <Plus className="mr-2 h-4 w-4" />
               Add Route
             </Button>
@@ -277,11 +321,29 @@ export default function RoutesPage() {
             <RouteForm
               firestore={firestore}
               route={editingRoute}
+              ports={ports || []}
+              isLoadingPorts={isLoadingPorts}
               onFinished={() => setIsFormOpen(false)}
             />
           </DialogContent>
         </Dialog>
       </div>
+
+        {(!isLoading && !ports) || (ports && ports.length < 2) && (
+        <Card className="bg-yellow-50 border-yellow-200">
+            <CardContent className="pt-6">
+                <div className="flex items-center gap-4">
+                    <div className="text-yellow-600">
+                        <Warehouse className="h-6 w-6"/>
+                    </div>
+                    <div>
+                        <CardTitle className="text-base text-yellow-800">Minimum of Two Ports Required</CardTitle>
+                        <p className="text-sm text-yellow-700">Please add at least two ports before creating a route.</p>
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -300,7 +362,7 @@ export default function RoutesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading ? (
+              {isLoadingRoutes ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center">
                     Loading routes...
@@ -322,6 +384,7 @@ export default function RoutesPage() {
                             setEditingRoute(route);
                             setIsFormOpen(true);
                           }}
+                          disabled={!ports || ports.length < 2}
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
@@ -343,7 +406,7 @@ export default function RoutesPage() {
                     <div className="flex flex-col items-center gap-2">
                         <RouteIcon className="h-8 w-8 text-muted-foreground" />
                         <p className="text-muted-foreground">No routes found.</p>
-                        <Button variant="secondary" size="sm" onClick={() => { setEditingRoute(undefined); setIsFormOpen(true); }}>
+                        <Button variant="secondary" size="sm" onClick={() => { setEditingRoute(undefined); setIsFormOpen(true); }} disabled={!ports || ports.length < 2}>
                             <Plus className="mr-2 h-4 w-4" />
                             Add your first route
                         </Button>
