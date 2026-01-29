@@ -1,7 +1,6 @@
-
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { collection, doc, deleteDoc } from 'firebase/firestore'; // Import deleteDoc
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import {
@@ -54,7 +53,7 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import { Badge } from '@/components/ui/badge';
-import { Pencil, Plus, Trash2, Route as RouteIcon, X, Warehouse } from 'lucide-react';
+import { Pencil, Plus, Trash2, Route as RouteIcon, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { Firestore } from 'firebase/firestore';
 
@@ -78,14 +77,12 @@ const RouteForm = ({
   route,
   ports,
   isLoadingPorts,
-  allPassengerTypes,
   onFinished,
 }: {
   firestore: Firestore;
   route?: Route;
   ports: Port[];
   isLoadingPorts: boolean;
-  allPassengerTypes: string[];
   onFinished: () => void;
 }) => {
   const [name, setName] = useState(route?.name || '');
@@ -97,23 +94,16 @@ const RouteForm = ({
 
   const { toast } = useToast();
 
-  const handleAddPassengerType = (typeToAdd?: string) => {
-    const type = typeToAdd || currentPassengerType;
-    if (type && !passengerTypes.includes(type)) {
-      setPassengerTypes([...passengerTypes, type]);
-       if (!typeToAdd) { // only clear if it was from the input
-        setCurrentPassengerType('');
-      }
+  const handleAddPassengerType = () => {
+    if (currentPassengerType && !passengerTypes.includes(currentPassengerType)) {
+      setPassengerTypes([...passengerTypes, currentPassengerType]);
+      setCurrentPassengerType('');
     }
   };
 
   const handleRemovePassengerType = (typeToRemove: string) => {
     setPassengerTypes(passengerTypes.filter(type => type !== typeToRemove));
   };
-
-  const suggestedTypes = useMemo(() => {
-    return allPassengerTypes.filter(type => !passengerTypes.includes(type));
-  }, [allPassengerTypes, passengerTypes]);
 
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -223,7 +213,7 @@ const RouteForm = ({
           <Input
             value={currentPassengerType}
             onChange={(e) => setCurrentPassengerType(e.target.value)}
-            placeholder="e.g., Student"
+            placeholder="e.g., Student, Tourist"
             onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                     e.preventDefault();
@@ -231,28 +221,8 @@ const RouteForm = ({
                 }
             }}
           />
-          <Button type="button" onClick={() => handleAddPassengerType()}>Add Type</Button>
+          <Button type="button" onClick={handleAddPassengerType}>Add Type</Button>
         </div>
-         {suggestedTypes.length > 0 && (
-            <div className="pt-2">
-                <p className="text-xs text-muted-foreground mb-2">Or add a common type:</p>
-                <div className="flex flex-wrap gap-1">
-                    {suggestedTypes.map((type) => (
-                        <Button
-                            key={type}
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleAddPassengerType(type)}
-                            className="h-7"
-                        >
-                            <Plus className="mr-1 h-3 w-3" />
-                            {type}
-                        </Button>
-                    ))}
-                </div>
-            </div>
-        )}
         <div className="flex flex-wrap gap-2 pt-2 min-h-[28px]">
           {passengerTypes.map((type) => (
             <Badge key={type} variant="secondary" className="flex items-center gap-1">
@@ -300,15 +270,6 @@ export default function RoutesPage() {
 
   const { toast } = useToast();
 
-  const allPassengerTypes = useMemo(() => {
-    if (!routes) return [];
-    const allTypes = new Set<string>();
-    routes.forEach(route => {
-        route.passengerTypes?.forEach(type => allTypes.add(type));
-    });
-    return Array.from(allTypes);
-  }, [routes]);
-
   const handleDelete = async () => {
     if (!firestore || !routeToDelete) return;
 
@@ -349,7 +310,7 @@ export default function RoutesPage() {
               Add Route
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[500px]">
+          <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
               <DialogTitle>{editingRoute ? 'Edit Route' : 'Add a New Route'}</DialogTitle>
               <DialogDescription>
@@ -361,7 +322,6 @@ export default function RoutesPage() {
               route={editingRoute}
               ports={ports || []}
               isLoadingPorts={isLoadingPorts}
-              allPassengerTypes={allPassengerTypes}
               onFinished={() => setIsFormOpen(false)}
             />
           </DialogContent>
@@ -369,18 +329,11 @@ export default function RoutesPage() {
       </div>
 
         {(!isLoading && !ports) || (ports && ports.length < 2) && (
-        <Card className="bg-yellow-50 border-yellow-200">
-            <CardContent className="pt-6">
-                <div className="flex items-center gap-4">
-                    <div className="text-yellow-600">
-                        <Warehouse className="h-6 w-6"/>
-                    </div>
-                    <div>
-                        <CardTitle className="text-base text-yellow-800">Minimum of Two Ports Required</CardTitle>
-                        <p className="text-sm text-yellow-700">Please add at least two ports before creating a route.</p>
-                    </div>
-                </div>
-            </CardContent>
+        <Card>
+            <CardHeader>
+                <CardTitle>Minimum of Two Ports Required</CardTitle>
+                <CardDescription>Please add at least two ports before creating a route.</CardDescription>
+            </CardHeader>
         </Card>
       )}
 
