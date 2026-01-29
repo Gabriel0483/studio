@@ -96,7 +96,7 @@ export default function DeskBookingPage() {
   const [isReserving, setIsReserving] = useState(false);
   const [dateRange, setDateRange] = useState<{ min: string; max: string }>({ min: '', max: '' });
   
-  const [passengerSearchEmail, setPassengerSearchEmail] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [foundPassenger, setFoundPassenger] = useState<any>(null);
   const [isSearching, setIsSearching] = useState(false);
 
@@ -281,7 +281,7 @@ export default function DeskBookingPage() {
             transaction.set(scheduleToBookRef, scheduleDataForUpdate);
           }
         } else {
-          scheduleToBookRef = doc(firestore, 'schedules', scheduleId);
+          scheduleToBookRef = doc(collection(firestore, 'schedules', scheduleId);
           const scheduleDoc = await transaction.get(scheduleToBookRef);
           if (!scheduleDoc.exists()) throw new Error("Selected schedule does not exist!");
           scheduleDataForUpdate = scheduleDoc.data();
@@ -381,24 +381,38 @@ export default function DeskBookingPage() {
   const handleNewBooking = () => {
     form.reset();
     setFoundPassenger(null);
-    setPassengerSearchEmail('');
+    setSearchQuery('');
     setStep('form');
     setConfirmedBooking(null);
   };
   
   const handlePassengerSearch = async () => {
-    if (!passengerSearchEmail) return;
+    if (!searchQuery) return;
     setIsSearching(true);
     setFoundPassenger(null);
     try {
-        const q = query(collection(firestore, 'passengers'), where('email', '==', passengerSearchEmail));
-        const querySnapshot = await getDocs(q);
+        let foundDoc = null;
+
+        // Try searching by email first
+        const emailQuery = query(collection(firestore, 'passengers'), where('email', '==', searchQuery));
+        let querySnapshot = await getDocs(emailQuery);
+        
         if (!querySnapshot.empty) {
-            const passengerDoc = querySnapshot.docs[0];
-            setFoundPassenger({ ...passengerDoc.data(), id: passengerDoc.id });
+            foundDoc = querySnapshot.docs[0];
+        } else {
+            // If not found by email, try searching by phone
+            const phoneQuery = query(collection(firestore, 'passengers'), where('phone', '==', searchQuery));
+            querySnapshot = await getDocs(phoneQuery);
+            if (!querySnapshot.empty) {
+                foundDoc = querySnapshot.docs[0];
+            }
+        }
+
+        if (foundDoc) {
+            setFoundPassenger({ ...foundDoc.data(), id: foundDoc.id });
             toast({ title: 'Passenger Found', description: 'Form has been pre-filled with passenger details.' });
         } else {
-            toast({ variant: 'destructive', title: 'Passenger Not Found', description: 'No passenger found with that email. Proceed with manual entry.' });
+            toast({ variant: 'destructive', title: 'Passenger Not Found', description: 'No passenger found with that email or phone. Proceed with manual entry.' });
         }
     } catch (error) {
         toast({ variant: 'destructive', title: 'Search Error', description: 'Could not perform passenger search.' });
@@ -432,13 +446,12 @@ export default function DeskBookingPage() {
                 <h3 className="font-medium text-lg">Find Existing Passenger</h3>
                 <div className="flex w-full items-center space-x-2">
                     <Input
-                        type="email"
-                        placeholder="Search by passenger email..."
-                        value={passengerSearchEmail}
-                        onChange={(e) => setPassengerSearchEmail(e.target.value)}
+                        placeholder="Search by Email or Phone..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
                         className="flex-1"
                     />
-                    <Button type="button" onClick={handlePassengerSearch} disabled={isSearching}>
+                    <Button type="button" onClick={handlePassengerSearch} disabled={isSearching || !searchQuery}>
                         {isSearching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserSearch className="mr-2 h-4 w-4" />}
                         Search
                     </Button>
