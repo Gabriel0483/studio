@@ -87,7 +87,7 @@ service cloud.firestore {
     // ----------------------------------------------------------------------
     
     match /staff/{staffId} {
-      allow get: if isAnyAdmin();
+      allow get: if isOwner(staffId) || isSuperAdmin();
       allow list: if isSuperAdmin();
       allow write: if isSuperAdmin();
       allow delete: if isSuperAdmin();
