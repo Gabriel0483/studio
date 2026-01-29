@@ -281,7 +281,7 @@ export default function DeskBookingPage() {
             transaction.set(scheduleToBookRef, scheduleDataForUpdate);
           }
         } else {
-          scheduleToBookRef = doc(collection(firestore, 'schedules', scheduleId);
+          scheduleToBookRef = doc(firestore, 'schedules', scheduleId);
           const scheduleDoc = await transaction.get(scheduleToBookRef);
           if (!scheduleDoc.exists()) throw new Error("Selected schedule does not exist!");
           scheduleDataForUpdate = scheduleDoc.data();
@@ -739,5 +739,3 @@ export default function DeskBookingPage() {
     </div>
   );
 }
-
-    
