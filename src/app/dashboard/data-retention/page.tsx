@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useFirestore, useUser, useDoc, useMemoFirebase } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import {
@@ -36,9 +36,18 @@ export default function DataRetentionPage() {
 
     const staffDocRef = useMemoFirebase(() => (firestore && user ? doc(firestore, 'staff', user.uid) : null), [firestore, user]);
     const { data: staffData, isLoading: isLoadingStaffData } = useDoc(staffDocRef);
-    const canAccess = staffData?.roles?.some((role: string) => 
-        ['Super Admin', 'Operations Manager', 'Station Manager'].includes(role)
-    );
+    
+    // Check for access permissions, including the super admin fallback
+    const canAccess = useMemo(() => {
+        if (!user) return false;
+        
+        // Initial Super Admin fallback (matches layout.tsx logic)
+        if (user.email === 'rielmagpantay@gmail.com') return true;
+
+        return staffData?.roles?.some((role: string) => 
+            ['Super Admin', 'Operations Manager', 'Station Manager'].includes(role)
+        );
+    }, [user, staffData]);
 
     const handlePurge = async () => {
         if (!firestore) return;

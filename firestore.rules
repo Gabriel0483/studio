@@ -87,6 +87,7 @@ service cloud.firestore {
     // ----------------------------------------------------------------------
     
     match /staff/{staffId} {
+      // Simplified read rule to avoid circular dependency
       allow get: if isOwner(staffId) || isSuperAdmin();
       allow list: if isSuperAdmin();
       allow write: if isSuperAdmin();
@@ -137,8 +138,8 @@ service cloud.firestore {
       allow get: if (isOwner(resource.data.passengerId) && !isAnyAdmin()) || canStaffAccessBooking(resource) || isFinance();
       allow list: if isDeskBookingAgent() || isFinance() || isOperationsManager();
       allow create: if (isOwner(request.resource.data.passengerId) && !isAnyAdmin()) || canStaffAccessBooking(request.resource);
-      allow update: if (isOwner(resource.data.passengerId) && !isAnyAdmin()) || canStaffAccessBooking(request.resource);
-      allow delete: if (isOwner(resource.data.passengerId) && !isAnyAdmin()) || canStaffAccessBooking(resource);
+      allow update: if (isOwner(request.resource.data.passengerId) && !isAnyAdmin()) || canStaffAccessBooking(request.resource);
+      allow delete: if (isOwner(request.resource.data.passengerId) && !isAnyAdmin()) || canStaffAccessBooking(resource);
     }
 
     match /maintenanceRecords/{maintenanceRecordId} {
