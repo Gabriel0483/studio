@@ -20,22 +20,22 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/staff/$(request.auth.uid)).data;
     }
 
-    function isAnyAdmin() {
-      return isSignedIn() && exists(/databases/$(database)/documents/staff/$(request.auth.uid));
-    }
-    
-    function isSuperAdmin() {
-      return isAnyAdmin() && getStaffData().roles.hasAny(['Super Admin']);
-    }
-
     function isPlatformAdmin() {
       // Emergency escape hatch or platform-wide admin (optional)
       return isSignedIn() && request.auth.token.email == 'rielmagpantay@gmail.com';
     }
 
+    function isAnyAdmin() {
+      return isSignedIn() && (isPlatformAdmin() || exists(/databases/$(database)/documents/staff/$(request.auth.uid)));
+    }
+    
+    function isSuperAdmin() {
+      return isPlatformAdmin() || (isAnyAdmin() && exists(/databases/$(database)/documents/staff/$(request.auth.uid)) && getStaffData().roles.hasAny(['Super Admin']));
+    }
+
     // Helper to verify data belongs to the staff's tenant
     function isTenantData(resourceData) {
-      return isAnyAdmin() && (getStaffData().tenantId == resourceData.tenantId);
+      return isPlatformAdmin() || (isAnyAdmin() && exists(/databases/$(database)/documents/staff/$(request.auth.uid)) && (getStaffData().tenantId == resourceData.tenantId));
     }
 
     // ----------------------------------------------------------------------
@@ -48,10 +48,10 @@ service cloud.firestore {
     }
 
     match /staff/{staffId} {
-      allow get: if isOwner(staffId) || isSuperAdmin();
+      allow get: if isOwner(staffId) || isAnyAdmin();
       allow list: if isSuperAdmin();
       // Only same-tenant staff can be seen by a tenant super admin
-      allow write: if isPlatformAdmin() || (isSuperAdmin() && getStaffData().tenantId == request.resource.data.tenantId);
+      allow write: if isPlatformAdmin() || (isSuperAdmin() && exists(/databases/$(database)/documents/staff/$(request.auth.uid)) && getStaffData().tenantId == request.resource.data.tenantId);
     }
 
     match /passengers/{passengerId} {
