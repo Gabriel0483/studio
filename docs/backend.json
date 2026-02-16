@@ -1,334 +1,163 @@
 
 {
   "entities": {
+    "Tenant": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Tenant",
+      "type": "object",
+      "description": "Represents an operator or company using the platform.",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the tenant." },
+        "name": { "type": "string", "description": "The name of the operator." },
+        "subdomain": { "type": "string", "description": "Reserved for future vanity URL use." },
+        "logoUrl": { "type": "string" },
+        "contactEmail": { "type": "string", "format": "email" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name"]
+    },
     "Announcement": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Announcement",
       "type": "object",
       "description": "Represents a public advisory or announcement.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Announcement."
-        },
-        "title": {
-          "type": "string",
-          "description": "The title of the announcement."
-        },
-        "content": {
-          "type": "string",
-          "description": "The main body of the announcement."
-        },
-        "category": {
-          "type": "string",
-          "description": "The category of the announcement (e.g., 'Weather Update', 'Route Change').",
-          "enum": ["General Information", "Weather Update", "Route Change", "Fare Change", "Service Disruption"]
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "The timestamp when the announcement was created."
-        }
+        "id": { "type": "string" },
+        "tenantId": { "type": "string", "description": "The ID of the tenant this announcement belongs to." },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "category": { "type": "string", "enum": ["General Information", "Weather Update", "Route Change", "Fare Change", "Service Disruption"] },
+        "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["id", "title", "content", "category", "createdAt"]
+      "required": ["id", "tenantId", "title", "content", "category", "createdAt"]
     },
     "Port": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Port",
       "type": "object",
-      "description": "Represents a port.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Port entity."
-        },
-        "name": {
-          "type": "string",
-          "description": "The name of the port."
-        },
-        "location": {
-          "type": "string",
-          "description": "The location of the port (e.g., city, country)."
-        }
+        "id": { "type": "string" },
+        "tenantId": { "type": "string" },
+        "name": { "type": "string" },
+        "location": { "type": "string" }
       },
-      "required": [
-        "id",
-        "name",
-        "location"
-      ]
+      "required": ["id", "tenantId", "name", "location"]
     },
     "Passenger": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Passenger",
       "type": "object",
-      "description": "Represents a passenger using the system.",
+      "description": "Global passenger profile (shared across tenants).",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Passenger entity (matches user UID)."
-        },
-        "firstName": {
-          "type": "string",
-          "description": "The first name of the passenger."
-        },
-        "lastName": {
-          "type": "string",
-          "description": "The last name of the passenger."
-        },
-        "birthDate": {
-          "type": "string",
-          "format": "date",
-          "description": "The passenger's date of birth."
-        },
-        "email": {
-          "type": "string",
-          "description": "The email address of the passenger.",
-          "format": "email"
-        },
-        "phone": {
-          "type": "string",
-          "description": "The phone number of the passenger."
-        },
-        "familyMembers": {
-            "type": "array",
-            "description": "A list of family members associated with this passenger account.",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "id": { "type": "string", "description": "A unique identifier for the family member within the account." },
-                    "fullName": { "type": "string" },
-                    "birthDate": { "type": "string", "format": "date" }
-                },
-                "required": ["id", "fullName"]
-            }
-        }
+        "id": { "type": "string" },
+        "firstName": { "type": "string" },
+        "lastName": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "phone": { "type": "string" },
+        "familyMembers": { "type": "array", "items": { "type": "object", "properties": { "id": { "type": "string" }, "fullName": { "type": "string" } } } }
       },
-      "required": [
-        "id",
-        "firstName",
-        "lastName",
-        "email"
-      ]
+      "required": ["id", "firstName", "lastName", "email"]
     },
     "Ship": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Ship",
       "type": "object",
-      "description": "Represents a ship.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Ship entity."
-        },
-        "name": {
-          "type": "string",
-          "description": "The name of the ship."
-        },
-        "capacity": {
-          "type": "number",
-          "description": "The maximum passenger capacity of the ship."
-        },
-        "status": {
-          "type": "string",
-          "description": "The current status of the ship (e.g., 'In Service', 'Under Maintenance')."
-        },
-        "vesselType": {
-          "type": "string",
-          "description": "The type of vessel (e.g., 'Ferry', 'High-Speed Craft')."
-        }
+        "id": { "type": "string" },
+        "tenantId": { "type": "string" },
+        "name": { "type": "string" },
+        "capacity": { "type": "number" },
+        "status": { "type": "string" },
+        "vesselType": { "type": "string" }
       },
-      "required": [
-        "id",
-        "name",
-        "capacity",
-        "status",
-        "vesselType"
-      ]
+      "required": ["id", "tenantId", "name", "capacity", "status", "vesselType"]
     },
     "AdminUser": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "AdminUser",
       "type": "object",
-      "description": "Represents an administrative user or staff member.",
       "properties": {
-        "uid": { "type": "string", "description": "The Firebase Authentication UID of the user." },
-        "email": { "type": "string", "format": "email", "description": "The email address associated with the user's account." },
-        "name": { "type": "string", "description": "The name of the staff member." },
-        "roles": {
-          "type": "array",
-          "description": "A list of roles assigned to the user.",
-          "items": { "type": "string", "enum": ["Super Admin", "Operations Manager", "Station Manager", "Desk Booking Agent", "Crew", "Finance/Accounting"] }
-        },
-        "assignedShipId": { "type": "string", "description": "The ID of the ship the staff member is assigned to." },
-        "assignedShipName": { "type": "string", "description": "The denormalized name of the assigned ship." },
-        "assignedPortId": { "type": "string", "description": "The ID of the port the staff member is assigned to." },
-        "assignedPortName": { "type": "string", "description": "The denormalized name of the assigned port." }
+        "uid": { "type": "string" },
+        "tenantId": { "type": "string", "description": "The operator this staff member works for." },
+        "email": { "type": "string", "format": "email" },
+        "name": { "type": "string" },
+        "roles": { "type": "array", "items": { "type": "string" } }
       },
-      "required": [ "uid", "email", "name", "roles" ]
+      "required": ["uid", "tenantId", "email", "name", "roles"]
     },
     "Route": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Route",
       "type": "object",
-      "description": "Represents a route.",
       "properties": {
-        "id": { "type": "string", "description": "Unique identifier for the Route entity." },
-        "name": { "type": "string", "description": "The name of the route." },
-        "departure": { "type": "string", "description": "Departure location" },
-        "destination": { "type": "string", "description": "Destination location." },
-        "distance": { "type": "number", "description": "The distance of the route (e.g. in miles or kilometers)." },
-        "passengerTypes": { "type": "array", "description": "A list of passenger types available for this route.", "items": { "type": "string" } }
+        "id": { "type": "string" },
+        "tenantId": { "type": "string" },
+        "name": { "type": "string" },
+        "departure": { "type": "string" },
+        "destination": { "type": "string" }
       },
-      "required": [ "id", "name", "departure", "destination", "distance" ]
+      "required": ["id", "tenantId", "name", "departure", "destination"]
     },
     "Fare": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Fare",
       "type": "object",
-      "description": "Represents a fare for a specific route and passenger type.",
       "properties": {
-        "id": { "type": "string", "description": "Unique identifier for the Fare entity." },
-        "routeId": { "type": "string", "description": "Reference to a Route." },
-        "routeName": { "type": "string", "description": "Denormalized name of the route for display purposes." },
-        "price": { "type": "number", "description": "The price of the fare." },
-        "passengerType": { "type": "string", "description": "The type of passenger for this fare." }
+        "id": { "type": "string" },
+        "tenantId": { "type": "string" },
+        "routeId": { "type": "string" },
+        "price": { "type": "number" },
+        "passengerType": { "type": "string" }
       },
-      "required": [ "id", "routeId", "routeName", "price", "passengerType" ]
+      "required": ["id", "tenantId", "routeId", "price", "passengerType"]
     },
     "Schedule": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Schedule",
       "type": "object",
-      "description": "Represents a scheduled trip. Can be a 'Daily' recurring template or a one-time 'Special' trip.",
       "properties": {
-        "id": { "type": "string", "description": "Unique identifier for the Schedule entity." },
-        "tripType": { "type": "string", "description": "The type of trip schedule: Daily (template) or Special (one-time).", "enum": ["Daily", "Special"] },
-        "sourceScheduleId": { "type": "string", "description": "If this is a 'Special' trip spawned from a 'Daily' template, this is the ID of the original template." },
-        "shipId": { "type": "string", "description": "Reference to a Ship." },
-        "shipName": { "type": "string", "description": "Denormalized name of the ship for display purposes." },
-        "routeId": { "type": "string", "description": "Reference to a Route." },
-        "departurePortName": { "type": "string", "description": "Denormalized name of the departure port for authorization." },
-        "date": { "type": "string", "description": "The date of the scheduled trip (for 'Special' trips).", "format": "date" },
-        "departureTime": { "type": "string", "description": "The scheduled departure time.", "format": "time" },
-        "arrivalTime": { "type": "string", "description": "The estimated arrival time.", "format": "time" },
-        "availableSeats": { "type": "number", "description": "The number of seats available on this scheduled trip." },
-        "status": { "type": "string", "description": "The real-time status of the trip.", "enum": ["On Time", "Delayed", "Departed", "Arrived", "Cancelled"] },
-        "boardingStatus": { "type": "string", "description": "The boarding status of the trip.", "enum": ["Awaiting", "Boarding", "Boarding Closed", "Departed"] }
+        "id": { "type": "string" },
+        "tenantId": { "type": "string" },
+        "tripType": { "type": "string", "enum": ["Daily", "Special"] },
+        "shipId": { "type": "string" },
+        "routeId": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "departureTime": { "type": "string", "format": "time" },
+        "availableSeats": { "type": "number" }
       },
-      "required": [ "id", "tripType", "routeId", "departurePortName", "departureTime", "arrivalTime", "availableSeats" ]
+      "required": ["id", "tenantId", "tripType", "routeId", "departureTime", "availableSeats"]
     },
     "Booking": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Booking",
       "type": "object",
-      "description": "Represents a passenger booking for a specific trip.",
       "properties": {
-        "id": { "type": "string", "description": "Unique 6-digit alphanumeric booking reference." },
-        "passengerId": { "type": "string", "description": "Reference to the Passenger (user.uid)." },
-        "passengerInfo": { "type": "array", "description": "Array of passenger details for the booking.", "items": { "type": "object", "properties": { "id": { "type": "string" }, "fullName": { "type": "string" }, "birthDate": { "type": "string", "format": "date" } } } },
-        "passengerEmail": { "type": "string", "description": "Primary contact email for the booking." },
-        "passengerPhone": { "type": "string", "description": "Primary contact phone number for the booking." },
-        "scheduleId": { "type": "string", "description": "Reference to a Schedule." },
-        "fareDetails": { "type": "array", "description": "Breakdown of fares used in the booking.", "items": { "type": "object", "properties": { "fareId": { "type": "string" }, "passengerType": { "type": "string" }, "count": { "type": "number" }, "pricePerTicket": { "type": "number" } } } },
-        "routeName": { "type": "string", "description": "Denormalized name of the route for display purposes." },
-        "departurePortName": { "type": "string", "description": "Denormalized name of the departure port for authorization." },
-        "bookingDate": { "type": "string", "description": "The date the booking was made.", "format": "date-time" },
-        "travelDate": { "type": "string", "description": "The date of travel.", "format": "date" },
-        "numberOfSeats": { "type": "number", "description": "The total number of seats booked." },
-        "totalPrice": { "type": "number", "description": "The total price of the booking." },
-        "status": { "type": "string", "description": "The reservation status of the booking.", "enum": ["Confirmed", "Reserved", "Waitlisted", "Cancelled", "Refunded", "Completed"] },
-        "paymentStatus": { "type": "string", "description": "The payment status of the booking.", "enum": ["Unpaid", "Paid", "Refunded"] },
-        "paymentMethod": { "type": "string", "description": "The payment method used for the booking.", "enum": ["Credit Card", "Cash", "Online Payment"] },
-        "refundStatus": { "type": "string", "description": "The refund status of a cancelled booking.", "enum": ["Not Applicable", "Refunded", "Pending"] },
-        "refundAmount": { "type": "number", "description": "The amount refunded to the customer." },
-        "cancellationFee": { "type": "number", "description": "Fee applied upon cancellation." },
-        "cancellationReason": { "type": "string", "description": "Reason for the cancellation." },
-        "rebookingHistory": { "type": "array", "description": "A history of rebooking fees applied to this booking.", "items": { "type": "object", "properties": { "fee": { "type": "number" }, "date": { "type": "string", "format": "date-time" }, "reason": { "type": "string" } } } },
-        "noShowFee": { "type": "number", "description": "Fee applied if the passenger is a no-show." }
+        "id": { "type": "string" },
+        "tenantId": { "type": "string" },
+        "passengerId": { "type": "string" },
+        "scheduleId": { "type": "string" },
+        "travelDate": { "type": "string", "format": "date" },
+        "totalPrice": { "type": "number" },
+        "status": { "type": "string" }
       },
-      "required": [ "id", "passengerId", "passengerInfo", "passengerEmail", "scheduleId", "fareDetails", "routeName", "departurePortName", "bookingDate", "travelDate", "numberOfSeats", "totalPrice", "status", "paymentStatus" ]
-    },
-    "MaintenanceRecord": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "MaintenanceRecord",
-      "type": "object",
-      "description": "Represents a maintenance record for a ship.",
-      "properties": {
-        "id": { "type": "string", "description": "Unique identifier for the MaintenanceRecord entity." },
-        "shipId": { "type": "string", "description": "Reference to a Ship." },
-        "startDate": { "type": "string", "description": "The start date of the maintenance period.", "format": "date-time" },
-        "endDate": { "type": "string", "description": "The end date of the maintenance period.", "format": "date-time" },
-        "description": { "type": "string", "description": "Description of the maintenance performed." }
-      },
-      "required": [ "id", "shipId", "startDate", "endDate", "description" ]
-    },
-    "Boarding": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Boarding",
-      "type": "object",
-      "description": "Represents the boarding status of a passenger for a trip.",
-      "properties": {
-        "id": { "type": "string", "description": "Unique identifier for the Boarding record." },
-        "bookingId": { "type": "string", "description": "Reference to a Booking." },
-        "passengerId": { "type": "string", "description": "Reference to Passenger." },
-        "passengerName": { "type": "string", "description": "Denormalized name of the passenger." },
-        "scheduleId": { "type": "string", "description": "Reference to a Schedule." },
-        "status": { "type": "string", "description": "Boarding status (e.g., 'Awaiting', 'Boarded', 'No-show').", "enum": ["Awaiting", "Boarded", "No-show"] },
-        "boardingTime": { "type": "string", "description": "The timestamp when the passenger boarded.", "format": "date-time" }
-      },
-      "required": [ "id", "bookingId", "passengerId", "passengerName", "scheduleId", "status" ]
+      "required": ["id", "tenantId", "passengerId", "scheduleId", "travelDate", "totalPrice", "status"]
     }
   },
   "auth": {
-    "providers": [ "password", "anonymous" ]
+    "providers": ["password", "anonymous"]
   },
   "firestore": {
     "structure": [
-      {
-        "path": "/staff/{staffId}",
-        "definition": { "entityName": "AdminUser", "schema": { "$ref": "#/backend/entities/AdminUser" }, "description": "Stores administrative user information and roles. Document ID is the user's Firebase UID." }
-      },
-      {
-        "path": "/passengers/{passengerId}",
-        "definition": { "entityName": "Passenger", "schema": { "$ref": "#/backend/entities/Passenger" }, "description": "Stores global passenger profiles." }
-      },
-      {
-        "path": "/announcements/{announcementId}",
-        "definition": { "entityName": "Announcement", "schema": { "$ref": "#/backend/entities/Announcement" }, "description": "Stores public announcements." }
-      },
-      {
-        "path": "/ports/{portId}",
-        "definition": { "entityName": "Port", "schema": { "$ref": "#/backend/entities/Port" }, "description": "Stores port information." }
-      },
-      {
-        "path": "/ships/{shipId}",
-        "definition": { "entityName": "Ship", "schema": { "$ref": "#/backend/entities/Ship" }, "description": "Stores ship information." }
-      },
-      {
-        "path": "/routes/{routeId}",
-        "definition": { "entityName": "Route", "schema": { "$ref": "#/backend/entities/Route" }, "description": "Stores route information." }
-      },
-      {
-        "path": "/fares/{fareId}",
-        "definition": { "entityName": "Fare", "schema": { "$ref": "#/backend/entities/Fare" }, "description": "Stores fare information." }
-      },
-      {
-        "path": "/schedules/{scheduleId}",
-        "definition": { "entityName": "Schedule", "schema": { "$ref": "#/backend/entities/Schedule" }, "description": "Stores schedule information." }
-      },
-      {
-        "path": "/bookings/{bookingId}",
-        "definition": { "entityName": "Booking", "schema": { "$ref": "#/backend/entities/Booking" }, "description": "Stores booking information." }
-      },
-      {
-        "path": "/maintenanceRecords/{maintenanceRecordId}",
-        "definition": { "entityName": "MaintenanceRecord", "schema": { "$ref": "#/backend/entities/MaintenanceRecord" }, "description": "Stores maintenance records for ships." }
-      },
-      {
-        "path": "/boarding/{boardingId}",
-        "definition": { "entityName": "Boarding", "schema": { "$ref": "#/backend/entities/Boarding" }, "description": "Stores real-time boarding records for trips." }
-      }
-    ],
-    "reasoning": "The data model is designed for a single operator. Global collections for staff and passengers are at the root, while operational data like ships, routes, and bookings are also at the root level for direct access. Security rules are used to enforce role-based permissions."
+      { "path": "/tenants/{tenantId}", "definition": { "entityName": "Tenant", "schema": { "$ref": "#/backend/entities/Tenant" }, "description": "Operator profile." } },
+      { "path": "/staff/{staffId}", "definition": { "entityName": "AdminUser", "schema": { "$ref": "#/backend/entities/AdminUser" }, "description": "Staff account with tenantId." } },
+      { "path": "/passengers/{passengerId}", "definition": { "entityName": "Passenger", "schema": { "$ref": "#/backend/entities/Passenger" }, "description": "Global passenger profile." } },
+      { "path": "/announcements/{id}", "definition": { "entityName": "Announcement", "schema": { "$ref": "#/backend/entities/Announcement" }, "description": "Tenant specific announcements." } },
+      { "path": "/ports/{id}", "definition": { "entityName": "Port", "schema": { "$ref": "#/backend/entities/Port" } } },
+      { "path": "/ships/{id}", "definition": { "entityName": "Ship", "schema": { "$ref": "#/backend/entities/Ship" } } },
+      { "path": "/routes/{id}", "definition": { "entityName": "Route", "schema": { "$ref": "#/backend/entities/Route" } } },
+      { "path": "/fares/{id}", "definition": { "entityName": "Fare", "schema": { "$ref": "#/backend/entities/Fare" } } },
+      { "path": "/schedules/{id}", "definition": { "entityName": "Schedule", "schema": { "$ref": "#/backend/entities/Schedule" } } },
+      { "path": "/bookings/{id}", "definition": { "entityName": "Booking", "schema": { "$ref": "#/backend/entities/Booking" } } }
+    ]
   }
 }

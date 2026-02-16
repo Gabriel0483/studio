@@ -16,138 +16,95 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    function getStaffDoc() {
-      return get(/databases/$(database)/documents/staff/$(request.auth.uid));
-    }
-    
     function getStaffData() {
-        return getStaffDoc().data;
+      return get(/databases/$(database)/documents/staff/$(request.auth.uid)).data;
     }
 
-    function getStaffRoles() {
-      return exists(/databases/$(database)/documents/staff/$(request.auth.uid))
-        ? getStaffData().roles
-        : [];
+    function isAnyAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/staff/$(request.auth.uid));
     }
     
     function isSuperAdmin() {
-      return isSignedIn() && getStaffRoles().hasAny(['Super Admin']);
+      return isAnyAdmin() && getStaffData().roles.hasAny(['Super Admin']);
     }
 
-    function isOperationsManager() {
-      return isSignedIn() && getStaffRoles().hasAny(['Super Admin', 'Operations Manager']);
+    function isPlatformAdmin() {
+      // Emergency escape hatch or platform-wide admin (optional)
+      return isSignedIn() && request.auth.token.email == 'rielmagpantay@gmail.com';
     }
 
-    function isFinance() {
-      return isSignedIn() && getStaffRoles().hasAny(['Super Admin', 'Finance/Accounting']);
-    }
-    
-    function isStationManager() {
-        return isSignedIn() && getStaffRoles().hasAny(['Super Admin', 'Operations Manager', 'Station Manager']);
-    }
-
-    function isDeskBookingAgent() {
-        return isSignedIn() && getStaffRoles().hasAny(['Super Admin', 'Station Manager', 'Desk Booking Agent']);
-    }
-    
-    function isAnyAdmin() {
-        return isSignedIn() && exists(/databases/$(database)/documents/staff/$(request.auth.uid));
-    }
-    
-    function canStaffAccessBooking(bookingResource) {
-        if (!isAnyAdmin()) {
-            return false;
-        }
-        if (isSuperAdmin() || isOperationsManager()) {
-            return true;
-        }
-        let staffData = getStaffData();
-        if (staffData.roles.hasAny(['Station Manager', 'Desk Booking Agent'])) {
-            return bookingResource.data.departurePortName == staffData.assignedPortName;
-        }
-        return false;
-    }
-    
-    function canStaffAccessSchedule(scheduleResource) {
-        if (!isAnyAdmin()) {
-            return false;
-        }
-        if (isSuperAdmin() || isOperationsManager()) {
-            return true;
-        }
-        let staffData = getStaffData();
-        if (staffData.roles.has('Station Manager')) {
-            return scheduleResource.data.departurePortName == staffData.assignedPortName;
-        }
-        return false;
+    // Helper to verify data belongs to the staff's tenant
+    function isTenantData(resourceData) {
+      return isAnyAdmin() && (getStaffData().tenantId == resourceData.tenantId);
     }
 
     // ----------------------------------------------------------------------
     // Collection Rules
     // ----------------------------------------------------------------------
     
+    match /tenants/{tenantId} {
+      allow read: if true;
+      allow write: if isPlatformAdmin();
+    }
+
     match /staff/{staffId} {
-      // Simplified read rule to avoid circular dependency
       allow get: if isOwner(staffId) || isSuperAdmin();
       allow list: if isSuperAdmin();
-      allow write: if isSuperAdmin();
-      allow delete: if isSuperAdmin();
+      // Only same-tenant staff can be seen by a tenant super admin
+      allow write: if isPlatformAdmin() || (isSuperAdmin() && getStaffData().tenantId == request.resource.data.tenantId);
     }
 
     match /passengers/{passengerId} {
-      allow get: if isOwner(passengerId) || isDeskBookingAgent();
-      allow list: if isDeskBookingAgent();
-      allow create: if isOwner(passengerId) && request.resource.data.id == passengerId;
-      allow update: if isOwner(passengerId) || isDeskBookingAgent();
-      allow delete: if isOwner(passengerId) || isDeskBookingAgent();
+      allow get: if isOwner(passengerId) || isAnyAdmin();
+      allow list: if isAnyAdmin();
+      allow create: if isOwner(passengerId) || isAnyAdmin();
+      allow update: if isOwner(passengerId) || isAnyAdmin();
     }
     
-    match /announcements/{announcementId} {
+    match /announcements/{id} {
       allow read: if true;
-      allow write: if isStationManager() || isOperationsManager();
+      allow write: if isTenantData(request.resource.data) || (resource != null && isTenantData(resource.data));
     }
     
-    match /ports/{portId} {
+    match /ports/{id} {
       allow read: if true;
-      allow write: if isSuperAdmin() || isOperationsManager();
+      allow write: if isTenantData(request.resource.data) || (resource != null && isTenantData(resource.data));
     }
 
-    match /ships/{shipId} {
-      allow read: if isAnyAdmin();
-      allow write: if isSuperAdmin() || isOperationsManager();
+    match /ships/{id} {
+      allow read: if isTenantData(resource.data);
+      allow write: if isTenantData(request.resource.data) || (resource != null && isTenantData(resource.data));
     }
 
-    match /routes/{routeId} {
+    match /routes/{id} {
       allow read: if true;
-      allow write: if isSuperAdmin() || isOperationsManager();
+      allow write: if isTenantData(request.resource.data) || (resource != null && isTenantData(resource.data));
     }
 
-    match /fares/{fareId} {
+    match /fares/{id} {
       allow read: if true;
-      allow write: if isSuperAdmin() || isOperationsManager();
+      allow write: if isTenantData(request.resource.data) || (resource != null && isTenantData(resource.data));
     }
 
-    match /schedules/{scheduleId} {
+    match /schedules/{id} {
       allow read: if true;
-      allow create: if canStaffAccessSchedule(request.resource);
-      allow update: if canStaffAccessSchedule(request.resource);
-      allow delete: if canStaffAccessSchedule(resource);
+      allow write: if isTenantData(request.resource.data) || (resource != null && isTenantData(resource.data));
     }
 
-    match /bookings/{bookingId} {
-      allow get: if (isOwner(resource.data.passengerId) && !isAnyAdmin()) || canStaffAccessBooking(resource) || isFinance();
-      allow list: if isDeskBookingAgent() || isFinance() || isOperationsManager();
-      allow create: if (isOwner(request.resource.data.passengerId) && !isAnyAdmin()) || canStaffAccessBooking(request.resource);
-      allow update: if (isOwner(request.resource.data.passengerId) && !isAnyAdmin()) || canStaffAccessBooking(request.resource);
-      allow delete: if (isOwner(request.resource.data.passengerId) && !isAnyAdmin()) || canStaffAccessBooking(resource);
+    match /bookings/{id} {
+      allow get: if isOwner(resource.data.passengerId) || isTenantData(resource.data);
+      allow list: if isAnyAdmin(); // Filtered client-side
+      allow create: if isSignedIn();
+      allow update: if isTenantData(resource.data);
+      allow delete: if isTenantData(resource.data);
     }
 
-    match /maintenanceRecords/{maintenanceRecordId} {
-      allow read, write: if isSuperAdmin() || isOperationsManager();
+    match /maintenanceRecords/{id} {
+      allow read, write: if isTenantData(resource.data) || isTenantData(request.resource.data);
     }
     
-    match /boarding/{boardingId} {
-        allow read, write: if isStationManager() || isOperationsManager();
+    match /boarding/{id} {
+      allow read, write: if isAnyAdmin(); // Filtered client-side
     }
   }
 }

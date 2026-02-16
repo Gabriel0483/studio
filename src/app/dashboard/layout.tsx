@@ -24,29 +24,7 @@ import { Home, Loader2 } from 'lucide-react';
 import { useUser, useAuthContext, initializeFirebase } from '@/firebase';
 import type { User } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
-
-
-const hasAdminRole = async (user: User): Promise<boolean> => {
-    // Fallback for the initial super admin
-    if (user.email === 'rielmagpantay@gmail.com') return true;
-
-    try {
-        // We need a firestore instance here. Since this is not a component, we can't use hooks.
-        const { firestore } = initializeFirebase();
-        const staffDocRef = doc(firestore, 'staff', user.uid);
-        const staffDoc = await getDoc(staffDocRef);
-
-        if (staffDoc.exists()) {
-            const roles = staffDoc.data().roles || [];
-            // Any assigned role grants dashboard access. Finer control is handled by security rules.
-            return roles.length > 0;
-        }
-        return false;
-    } catch (error) {
-        console.error('Error checking for admin role in Firestore:', error);
-        return false;
-    }
-};
+import { TenantProvider } from '@/components/dashboard/tenant-context';
 
 export default function DashboardLayout({
   children,
@@ -57,7 +35,9 @@ export default function DashboardLayout({
   const router = useRouter();
   const { user, isUserLoading } = useUser();
   const { isAuthReady } = useAuthContext();
+  
   const [authStatus, setAuthStatus] = useState<'checking' | 'authorized' | 'unauthorized'>('checking');
+  const [tenantInfo, setTenantInfo] = useState<{ id: string | null; name: string | null }>({ id: null, name: null });
 
   useEffect(() => {
     if (!isAuthReady || isUserLoading) {
@@ -66,17 +46,37 @@ export default function DashboardLayout({
     }
 
     if (user) {
-      hasAdminRole(user).then(isAdmin => {
-        if (isAdmin) {
-          setAuthStatus('authorized');
-        } else {
-          console.warn('User does not have an admin role. Redirecting to login.');
-          setAuthStatus('unauthorized');
-          router.replace('/admin/login');
+      const checkAccess = async () => {
+        const { firestore } = initializeFirebase();
+        const staffDocRef = doc(firestore, 'staff', user.uid);
+        const staffDoc = await getDoc(staffDocRef);
+
+        if (staffDoc.exists()) {
+          const data = staffDoc.data();
+          const roles = data.roles || [];
+          if (roles.length > 0) {
+            setTenantInfo({ 
+              id: data.tenantId || 'platform-default', 
+              name: data.tenantName || 'Isla Konek Operator' 
+            });
+            setAuthStatus('authorized');
+            return;
+          }
         }
-      });
+        
+        // Platform Admin Fallback
+        if (user.email === 'rielmagpantay@gmail.com') {
+          setTenantInfo({ id: 'platform-admin', name: 'Platform Administrator' });
+          setAuthStatus('authorized');
+          return;
+        }
+
+        setAuthStatus('unauthorized');
+        router.replace('/admin/login');
+      };
+
+      checkAccess();
     } else {
-      console.log('No user found after auth ready. Redirecting to login.');
       setAuthStatus('unauthorized');
       router.replace('/admin/login');
     }
@@ -94,48 +94,55 @@ export default function DashboardLayout({
   }
 
   return (
-    <SidebarProvider>
-      <Sidebar>
-        <SidebarRail />
-        <SidebarHeader className='p-2'>
-          <Logo />
-        </SidebarHeader>
-        <SidebarContent>
-          <SidebarMenu>
-            {navLinks.map((link) => (
-              <SidebarMenuItem key={link.href}>
-                <SidebarMenuButton
-                  asChild
-                  isActive={pathname.startsWith(link.href)}
-                  tooltip={{ children: link.label }}
-                >
-                  <Link href={link.href}>
-                    <link.icon className="h-4 w-4" />
-                    <span>{link.label}</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            ))}
-          </SidebarMenu>
-        </SidebarContent>
-      </Sidebar>
-      <SidebarInset className="flex flex-col">
-        <header className="flex h-14 items-center gap-4 border-b bg-card px-4 lg:h-[60px] lg:px-6">
-            <SidebarTrigger />
-            <div className='hidden md:block'>
-                <Button asChild variant="outline" size="icon">
-                    <Link href="/welcome">
-                        <Home className="h-4 w-4"/>
-                        <span className="sr-only">Back to Homepage</span>
-                    </Link>
-                </Button>
+    <TenantProvider tenantId={tenantInfo.id} tenantName={tenantInfo.name}>
+      <SidebarProvider>
+        <Sidebar>
+          <SidebarRail />
+          <SidebarHeader className='p-2'>
+            <div className="flex flex-col gap-1 px-2 py-1">
+              <Logo />
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider truncate">
+                {tenantInfo.name}
+              </p>
             </div>
-          <div className="w-full flex-1">
-          </div>
-          <UserNav />
-        </header>
-        <main className="flex-1 overflow-auto p-4 lg:p-6">{children}</main>
-      </SidebarInset>
-    </SidebarProvider>
+          </SidebarHeader>
+          <SidebarContent>
+            <SidebarMenu>
+              {navLinks.map((link) => (
+                <SidebarMenuItem key={link.href}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={pathname.startsWith(link.href)}
+                    tooltip={{ children: link.label }}
+                  >
+                    <Link href={link.href}>
+                      <link.icon className="h-4 w-4" />
+                      <span>{link.label}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarContent>
+        </Sidebar>
+        <SidebarInset className="flex flex-col">
+          <header className="flex h-14 items-center gap-4 border-b bg-card px-4 lg:h-[60px] lg:px-6">
+              <SidebarTrigger />
+              <div className='hidden md:block'>
+                  <Button asChild variant="outline" size="icon">
+                      <Link href="/welcome">
+                          <Home className="h-4 w-4"/>
+                          <span className="sr-only">Back to Homepage</span>
+                      </Link>
+                  </Button>
+              </div>
+            <div className="w-full flex-1">
+            </div>
+            <UserNav />
+          </header>
+          <main className="flex-1 overflow-auto p-4 lg:p-6">{children}</main>
+        </SidebarInset>
+      </SidebarProvider>
+    </TenantProvider>
   );
 }
