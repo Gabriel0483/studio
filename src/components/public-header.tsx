@@ -1,6 +1,7 @@
 
 'use client';
 
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/logo';
@@ -18,6 +19,12 @@ export function PublicHeader() {
   const firestore = useFirestore();
   const auth = useAuth();
   const router = useRouter();
+  
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const passengerDocRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -67,7 +74,7 @@ export function PublicHeader() {
         </nav>
         <div className="flex items-center gap-4">
           <div className="hidden md:flex items-center gap-2">
-            {!isUserLoading && (
+            {mounted && !isUserLoading && (
               user ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -141,7 +148,7 @@ export function PublicHeader() {
                   </Link>
                 ))}
                  <div className="border-t pt-6 flex flex-col gap-4">
-                  {!isUserLoading && (
+                  {mounted && !isUserLoading && (
                     user ? (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
