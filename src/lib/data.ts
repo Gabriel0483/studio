@@ -1,5 +1,5 @@
 
-import { Ship, Users, LineChart, Route as RouteIcon, Anchor, BarChart, Warehouse, Ticket, BookCopy, Receipt, ClipboardCheck, Megaphone, FileText, CalendarClock, Laptop, DatabaseZap, Building2, Palette } from 'lucide-react';
+import { Ship, Users, LineChart, Route as RouteIcon, Anchor, BarChart, Warehouse, Ticket, BookCopy, Receipt, ClipboardCheck, Megaphone, FileText, CalendarClock, Laptop, DatabaseZap, Building2, Palette, Cpu } from 'lucide-react';
 
 export const APP_VERSION = 'v1.2.5-PRO';
 
@@ -20,6 +20,7 @@ export const navLinks = [
   { href: '/dashboard/protocols', label: 'Protocols', icon: FileText },
   { href: '/dashboard/reports', label: 'Reports', icon: BarChart, roles: ['Super Admin', 'Operations Manager', 'Finance/Accounting'] },
   { href: '/dashboard/data-retention', label: 'Data Retention', icon: DatabaseZap, roles: ['Super Admin', 'Operations Manager', 'Station Manager'] },
+  { href: '/dashboard/features', label: 'System Features', icon: Cpu, platformAdminOnly: true },
 ];
 
 export const revenueData: { name: string; total: number }[] = [
