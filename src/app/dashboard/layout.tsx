@@ -15,12 +15,13 @@ import {
   SidebarInset,
   SidebarTrigger,
   SidebarRail,
+  SidebarFooter,
 } from '@/components/ui/sidebar';
 import { Logo } from '@/components/logo';
 import { UserNav } from '@/components/dashboard/user-nav';
-import { navLinks } from '@/lib/data';
+import { navLinks, APP_VERSION } from '@/lib/data';
 import { Button } from '@/components/ui/button';
-import { Home, Loader2 } from 'lucide-react';
+import { Home, Loader2, Info } from 'lucide-react';
 import { useUser, useAuthContext, initializeFirebase } from '@/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { TenantProvider } from '@/components/dashboard/tenant-context';
@@ -139,6 +140,12 @@ export default function DashboardLayout({
               ))}
             </SidebarMenu>
           </SidebarContent>
+          <SidebarFooter className="p-4 border-t">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 p-2 rounded-md">
+              <Info className="h-3 w-3" />
+              <span>System {APP_VERSION}</span>
+            </div>
+          </SidebarFooter>
         </Sidebar>
         <SidebarInset className="flex flex-col">
           <header className="flex h-14 items-center gap-4 border-b bg-card px-4 lg:h-[60px] lg:px-6">

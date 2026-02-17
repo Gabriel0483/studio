@@ -1,6 +1,8 @@
 
 import { Ship, Users, LineChart, Route as RouteIcon, Anchor, BarChart, Warehouse, Ticket, BookCopy, Receipt, ClipboardCheck, Megaphone, FileText, CalendarClock, Laptop, DatabaseZap, Building2 } from 'lucide-react';
 
+export const APP_VERSION = 'v1.2.5-PRO';
+
 export const navLinks = [
   { href: '/dashboard', label: 'Dashboard', icon: LineChart },
   { href: '/dashboard/tenants', label: 'Tenants', icon: Building2, platformAdminOnly: true },
