@@ -11,6 +11,9 @@
         "name": { "type": "string", "description": "The name of the operator." },
         "subdomain": { "type": "string", "description": "Reserved for future vanity URL use." },
         "logoUrl": { "type": "string" },
+        "heroTitle": { "type": "string", "description": "Custom headline for the operator portal." },
+        "heroDescription": { "type": "string", "description": "Custom sub-headline for the operator portal." },
+        "heroImageUrl": { "type": "string", "description": "Custom background image for the operator portal." },
         "contactEmail": { "type": "string", "format": "email" },
         "createdAt": { "type": "string", "format": "date-time" }
       },

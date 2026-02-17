@@ -13,6 +13,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { doc } from 'firebase/firestore';
+import { useTenant } from './dashboard/tenant-context';
 
 export function PublicHeader() {
   const { user, isUserLoading } = useUser();
@@ -20,6 +21,7 @@ export function PublicHeader() {
   const auth = useAuth();
   const router = useRouter();
   const params = useParams();
+  const { tenantName, logoUrl } = useTenant();
   
   const tenantId = params.tenantId as string;
   const [mounted, setMounted] = useState(false);
@@ -65,7 +67,21 @@ export function PublicHeader() {
   return (
     <header className="sticky top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-sm border-b">
       <div className="container mx-auto flex items-center justify-between px-4 md:px-6 h-16">
-        <Logo />
+        <div className="flex items-center gap-2">
+          {logoUrl && tenantId ? (
+            <Link href={`/o/${tenantId}`} className="flex items-center gap-2">
+              <Avatar className="h-8 w-8 rounded-sm">
+                <AvatarImage src={logoUrl} alt={tenantName || 'Logo'} />
+                <AvatarFallback className="rounded-sm bg-primary text-white text-[10px]">
+                  {tenantName?.substring(0, 2).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <span className="font-bold text-lg hidden sm:inline-block">{tenantName}</span>
+            </Link>
+          ) : (
+            <Logo />
+          )}
+        </div>
         <nav className="hidden items-center gap-6 md:flex">
           {navLinks.map((link) => (
             <Link
@@ -142,7 +158,12 @@ export function PublicHeader() {
                     <SheetDescription>Navigation links for mobile users.</SheetDescription>
                 </SheetHeader>
               <div className="flex flex-col gap-6 pt-12">
-                <Logo />
+                {tenantId && tenantName ? (
+                   <div className="flex items-center gap-2">
+                      {logoUrl && <Avatar className="h-8 w-8 rounded-sm"><AvatarImage src={logoUrl} /></Avatar>}
+                      <span className="font-bold text-lg">{tenantName}</span>
+                   </div>
+                ) : <Logo />}
                 {navLinks.map((link) => (
                   <Link
                     key={link.href}

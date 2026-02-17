@@ -1,5 +1,5 @@
 
-import { Ship, Users, LineChart, Route as RouteIcon, Anchor, BarChart, Warehouse, Ticket, BookCopy, Receipt, ClipboardCheck, Megaphone, FileText, CalendarClock, Laptop, DatabaseZap, Building2 } from 'lucide-react';
+import { Ship, Users, LineChart, Route as RouteIcon, Anchor, BarChart, Warehouse, Ticket, BookCopy, Receipt, ClipboardCheck, Megaphone, FileText, CalendarClock, Laptop, DatabaseZap, Building2, Palette } from 'lucide-react';
 
 export const APP_VERSION = 'v1.2.5-PRO';
 
@@ -16,6 +16,7 @@ export const navLinks = [
   { href: '/dashboard/routes', label: 'Routes', icon: RouteIcon },
   { href: '/dashboard/fares', label: 'Fares', icon: Ticket },
   { href: '/dashboard/rebooking', label: 'Rebooking & Refunds', icon: Receipt },
+  { href: '/dashboard/settings', label: 'Customization', icon: Palette, roles: ['Super Admin', 'Operations Manager'] },
   { href: '/dashboard/protocols', label: 'Protocols', icon: FileText },
   { href: '/dashboard/reports', label: 'Reports', icon: BarChart, roles: ['Super Admin', 'Operations Manager', 'Finance/Accounting'] },
   { href: '/dashboard/data-retention', label: 'Data Retention', icon: DatabaseZap, roles: ['Super Admin', 'Operations Manager', 'Station Manager'] },

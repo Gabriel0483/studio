@@ -44,7 +44,14 @@ export default function OperatorPublicLayout({
   }
 
   return (
-    <TenantProvider tenantId={tenant.id} tenantName={tenant.name}>
+    <TenantProvider 
+      tenantId={tenant.id} 
+      tenantName={tenant.name}
+      logoUrl={tenant.logoUrl}
+      heroTitle={tenant.heroTitle}
+      heroDescription={tenant.heroDescription}
+      heroImageUrl={tenant.heroImageUrl}
+    >
       {children}
     </TenantProvider>
   );
