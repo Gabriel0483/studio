@@ -5,16 +5,18 @@ import { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, PieChart, Pie, Cell } from "recharts";
 import { ChartConfig, ChartContainer, ChartTooltipContent } from "@/components/ui/chart";
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { collection, Timestamp, query, where } from 'firebase/firestore';
 import { format, getMonth, getYear } from 'date-fns';
-import { DollarSign, Users, Ticket, CheckCircle, Clock, CreditCard, XCircle, ClipboardCheck, Ban, Check, Bot, Ship, BarChart as BarChartIcon, UserX, ExternalLink } from 'lucide-react';
+import { DollarSign, Users, Ticket, CheckCircle, Clock, CreditCard, XCircle, ClipboardCheck, Ban, Check, Bot, Ship, BarChart as BarChartIcon, UserX, ExternalLink, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { useTenant } from '@/components/dashboard/tenant-context';
 import Link from 'next/link';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
 const chartColors = [
   "hsl(var(--chart-1))",
@@ -26,9 +28,13 @@ const chartColors = [
 
 export default function DashboardPage() {
   const firestore = useFirestore();
+  const { user } = useUser();
   const { tenantId, tenantName } = useTenant();
   const [date, setDate] = useState<Date>();
   const [scheduleFilter, setScheduleFilter] = useState('all');
+  const [isGlobalView, setIsGlobalView] = useState(false);
+
+  const isPlatformAdmin = user?.email === 'rielmagpantay@gmail.com';
 
   useEffect(() => {
     setDate(new Date());
@@ -36,17 +42,18 @@ export default function DashboardPage() {
 
   const bookingsQuery = useMemoFirebase(() => {
     if (!firestore || !tenantId) return null;
+    if (isPlatformAdmin && isGlobalView) return collection(firestore, 'bookings');
     return query(collection(firestore, 'bookings'), where('tenantId', '==', tenantId));
-  }, [firestore, tenantId]);
+  }, [firestore, tenantId, isPlatformAdmin, isGlobalView]);
 
   const schedulesQuery = useMemoFirebase(() => {
     if (!firestore || !tenantId) return null;
+    if (isPlatformAdmin && isGlobalView) return collection(firestore, 'schedules');
     return query(collection(firestore, 'schedules'), where('tenantId', '==', tenantId));
-  }, [firestore, tenantId]);
+  }, [firestore, tenantId, isPlatformAdmin, isGlobalView]);
 
   const boardingQuery = useMemoFirebase(() => {
     if (!firestore || !tenantId) return null;
-    // We filter by schedule below since boarding records are linked to schedules
     return collection(firestore, 'boarding');
   }, [firestore, tenantId]);
 
@@ -197,10 +204,23 @@ export default function DashboardPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Dashboard Overview</h1>
-          <p className="text-muted-foreground">Real-time operations for {tenantName}.</p>
+          <p className="text-muted-foreground">
+            {isGlobalView ? 'Aggregated system-wide data' : `Real-time operations for ${tenantName}`}
+          </p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-            <Button asChild variant="outline">
+        <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto items-center">
+            {isPlatformAdmin && (
+              <div className="flex items-center space-x-2 bg-primary/10 px-3 py-2 rounded-lg border border-primary/20">
+                <Globe className="h-4 w-4 text-primary" />
+                <Label htmlFor="global-view" className="text-xs font-bold text-primary">Global View</Label>
+                <Switch 
+                  id="global-view" 
+                  checked={isGlobalView} 
+                  onCheckedChange={setIsGlobalView} 
+                />
+              </div>
+            )}
+            <Button asChild variant="outline" size="sm">
               <Link href={`/o/${tenantId}`} target="_blank">
                 <ExternalLink className="mr-2 h-4 w-4" />
                 View Public Portal
@@ -215,7 +235,7 @@ export default function DashboardPage() {
                   setDate(new Date(year, month - 1, day));
                 }
               }}
-              className="w-full sm:w-[200px]"
+              className="w-full sm:w-[160px] h-9"
             />
         </div>
       </div>

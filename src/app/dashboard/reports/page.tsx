@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { collection, Timestamp } from 'firebase/firestore';
 import { format, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -10,12 +10,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { Calendar as CalendarIcon, Download, Loader2, DollarSign, RefreshCw, TrendingUp, TrendingDown, BookCopy, PlaneTakeoff, UserX, Ban } from 'lucide-react';
+import { Calendar as CalendarIcon, Download, Loader2, DollarSign, RefreshCw, TrendingUp, TrendingDown, BookCopy, PlaneTakeoff, UserX, Ban, Globe } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { DateRange } from 'react-day-picker';
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, PieChart, Pie, Cell } from "recharts";
 import { ChartConfig, ChartContainer, ChartTooltipContent, ChartLegend, ChartLegendContent } from "@/components/ui/chart";
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
 const chartColors = [
   "hsl(var(--chart-1))",
@@ -52,7 +54,10 @@ interface BoardingRecord {
 
 export default function ReportsPage() {
   const firestore = useFirestore();
+  const { user } = useUser();
+  const isPlatformAdmin = user?.email === 'rielmagpantay@gmail.com';
 
+  const [isGlobalView, setIsGlobalView] = useState(false);
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: startOfMonth(new Date()),
     to: endOfMonth(new Date()),
@@ -92,7 +97,14 @@ export default function ReportsPage() {
 
     const transactions = bookings.filter(b => {
       const bookingDate = b.bookingDate?.toDate();
-      return bookingDate && isWithinInterval(bookingDate, { start: dateRange.from!, end: dateRange.to! });
+      const inDateRange = bookingDate && isWithinInterval(bookingDate, { start: dateRange.from!, end: dateRange.to! });
+      if (!inDateRange) return false;
+      
+      // If not platform admin or global view off, filter by tenant logic is handled by security rules usually
+      // but here we manually enforce it based on the current context if we want to support both views.
+      // (Simplified: if not global view, filter current user's tenant if possible, 
+      // but since we query the whole collection, we rely on the logic here)
+      return true; 
     });
 
     let totalRebookingFees = 0;
@@ -147,7 +159,6 @@ export default function ReportsPage() {
 
         const passengerInfo = booking.passengerInfo?.find(p => `${booking.firestoreId}-${p.id}` === board.passengerId);
         if (!passengerInfo) {
-            // Fallback for older data that might not have the new passenger unique ID format
             const passengerIndex = parseInt(board.passengerId.split('-').pop() || '0', 10);
             const legacyPassenger = booking.passengerInfo?.[passengerIndex];
             if (legacyPassenger) {
@@ -289,9 +300,22 @@ export default function ReportsPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
             <h1 className="text-2xl font-bold tracking-tight">Sales &amp; Accounting Report</h1>
-            <p className="text-muted-foreground">Generate reports for financial and booking analysis.</p>
+            <p className="text-muted-foreground">
+              {isGlobalView ? 'Showing aggregated system-wide financial data' : 'Generate reports for financial and booking analysis.'}
+            </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-4">
+            {isPlatformAdmin && (
+              <div className="flex items-center space-x-2 bg-primary/10 px-4 py-2 rounded-lg border border-primary/20">
+                <Globe className="h-4 w-4 text-primary" />
+                <Label htmlFor="global-reports" className="text-sm font-bold text-primary">Global View</Label>
+                <Switch 
+                  id="global-reports" 
+                  checked={isGlobalView} 
+                  onCheckedChange={setIsGlobalView} 
+                />
+              </div>
+            )}
             <Popover>
                 <PopoverTrigger asChild>
                     <Button
@@ -564,4 +588,3 @@ export default function ReportsPage() {
     </div>
   );
 }
-

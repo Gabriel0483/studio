@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
@@ -37,7 +38,7 @@ import {
   query,
   where
 } from 'firebase/firestore';
-import { BookCopy, Pencil, Search, Trash2, XCircle, CreditCard, Loader2, FilterX, Filter } from 'lucide-react';
+import { BookCopy, Pencil, Search, Trash2, XCircle, CreditCard, Loader2, FilterX, Filter, Globe } from 'lucide-react';
 import { format } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -46,6 +47,7 @@ import { useRouter } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import {
   Collapsible,
   CollapsibleContent,
@@ -79,6 +81,9 @@ export default function BookingsPage() {
   const { user } = useUser();
   const { tenantId } = useTenant();
   
+  const isPlatformAdmin = user?.email === 'rielmagpantay@gmail.com';
+  
+  const [isGlobalView, setIsGlobalView] = useState(false);
   const [search, setSearch] = useState('');
   const [filterRoute, setFilterRoute] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -93,18 +98,21 @@ export default function BookingsPage() {
 
   const bookingsQuery = useMemoFirebase(() => {
     if (!firestore || !tenantId) return null;
+    if (isPlatformAdmin && isGlobalView) return collection(firestore, 'bookings');
     return query(collection(firestore, 'bookings'), where('tenantId', '==', tenantId));
-  }, [firestore, tenantId]);
+  }, [firestore, tenantId, isPlatformAdmin, isGlobalView]);
 
   const routesQuery = useMemoFirebase(() => {
     if (!firestore || !tenantId) return null;
+    if (isPlatformAdmin && isGlobalView) return collection(firestore, 'routes');
     return query(collection(firestore, 'routes'), where('tenantId', '==', tenantId));
-  }, [firestore, tenantId]);
+  }, [firestore, tenantId, isPlatformAdmin, isGlobalView]);
 
   const schedulesQuery = useMemoFirebase(() => {
     if (!firestore || !tenantId) return null;
+    if (isPlatformAdmin && isGlobalView) return collection(firestore, 'schedules');
     return query(collection(firestore, 'schedules'), where('tenantId', '==', tenantId));
-  }, [firestore, tenantId]);
+  }, [firestore, tenantId, isPlatformAdmin, isGlobalView]);
 
   const staffDocRef = useMemoFirebase(() => firestore && user ? doc(firestore, 'staff', user.uid) : null, [firestore, user]);
 
@@ -168,7 +176,7 @@ export default function BookingsPage() {
       const isManagerOrAdmin = staffData?.roles?.some((r: string) => ['Super Admin', 'Station Manager', 'Operations Manager'].includes(r));
 
       let locationMatch = true;
-      if (isDeskAgent && !isManagerOrAdmin) {
+      if (isDeskAgent && !isManagerOrAdmin && !isGlobalView) {
         if (staffData.assignedPortName) {
           locationMatch = booking.departurePortName === staffData.assignedPortName;
         } else {
@@ -178,7 +186,7 @@ export default function BookingsPage() {
 
       return searchMatch && statusMatch && dateMatch && routeMatch && scheduleMatch && locationMatch;
     });
-  }, [bookings, search, filterStatus, filterDate, filterRoute, filterSchedule, routes, staffData]);
+  }, [bookings, search, filterStatus, filterDate, filterRoute, filterSchedule, routes, staffData, isGlobalView]);
   
   const clearFilters = () => {
     setSearch('');
@@ -319,11 +327,24 @@ export default function BookingsPage() {
   return (
     <>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Booking Management</h1>
-          <p className="text-muted-foreground">
-            View and manage all passenger bookings for your company.
-          </p>
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Booking Management</h1>
+            <p className="text-muted-foreground">
+              {isGlobalView ? 'Showing all bookings across the platform' : 'View and manage all passenger bookings for your company.'}
+            </p>
+          </div>
+          {isPlatformAdmin && (
+            <div className="flex items-center space-x-2 bg-primary/10 px-4 py-2 rounded-lg border border-primary/20">
+              <Globe className="h-4 w-4 text-primary" />
+              <Label htmlFor="global-bookings" className="text-sm font-bold text-primary">Global View</Label>
+              <Switch 
+                id="global-bookings" 
+                checked={isGlobalView} 
+                onCheckedChange={setIsGlobalView} 
+              />
+            </div>
+          )}
         </div>
 
         <Card>
