@@ -53,4 +53,7 @@ Centralized tools for the platform owner to manage the ecosystem.
 - **Styling**: Tailwind CSS + ShadCN UI
 - **Database**: Firebase Firestore (Real-time NoSQL)
 - **Auth**: Firebase Authentication
-- **Multi-tenancy**: Path-based routing with Tenant Context Providers
+- **Multi-tenancy**: Path-based dynamic routing with Tenant Context Providers
+
+## License
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
