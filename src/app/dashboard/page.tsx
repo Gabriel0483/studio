@@ -2,17 +2,19 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, PieChart, Pie, Cell } from "recharts";
 import { ChartConfig, ChartContainer, ChartTooltipContent } from "@/components/ui/chart";
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, Timestamp } from 'firebase/firestore';
+import { collection, Timestamp, query, where } from 'firebase/firestore';
 import { format, getMonth, getYear } from 'date-fns';
-import { DollarSign, Users, Ticket, CheckCircle, Clock, CreditCard, XCircle, ClipboardCheck, Ban, Check, Bot, Ship, BarChart as BarChartIcon, UserX } from 'lucide-react';
+import { DollarSign, Users, Ticket, CheckCircle, Clock, CreditCard, XCircle, ClipboardCheck, Ban, Check, Bot, Ship, BarChart as BarChartIcon, UserX, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
+import { useTenant } from '@/components/dashboard/tenant-context';
+import Link from 'next/link';
 
 const chartColors = [
   "hsl(var(--chart-1))",
@@ -22,31 +24,9 @@ const chartColors = [
   "hsl(var(--chart-5))",
 ];
 
-const features = [
-  {
-    icon: <Bot className="h-10 w-10 text-primary" />,
-    title: 'Automated Scheduling',
-    description: 'AI-powered creation of optimized routes considering passenger numbers, ship availability, and timing.',
-  },
-  {
-    icon: <Ship className="h-10 w-10 text-primary" />,
-    title: 'Operational Management',
-    description: 'Handle ship maintenance schedules, staffing, and daily operations with ease.',
-  },
-  {
-    icon: <Users className="h-10 w-10 text-primary" />,
-    title: 'Passenger Management',
-    description: 'A user-friendly interface for passengers to book seats and for you to manage their journey.',
-  },
-  {
-    icon: <BarChartIcon className="h-10 w-10 text-primary" />,
-    title: 'Real-Time Analytics',
-    description: 'Monitor operations, track passenger data, and generate insightful reports in real-time.',
-  },
-];
-
 export default function DashboardPage() {
   const firestore = useFirestore();
+  const { tenantId, tenantName } = useTenant();
   const [date, setDate] = useState<Date>();
   const [scheduleFilter, setScheduleFilter] = useState('all');
 
@@ -54,9 +34,21 @@ export default function DashboardPage() {
     setDate(new Date());
   }, []);
 
-  const bookingsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'bookings') : null, [firestore]);
-  const schedulesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'schedules') : null, [firestore]);
-  const boardingQuery = useMemoFirebase(() => firestore ? collection(firestore, 'boarding') : null, [firestore]);
+  const bookingsQuery = useMemoFirebase(() => {
+    if (!firestore || !tenantId) return null;
+    return query(collection(firestore, 'bookings'), where('tenantId', '==', tenantId));
+  }, [firestore, tenantId]);
+
+  const schedulesQuery = useMemoFirebase(() => {
+    if (!firestore || !tenantId) return null;
+    return query(collection(firestore, 'schedules'), where('tenantId', '==', tenantId));
+  }, [firestore, tenantId]);
+
+  const boardingQuery = useMemoFirebase(() => {
+    if (!firestore || !tenantId) return null;
+    // We filter by schedule below since boarding records are linked to schedules
+    return collection(firestore, 'boarding');
+  }, [firestore, tenantId]);
 
   const { data: bookings, isLoading: isLoadingBookings } = useCollection(bookingsQuery);
   const { data: allSchedules, isLoading: isLoadingSchedules } = useCollection(schedulesQuery);
@@ -163,7 +155,6 @@ export default function DashboardPage() {
   const { revenueData, bookingsByRouteData } = useMemo(() => {
     if (!bookings) return { revenueData: [], bookingsByRouteData: [] };
 
-    // Process revenue data
     const currentYear = getYear(new Date());
     const monthlyRevenue = Array.from({ length: 12 }, (_, i) => ({
       name: format(new Date(currentYear, i), 'MMM'),
@@ -180,7 +171,6 @@ export default function DashboardPage() {
       }
     });
     
-    // Process bookings by route
     const routeCounts: { [key: string]: number } = {};
     bookings.forEach(booking => {
       if (booking.routeName) {
@@ -200,23 +190,6 @@ export default function DashboardPage() {
     return { revenueData: monthlyRevenue, bookingsByRouteData };
   }, [bookings]);
 
-  const revenueChartConfig: ChartConfig = {
-      total: { label: "Revenue" },
-  };
-
-  const bookingsChartConfig = bookingsByRouteData.reduce((acc, cur) => {
-    acc[cur.name] = {
-      label: cur.name,
-      color: cur.fill,
-    };
-    return acc;
-  }, {} as ChartConfig);
-  
-  const overviewCards = [
-      { title: 'Total Revenue', value: `₱${filteredStats.totalRevenue.toFixed(2)}`, description: 'Revenue from paid bookings.', icon: DollarSign },
-      { title: 'Total Passengers', value: filteredStats.totalPassengers.toString(), description: 'Passengers for selected scope.', icon: Users },
-  ];
-
   const isLoading = isLoadingBookings || isLoadingSchedules || isLoadingBoarding || !date;
 
   return (
@@ -224,9 +197,15 @@ export default function DashboardPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Dashboard Overview</h1>
-          <p className="text-muted-foreground">Here's a real-time look at your operations for the selected date.</p>
+          <p className="text-muted-foreground">Real-time operations for {tenantName}.</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+            <Button asChild variant="outline">
+              <Link href={`/o/${tenantId}`} target="_blank">
+                <ExternalLink className="mr-2 h-4 w-4" />
+                View Public Portal
+              </Link>
+            </Button>
             <Input
               type="date"
               value={date ? format(date, 'yyyy-MM-dd') : ''}
@@ -234,25 +213,10 @@ export default function DashboardPage() {
                 if (e.target.value) {
                   const [year, month, day] = e.target.value.split('-').map(Number);
                   setDate(new Date(year, month - 1, day));
-                } else {
-                  setDate(new Date());
                 }
               }}
-              className="w-full sm:w-[280px] h-10"
+              className="w-full sm:w-[200px]"
             />
-             <Select value={scheduleFilter} onValueChange={setScheduleFilter}>
-                <SelectTrigger className="w-full sm:w-[280px]">
-                    <SelectValue placeholder="Filter by trip..." />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="all">All Day</SelectItem>
-                    {dailySchedules.map(schedule => (
-                        <SelectItem key={schedule.id} value={schedule.id}>
-                            {schedule.departureTime} - {schedule.arrivalTime}
-                        </SelectItem>
-                    ))}
-                </SelectContent>
-            </Select>
         </div>
       </div>
 
@@ -263,97 +227,44 @@ export default function DashboardPage() {
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {overviewCards.map((card) => (
-            <Card key={card.title}>
+            <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">{card.title}</CardTitle>
-                <card.icon className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium">Revenue</CardTitle>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                <div className="text-2xl font-bold">{card.value}</div>
-                <p className="text-xs text-muted-foreground">{card.description}</p>
+                <div className="text-2xl font-bold">₱{filteredStats.totalRevenue.toFixed(2)}</div>
+                <p className="text-xs text-muted-foreground">Paid bookings for the selected date.</p>
                 </CardContent>
             </Card>
-            ))}
-
-            <Card className="md:col-span-2">
+            <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Booking Status</CardTitle>
-                    <Ticket className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium">Passengers</CardTitle>
+                <Users className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                    <div className="text-2xl font-bold">{filteredStats.reserved + filteredStats.confirmed + filteredStats.waitlisted + filteredStats.refunded} Total Bookings</div>
-                     <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground mt-1">
-                        <div className="flex items-center gap-1">
-                            <Check className="h-3 w-3 text-sky-500"/>
-                            <span>Reserved: {filteredStats.reserved}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                             <CheckCircle className="h-3 w-3 text-green-500"/>
-                            <span>Confirmed: {filteredStats.confirmed}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                             <Clock className="h-3 w-3 text-orange-500"/>
-                            <span>Waitlisted: {filteredStats.waitlisted}</span>
-                        </div>
-                         <div className="flex items-center gap-1">
-                             <Ban className="h-3 w-3 text-red-500"/>
-                            <span>Refunded/Cancelled: {filteredStats.refunded}</span>
-                        </div>
-                    </div>
+                <div className="text-2xl font-bold">{filteredStats.totalPassengers}</div>
+                <p className="text-xs text-muted-foreground">Total traveling today.</p>
                 </CardContent>
             </Card>
-
-             <Card>
+            <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Payment Status</CardTitle>
-                    <CreditCard className="h-4 w-4 text-muted-foreground" />
+                    <CardTitle className="text-sm font-medium">Waitlisted</CardTitle>
+                    <Clock className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                    <div className="text-2xl font-bold">{filteredStats.paid + filteredStats.unpaid} Total</div>
-                     <div className="flex justify-between items-center text-xs text-muted-foreground">
-                        <div className="flex items-center gap-1">
-                            <CheckCircle className="h-3 w-3 text-green-500"/>
-                            <span>Paid: {filteredStats.paid}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                             <XCircle className="h-3 w-3 text-red-500"/>
-                            <span>Unpaid: {filteredStats.unpaid}</span>
-                        </div>
-                    </div>
+                    <div className="text-2xl font-bold">{filteredStats.waitlisted}</div>
+                    <p className="text-xs text-muted-foreground">Passengers awaiting a seat.</p>
                 </CardContent>
             </Card>
-
-            <Card className="col-span-1 md:col-span-1 lg:col-span-2">
+            <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Boarding Progress</CardTitle>
+                    <CardTitle className="text-sm font-medium">Boarded</CardTitle>
                     <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                    <div className="text-2xl font-bold">
-                        {filteredStats.boarded} / {filteredStats.paidPassengers}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                        {filteredStats.boarded} of {filteredStats.paidPassengers} confirmed passengers have boarded for the selected scope.
-                    </p>
-                    <div className="flex items-center text-xs text-muted-foreground mt-1">
-                        <UserX className="h-3 w-3 mr-1 text-destructive" />
-                        <span>{filteredStats.noShows} no-shows recorded.</span>
-                    </div>
-                </CardContent>
-            </Card>
-             <Card className="col-span-1 md:col-span-1 lg:col-span-2">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Trips Currently Boarding</CardTitle>
-                    <Ship className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold">
-                        {filteredStats.tripsBoarding}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                        Active boarding processes for today.
-                    </p>
+                    <div className="text-2xl font-bold">{filteredStats.boarded} / {filteredStats.paidPassengers}</div>
+                    <p className="text-xs text-muted-foreground">Confirmed passengers on board.</p>
                 </CardContent>
             </Card>
         </div>
@@ -362,31 +273,16 @@ export default function DashboardPage() {
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
         <Card className="lg:col-span-4">
           <CardHeader>
-            <CardTitle>Revenue</CardTitle>
-            <CardDescription>Monthly revenue totals for the current year from paid bookings.</CardDescription>
+            <CardTitle>Revenue Trend</CardTitle>
+            <CardDescription>Monthly totals for the current year.</CardDescription>
           </CardHeader>
-          <CardContent className="pl-2">
-             <ChartContainer config={revenueChartConfig} className="h-[300px] w-full">
+          <CardContent className="h-[300px]">
+             <ChartContainer config={{ total: { label: "Revenue" } }} className="h-full w-full">
               <ResponsiveContainer>
                 <BarChart data={revenueData}>
-                    <XAxis
-                        dataKey="name"
-                        stroke="#888888"
-                        fontSize={12}
-                        tickLine={false}
-                        axisLine={false}
-                    />
-                    <YAxis
-                        stroke="#888888"
-                        fontSize={12}
-                        tickLine={false}
-                        axisLine={false}
-                        tickFormatter={(value) => `₱${value/1000}k`}
-                    />
-                    <Tooltip
-                        cursor={{fill: 'hsl(var(--secondary))'}}
-                        content={<ChartTooltipContent formatter={(value) => `₱${(value as number).toLocaleString()}`} />}
-                    />
+                    <XAxis dataKey="name" />
+                    <YAxis tickFormatter={(value) => `₱${value/1000}k`} />
+                    <Tooltip content={<ChartTooltipContent />} />
                     <Bar dataKey="total" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -395,59 +291,29 @@ export default function DashboardPage() {
         </Card>
         <Card className="lg:col-span-3">
           <CardHeader>
-            <CardTitle>Bookings by Route</CardTitle>
-            <CardDescription>A breakdown of all passenger bookings across different routes.</CardDescription>
+            <CardTitle>Top Routes</CardTitle>
+            <CardDescription>Popularity based on total bookings.</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="h-[300px]">
              {bookingsByRouteData.length > 0 ? (
-                <ChartContainer config={bookingsChartConfig} className="h-[300px] w-full">
+                <ChartContainer config={{}} className="h-full w-full">
                     <ResponsiveContainer>
                         <PieChart>
-                            <Tooltip content={<ChartTooltipContent nameKey="name" hideLabel />} />
-                            <Pie data={bookingsByRouteData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={110} >
+                            <Pie data={bookingsByRouteData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} >
                             {bookingsByRouteData.map((entry, index) => (
                                     <Cell key={`cell-${index}`} fill={entry.fill} />
                                 ))}
                             </Pie>
+                            <Tooltip content={<ChartTooltipContent />} />
                         </PieChart>
                     </ResponsiveContainer>
                 </ChartContainer>
              ) : (
-                <div className="flex h-[300px] items-center justify-center text-muted-foreground">
-                    No booking data available.
-                </div>
+                <div className="flex h-full items-center justify-center text-muted-foreground italic">No booking data found.</div>
              )}
           </CardContent>
         </Card>
       </div>
-
-       <div className="w-full bg-background py-10">
-          <div className="container mx-auto px-4 md:px-6">
-            <div className="mb-12 text-center">
-              <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">Core Platform Features</h2>
-              <p className="mt-4 max-w-2xl mx-auto text-lg text-muted-foreground">
-                An overview of the key capabilities at your disposal.
-              </p>
-            </div>
-            <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
-              {features.map((feature) => (
-                <Card key={feature.title} className="text-center">
-                  <CardHeader>
-                    <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-primary/10">
-                      {feature.icon}
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <h3 className="text-xl font-semibold">{feature.title}</h3>
-                    <p className="mt-2 text-muted-foreground">{feature.description}</p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
-        </div>
     </div>
   );
 }
-
-    

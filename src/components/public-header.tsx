@@ -6,10 +6,10 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/logo';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from '@/components/ui/sheet';
-import { Menu, User, LogOut, BookCopy, ChevronDown } from 'lucide-react';
+import { Menu, User, LogOut, BookCopy, ChevronDown, ExternalLink } from 'lucide-react';
 import { useUser, useDoc, useFirestore, useMemoFirebase, useAuth } from '@/firebase';
 import { handleSignOut } from '@/firebase/auth';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { doc } from 'firebase/firestore';
@@ -19,7 +19,9 @@ export function PublicHeader() {
   const firestore = useFirestore();
   const auth = useAuth();
   const router = useRouter();
+  const params = useParams();
   
+  const tenantId = params.tenantId as string;
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -50,11 +52,14 @@ export function PublicHeader() {
     return user?.email || 'Passenger';
   };
 
-
-  const navLinks = [
-    { href: '/book', label: 'Book Now' },
-    { href: '/status', label: 'Live Status' },
-    { href: '/advisories', label: 'Advisories' },
+  const navLinks = tenantId ? [
+    { href: `/o/${tenantId}`, label: 'Home' },
+    { href: `/o/${tenantId}/book`, label: 'Book Trip' },
+    { href: `/o/${tenantId}/status`, label: 'Status' },
+    { href: `/o/${tenantId}/advisories`, label: 'Advisories' },
+  ] : [
+    { href: '/welcome', label: 'Home' },
+    { href: '/register-operator', label: 'For Operators' },
   ];
 
   return (
@@ -115,7 +120,7 @@ export function PublicHeader() {
               ) : (
                 <>
                   <Button variant="ghost" asChild>
-                    <Link href="/login">Login</Link>
+                    <Link href={`/login?redirect=${tenantId ? `/o/${tenantId}/book` : '/welcome'}`}>Login</Link>
                   </Button>
                   <Button asChild>
                     <Link href="/signup">Sign Up</Link>
@@ -150,35 +155,21 @@ export function PublicHeader() {
                  <div className="border-t pt-6 flex flex-col gap-4">
                   {mounted && !isUserLoading && (
                     user ? (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                           <Button variant="outline" className="flex justify-between items-center w-full text-base py-6">
-                                <div className="flex items-center gap-2">
-                                    <Avatar className="h-8 w-8">
-                                        <AvatarImage src={user?.photoURL || `https://picsum.photos/seed/${user?.uid}/40/40`} alt="User" />
-                                        <AvatarFallback>{getInitials(user?.email)}</AvatarFallback>
-                                    </Avatar>
-                                    <span>{getDisplayName()}</span>
-                                </div>
-                                <ChevronDown className="h-4 w-4" />
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width]">
-                           <DropdownMenuItem className="text-base py-3" onClick={() => router.push('/my-profile')}>
-                                <User className="mr-2 h-4 w-4" />
-                                <span>My Profile</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem className="text-base py-3" onClick={() => router.push('/my-bookings')}>
-                                <BookCopy className="mr-2 h-4 w-4" />
-                                <span>My Bookings</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-base py-3" onClick={onSignOut}>
-                                <LogOut className="mr-2 h-4 w-4" />
-                                <span>Log out</span>
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-3 px-2">
+                           <Avatar className="h-10 w-10">
+                              <AvatarImage src={user?.photoURL} />
+                              <AvatarFallback>{getInitials(user?.email)}</AvatarFallback>
+                           </Avatar>
+                           <div>
+                              <p className="font-semibold">{getDisplayName()}</p>
+                              <p className="text-xs text-muted-foreground">{user?.email}</p>
+                           </div>
+                        </div>
+                        <Button variant="outline" className="w-full justify-start" asChild><Link href="/my-profile"><User className="mr-2 h-4 w-4" /> My Profile</Link></Button>
+                        <Button variant="outline" className="w-full justify-start" asChild><Link href="/my-bookings"><BookCopy className="mr-2 h-4 w-4" /> My Bookings</Link></Button>
+                        <Button variant="ghost" className="w-full justify-start text-destructive" onClick={onSignOut}><LogOut className="mr-2 h-4 w-4" /> Log Out</Button>
+                      </div>
                     ) : (
                       <>
                         <Button variant="outline" asChild><Link href="/login">Login</Link></Button>
