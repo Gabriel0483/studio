@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { collection, doc, deleteDoc } from 'firebase/firestore'; // Import deleteDoc
+import { collection, doc, deleteDoc, query, where, Firestore } from 'firebase/firestore';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import {
   addDocumentNonBlocking,
@@ -34,7 +34,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog'; // Import AlertDialog
+} from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -54,7 +54,7 @@ import {
 } from '@/components/ui/table';
 import { Pencil, Plus, Trash2, Ticket } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import type { Firestore } from 'firebase/firestore';
+import { useTenant } from '@/components/dashboard/tenant-context';
 
 interface Route {
   id: string;
@@ -67,6 +67,7 @@ interface Route {
 
 interface Fare {
   id: string;
+  tenantId: string;
   routeId: string;
   routeName: string;
   price: number;
@@ -75,11 +76,13 @@ interface Fare {
 
 const FareForm = ({
   firestore,
+  tenantId,
   fare,
   routes,
   onFinished,
 }: {
   firestore: Firestore;
+  tenantId: string;
   fare?: Fare;
   routes: Route[];
   onFinished: () => void;
@@ -95,7 +98,6 @@ const FareForm = ({
       const selectedRoute = routes.find(r => r.id === routeId);
       const types = selectedRoute?.passengerTypes || [];
       setAvailablePassengerTypes(types);
-      // Reset passengerType if it's not in the new list of available types
       if (!types.includes(passengerType)) {
         setPassengerType('');
       }
@@ -136,7 +138,8 @@ const FareForm = ({
         routeId, 
         routeName: selectedRoute.name, 
         price: priceNum, 
-        passengerType 
+        passengerType,
+        tenantId
     };
 
     if (fare) {
@@ -209,14 +212,17 @@ const FareForm = ({
 
 export default function FaresPage() {
   const firestore = useFirestore();
+  const { tenantId } = useTenant();
+
   const faresQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return collection(firestore, 'fares');
-  }, [firestore]);
+    if (!firestore || !tenantId) return null;
+    return query(collection(firestore, 'fares'), where('tenantId', '==', tenantId));
+  }, [firestore, tenantId]);
+
   const routesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return collection(firestore, 'routes');
-  }, [firestore]);
+    if (!firestore || !tenantId) return null;
+    return query(collection(firestore, 'routes'), where('tenantId', '==', tenantId));
+  }, [firestore, tenantId]);
 
   const { data: fares, isLoading: isLoadingFares } = useCollection<Omit<Fare, 'id'>>(faresQuery);
   const { data: routes, isLoading: isLoadingRoutes } = useCollection<Omit<Route, 'id'>>(routesQuery);
@@ -263,7 +269,7 @@ export default function FaresPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Fare Management</h1>
           <p className="text-muted-foreground">
-            Create, view, edit, and delete passenger fares.
+            Manage pricing for your operator's routes.
           </p>
         </div>
         <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
@@ -280,16 +286,19 @@ export default function FaresPage() {
                 Fill in the details below. Click save when you're done.
               </DialogDescription>
             </DialogHeader>
-            <FareForm
-              firestore={firestore}
-              fare={editingFare}
-              routes={routes || []}
-              onFinished={() => setIsFormOpen(false)}
-            />
+            {tenantId && (
+              <FareForm
+                firestore={firestore}
+                tenantId={tenantId}
+                fare={editingFare}
+                routes={routes || []}
+                onFinished={() => setIsFormOpen(false)}
+              />
+            )}
           </DialogContent>
         </Dialog>
       </div>
-      {(!isLoading && !routes) || (routes && routes.length === 0) && (
+      {(!isLoading && (!routes || routes.length === 0)) && (
         <Card className="bg-yellow-50 border-yellow-200">
             <CardContent className="pt-6">
                 <div className="flex items-center gap-4">
@@ -298,7 +307,7 @@ export default function FaresPage() {
                     </div>
                     <div>
                         <CardTitle className="text-base text-yellow-800">No Routes Found</CardTitle>
-                        <p className="text-sm text-yellow-700">Please add at least one route before creating a fare.</p>
+                        <p className="text-sm text-yellow-700">Please add your operator's routes before creating fares.</p>
                     </div>
                 </div>
             </CardContent>
@@ -306,8 +315,8 @@ export default function FaresPage() {
       )}
       <Card>
         <CardHeader>
-          <CardTitle>All Fares</CardTitle>
-          <CardDescription>A list of all available passenger fares.</CardDescription>
+          <CardTitle>Your Fares</CardTitle>
+          <CardDescription>A breakdown of your operator's passenger pricing.</CardDescription>
             <div className="pt-4">
                 <Label htmlFor="filter-route">Filter by Route</Label>
                 <Select value={filterRouteId} onValueChange={setFilterRouteId}>
@@ -378,10 +387,6 @@ export default function FaresPage() {
                     <div className="flex flex-col items-center gap-2">
                         <Ticket className="h-8 w-8 text-muted-foreground" />
                         <p className="text-muted-foreground">No fares found.</p>
-                        <Button disabled={!routes || routes.length === 0} variant="secondary" size="sm" onClick={() => { setEditingFare(undefined); setIsFormOpen(true); }}>
-                            <Plus className="mr-2 h-4 w-4" />
-                            Add your first fare
-                        </Button>
                     </div>
                   </TableCell>
                 </TableRow>

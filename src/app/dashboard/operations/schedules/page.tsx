@@ -1,8 +1,7 @@
-
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { collection, doc, query, writeBatch, getDocs, orderBy } from 'firebase/firestore';
+import { collection, doc, query, writeBatch, getDocs, orderBy, where, Firestore } from 'firebase/firestore';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import {
   addDocumentNonBlocking,
@@ -55,8 +54,8 @@ import {
 } from '@/components/ui/table';
 import { Pencil, Plus, Trash2, Calendar as CalendarIcon, Users } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import type { Firestore } from 'firebase/firestore';
 import { format, parse } from 'date-fns';
+import { useTenant } from '@/components/dashboard/tenant-context';
 
 interface Ship {
   id: string;
@@ -78,6 +77,7 @@ interface Staff {
 
 interface Schedule {
   id: string;
+  tenantId: string;
   tripType: 'Daily' | 'Special';
   shipId?: string | null;
   shipName?: string | null;
@@ -93,6 +93,7 @@ interface Schedule {
 
 const ScheduleForm = ({
   firestore,
+  tenantId,
   schedule,
   ships,
   routes,
@@ -100,6 +101,7 @@ const ScheduleForm = ({
   onFinished,
 }: {
   firestore: Firestore;
+  tenantId: string;
   schedule?: Schedule;
   ships: Ship[];
   routes: Route[];
@@ -159,6 +161,7 @@ const ScheduleForm = ({
       arrivalTime,
       availableSeats: seatsNum,
       status: schedule?.status || 'On Time',
+      tenantId
     };
 
     if (schedule) {
@@ -259,10 +262,31 @@ const ScheduleForm = ({
 
 export default function SchedulesPage() {
   const firestore = useFirestore();
-  const schedulesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'schedules'), orderBy('departureTime', 'asc')) : null, [firestore]);
-  const shipsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'ships') : null, [firestore]);
-  const routesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'routes') : null, [firestore]);
-  const staffQuery = useMemoFirebase(() => firestore ? collection(firestore, 'staff') : null, [firestore]);
+  const { tenantId } = useTenant();
+
+  const schedulesQuery = useMemoFirebase(() => {
+    if (!firestore || !tenantId) return null;
+    return query(
+      collection(firestore, 'schedules'), 
+      where('tenantId', '==', tenantId),
+      orderBy('departureTime', 'asc')
+    );
+  }, [firestore, tenantId]);
+
+  const shipsQuery = useMemoFirebase(() => {
+    if (!firestore || !tenantId) return null;
+    return query(collection(firestore, 'ships'), where('tenantId', '==', tenantId));
+  }, [firestore, tenantId]);
+
+  const routesQuery = useMemoFirebase(() => {
+    if (!firestore || !tenantId) return null;
+    return query(collection(firestore, 'routes'), where('tenantId', '==', tenantId));
+  }, [firestore, tenantId]);
+
+  const staffQuery = useMemoFirebase(() => {
+    if (!firestore || !tenantId) return null;
+    return query(collection(firestore, 'staff'), where('tenantId', '==', tenantId));
+  }, [firestore, tenantId]);
 
   const { data: schedules, isLoading: isLoadingSchedules } = useCollection<Schedule>(schedulesQuery);
   const { data: ships, isLoading: isLoadingShips } = useCollection<Omit<Ship, 'id'>>(shipsQuery);
@@ -301,7 +325,6 @@ export default function SchedulesPage() {
       const scheduleRef = doc(firestore, 'schedules', scheduleToDelete.id);
       let specialTripsDeleted = 0;
 
-      // This is a daily template, so delete all future special trips created from it.
       const specialTripsQuery = query(
         collection(firestore, 'schedules'),
         where('sourceScheduleId', '==', scheduleToDelete.id)
@@ -351,13 +374,13 @@ export default function SchedulesPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Schedule Management</h1>
           <p className="text-muted-foreground">
-            Create, view, and manage daily trip templates.
+            Manage recurring daily trip templates for your company.
           </p>
         </div>
         <div className="flex gap-2">
             <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
             <DialogTrigger asChild>
-                <Button onClick={() => setEditingSchedule(undefined)}>
+                <Button onClick={() => setEditingSchedule(undefined)} disabled={!tenantId}>
                 <Plus className="mr-2 h-4 w-4" />
                 Add Schedule
                 </Button>
@@ -369,9 +392,10 @@ export default function SchedulesPage() {
                     Fill in the details for a recurring daily trip.
                 </DialogDescription>
                 </DialogHeader>
-                {firestore && (
+                {firestore && tenantId && (
                 <ScheduleForm
                     firestore={firestore}
+                    tenantId={tenantId}
                     schedule={editingSchedule}
                     ships={ships || []}
                     routes={routes || []}
@@ -387,7 +411,7 @@ export default function SchedulesPage() {
       <Card>
         <CardHeader>
           <CardTitle>Daily Schedule Templates</CardTitle>
-          <CardDescription>A list of all recurring daily trips.</CardDescription>
+          <CardDescription>A list of all recurring daily trips for your operator.</CardDescription>
           <div className="pt-4">
             <Label htmlFor="filter-route">Filter by Route</Label>
             <Select value={filterRouteId} onValueChange={setFilterRouteId}>
@@ -460,10 +484,6 @@ export default function SchedulesPage() {
                     <div className="flex flex-col items-center gap-2">
                         <CalendarIcon className="h-8 w-8 text-muted-foreground" />
                         <p className="text-muted-foreground">No schedule templates found for the selected route.</p>
-                        <Button variant="secondary" size="sm" onClick={() => { setEditingSchedule(undefined); setIsFormOpen(true); }}>
-                            <Plus className="mr-2 h-4 w-4" />
-                            Add your first schedule
-                        </Button>
                     </div>
                   </TableCell>
                 </TableRow>

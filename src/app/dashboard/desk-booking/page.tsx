@@ -1,4 +1,3 @@
-
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -35,6 +34,7 @@ import { TripItinerary } from "@/components/trip-itinerary";
 import { nanoid } from "nanoid"
 import { useRouter } from "next/navigation"
 import { Switch } from "@/components/ui/switch"
+import { useTenant } from '@/components/dashboard/tenant-context';
 
 const passengerSchema = z.object({
   id: z.string(),
@@ -88,6 +88,7 @@ const generateBookingReference = () => {
 
 export default function DeskBookingPage() {
   const firestore = useFirestore();
+  const { tenantId } = useTenant();
   const router = useRouter();
   
   const [step, setStep] = useState<'form' | 'summary' | 'confirmation'>('form');
@@ -100,9 +101,20 @@ export default function DeskBookingPage() {
   const [foundPassenger, setFoundPassenger] = useState<any>(null);
   const [isSearching, setIsSearching] = useState(false);
 
-  const schedulesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'schedules') : null, [firestore]);
-  const routesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'routes') : null, [firestore]);
-  const faresQuery = useMemoFirebase(() => firestore ? collection(firestore, 'fares') : null, [firestore]);
+  const schedulesQuery = useMemoFirebase(() => {
+    if (!firestore || !tenantId) return null;
+    return query(collection(firestore, 'schedules'), where('tenantId', '==', tenantId));
+  }, [firestore, tenantId]);
+
+  const routesQuery = useMemoFirebase(() => {
+    if (!firestore || !tenantId) return null;
+    return query(collection(firestore, 'routes'), where('tenantId', '==', tenantId));
+  }, [firestore, tenantId]);
+
+  const faresQuery = useMemoFirebase(() => {
+    if (!firestore || !tenantId) return null;
+    return query(collection(firestore, 'fares'), where('tenantId', '==', tenantId));
+  }, [firestore, tenantId]);
   
   const { data: allSchedules, isLoading: isLoadingSchedules } = useCollection(schedulesQuery);
   const { data: routes, isLoading: isLoadingRoutes } = useCollection(routesQuery);
@@ -237,7 +249,7 @@ export default function DeskBookingPage() {
   };
 
   async function handleFinalReserve(data: BookingFormData) {
-    if (!firestore || !allSchedules) {
+    if (!firestore || !allSchedules || !tenantId) {
       toast({ variant: 'destructive', title: 'Error', description: 'Could not connect. Please try again.' });
       return;
     }
@@ -277,6 +289,7 @@ export default function DeskBookingPage() {
               date: formattedTravelDate,
               sourceScheduleId: scheduleId,
               id: scheduleToBookRef.id,
+              tenantId
             };
             transaction.set(scheduleToBookRef, scheduleDataForUpdate);
           }
@@ -308,6 +321,7 @@ export default function DeskBookingPage() {
 
         const newBookingData = {
           id: newBookingId,
+          tenantId,
           passengerId: passengerId,
           passengerInfo: data.passengers.map(p => ({
             id: p.id,
@@ -393,14 +407,12 @@ export default function DeskBookingPage() {
     try {
         let foundDoc = null;
 
-        // Try searching by email first
         const emailQuery = query(collection(firestore, 'passengers'), where('email', '==', searchQuery));
         let querySnapshot = await getDocs(emailQuery);
         
         if (!querySnapshot.empty) {
             foundDoc = querySnapshot.docs[0];
         } else {
-            // If not found by email, try searching by phone
             const phoneQuery = query(collection(firestore, 'passengers'), where('phone', '==', searchQuery));
             querySnapshot = await getDocs(phoneQuery);
             if (!querySnapshot.empty) {
@@ -434,7 +446,7 @@ export default function DeskBookingPage() {
             {step === 'confirmation' && 'Booking Confirmed!'}
           </CardTitle>
           <CardDescription>
-            {step === 'form' && "Create a new booking for a passenger."}
+            {step === 'form' && "Create a new booking for a passenger at your terminal."}
             {step === 'summary' && "Please review the itinerary before confirming the booking."}
             {step === 'confirmation' && "The booking is complete. You can print the itinerary below."}
           </CardDescription>
@@ -649,7 +661,7 @@ export default function DeskBookingPage() {
                       <div className="space-y-0.5">
                         <FormLabel className="text-base">Process Payment</FormLabel>
                         <FormDescription>
-                          Mark this booking as paid and confirmed upon creation.
+                          Mark this booking as paid and confirmed immediately.
                         </FormDescription>
                       </div>
                       <FormControl>

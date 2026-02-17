@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { collection, doc, deleteDoc } from 'firebase/firestore'; // Import deleteDoc
+import { collection, doc, deleteDoc, query, where, Firestore } from 'firebase/firestore';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import {
   addDocumentNonBlocking,
@@ -34,7 +34,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog'; // Import AlertDialog
+} from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -55,10 +55,11 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Pencil, Plus, Trash2, Route as RouteIcon, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import type { Firestore } from 'firebase/firestore';
+import { useTenant } from '@/components/dashboard/tenant-context';
 
 interface Route {
   id: string;
+  tenantId: string;
   name: string;
   departure: string;
   destination: string;
@@ -74,12 +75,14 @@ interface Port {
 
 const RouteForm = ({
   firestore,
+  tenantId,
   route,
   ports,
   isLoadingPorts,
   onFinished,
 }: {
   firestore: Firestore;
+  tenantId: string;
   route?: Route;
   ports: Port[];
   isLoadingPorts: boolean;
@@ -136,7 +139,7 @@ const RouteForm = ({
         return;
     }
 
-    const routeData = { name, departure, destination, distance: distanceNum, passengerTypes };
+    const routeData = { name, departure, destination, distance: distanceNum, passengerTypes, tenantId };
 
     if (route) {
       const routeRef = doc(firestore, 'routes', route.id);
@@ -250,16 +253,17 @@ const RouteForm = ({
 
 export default function RoutesPage() {
   const firestore = useFirestore();
+  const { tenantId } = useTenant();
   
   const routesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return collection(firestore, 'routes');
-  }, [firestore]);
+    if (!firestore || !tenantId) return null;
+    return query(collection(firestore, 'routes'), where('tenantId', '==', tenantId));
+  }, [firestore, tenantId]);
   
   const portsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return collection(firestore, 'ports');
-  }, [firestore]);
+    if (!firestore || !tenantId) return null;
+    return query(collection(firestore, 'ports'), where('tenantId', '==', tenantId));
+  }, [firestore, tenantId]);
 
   const { data: routes, isLoading: isLoadingRoutes } = useCollection<Omit<Route, 'id'>>(routesQuery);
   const { data: ports, isLoading: isLoadingPorts } = useCollection<Omit<Port, 'id'>>(portsQuery);
@@ -300,7 +304,7 @@ export default function RoutesPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Route Management</h1>
           <p className="text-muted-foreground">
-            Create, view, edit, and delete shipping routes.
+            Create and manage your operator's shipping routes.
           </p>
         </div>
         <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
@@ -317,30 +321,40 @@ export default function RoutesPage() {
                 Fill in the details below. Click save when you're done.
               </DialogDescription>
             </DialogHeader>
-            <RouteForm
-              firestore={firestore}
-              route={editingRoute}
-              ports={ports || []}
-              isLoadingPorts={isLoadingPorts}
-              onFinished={() => setIsFormOpen(false)}
-            />
+            {tenantId && (
+              <RouteForm
+                firestore={firestore}
+                tenantId={tenantId}
+                route={editingRoute}
+                ports={ports || []}
+                isLoadingPorts={isLoadingPorts}
+                onFinished={() => setIsFormOpen(false)}
+              />
+            )}
           </DialogContent>
         </Dialog>
       </div>
 
-        {(!isLoading && !ports) || (ports && ports.length < 2) && (
-        <Card>
-            <CardHeader>
-                <CardTitle>Minimum of Two Ports Required</CardTitle>
-                <CardDescription>Please add at least two ports before creating a route.</CardDescription>
-            </CardHeader>
+        {(!isLoading && (!ports || ports.length < 2)) && (
+        <Card className="bg-yellow-50 border-yellow-200">
+            <CardContent className="pt-6">
+                <div className="flex items-center gap-4">
+                    <div className="text-yellow-600">
+                        <Warehouse className="h-6 w-6" />
+                    </div>
+                    <div>
+                        <CardTitle className="text-base text-yellow-800">Ports Required</CardTitle>
+                        <p className="text-sm text-yellow-700">Please add at least two ports to your network before creating a route.</p>
+                    </div>
+                </div>
+            </CardContent>
         </Card>
       )}
 
       <Card>
         <CardHeader>
-          <CardTitle>All Routes</CardTitle>
-          <CardDescription>A list of all available shipping routes.</CardDescription>
+          <CardTitle>Your Routes</CardTitle>
+          <CardDescription>A list of all routes operated by your company.</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
@@ -376,7 +390,6 @@ export default function RoutesPage() {
                             setEditingRoute(route);
                             setIsFormOpen(true);
                           }}
-                          disabled={!ports || ports.length < 2}
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
@@ -398,10 +411,6 @@ export default function RoutesPage() {
                     <div className="flex flex-col items-center gap-2">
                         <RouteIcon className="h-8 w-8 text-muted-foreground" />
                         <p className="text-muted-foreground">No routes found.</p>
-                        <Button variant="secondary" size="sm" onClick={() => { setEditingRoute(undefined); setIsFormOpen(true); }} disabled={!ports || ports.length < 2}>
-                            <Plus className="mr-2 h-4 w-4" />
-                            Add your first route
-                        </Button>
                     </div>
                   </TableCell>
                 </TableRow>

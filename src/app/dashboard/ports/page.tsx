@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
-import { collection, deleteDoc } from 'firebase/firestore'; // Import deleteDoc
+import React, { useState } from 'react';
+import { collection, deleteDoc, query, where, doc, Firestore } from 'firebase/firestore';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import {
   addDocumentNonBlocking,
@@ -34,7 +34,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog'; // Import AlertDialog
+} from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -47,20 +47,23 @@ import {
 } from '@/components/ui/table';
 import { Pencil, Plus, Trash2, Warehouse } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { doc, Firestore } from 'firebase/firestore';
+import { useTenant } from '@/components/dashboard/tenant-context';
 
 interface Port {
   id: string;
+  tenantId: string;
   name: string;
   location: string;
 }
 
 const PortForm = ({
   firestore,
+  tenantId,
   port,
   onFinished,
 }: {
   firestore: Firestore;
+  tenantId: string;
   port?: Port;
   onFinished: () => void;
 }) => {
@@ -79,16 +82,18 @@ const PortForm = ({
       return;
     }
 
+    const portData = { name, location, tenantId };
+
     if (port) {
       const portRef = doc(firestore, 'ports', port.id);
-      updateDocumentNonBlocking(portRef, { name, location });
+      updateDocumentNonBlocking(portRef, portData);
       toast({
         title: 'Port Updated',
         description: `The port "${name}" has been successfully updated.`,
       });
     } else {
       const portsCol = collection(firestore, 'ports');
-      addDocumentNonBlocking(portsCol, { name, location });
+      addDocumentNonBlocking(portsCol, portData);
       toast({
         title: 'Port Added',
         description: `The port "${name}" has been successfully added.`,
@@ -129,10 +134,12 @@ const PortForm = ({
 
 export default function PortsPage() {
   const firestore = useFirestore();
+  const { tenantId } = useTenant();
+
   const portsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return collection(firestore, 'ports');
-  }, [firestore]);
+    if (!firestore || !tenantId) return null;
+    return query(collection(firestore, 'ports'), where('tenantId', '==', tenantId));
+  }, [firestore, tenantId]);
   
   const { data: ports, isLoading } = useCollection<Omit<Port, 'id'>>(portsQuery);
 
@@ -169,12 +176,12 @@ export default function PortsPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Port Management</h1>
           <p className="text-muted-foreground">
-            Create, view, edit, and delete port locations.
+            Create, view, edit, and delete port locations for your operations.
           </p>
         </div>
         <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
           <DialogTrigger asChild>
-            <Button onClick={() => setEditingPort(undefined)}>
+            <Button onClick={() => setEditingPort(undefined)} disabled={!tenantId}>
               <Plus className="mr-2 h-4 w-4" />
               Add Port
             </Button>
@@ -186,11 +193,14 @@ export default function PortsPage() {
                 Fill in the details below. Click save when you're done.
               </DialogDescription>
             </DialogHeader>
-            <PortForm
-              firestore={firestore}
-              port={editingPort}
-              onFinished={() => setIsFormOpen(false)}
-            />
+            {tenantId && (
+              <PortForm
+                firestore={firestore}
+                tenantId={tenantId}
+                port={editingPort}
+                onFinished={() => setIsFormOpen(false)}
+              />
+            )}
           </DialogContent>
         </Dialog>
       </div>
@@ -198,7 +208,7 @@ export default function PortsPage() {
       <Card>
         <CardHeader>
           <CardTitle>All Ports</CardTitle>
-          <CardDescription>A list of all available ports.</CardDescription>
+          <CardDescription>A list of all ports in your operational network.</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
@@ -250,11 +260,7 @@ export default function PortsPage() {
                   <TableCell colSpan={3} className="h-24 text-center">
                     <div className="flex flex-col items-center gap-2">
                         <Warehouse className="h-8 w-8 text-muted-foreground" />
-                        <p className="text-muted-foreground">No ports found.</p>
-                        <Button variant="secondary" size="sm" onClick={() => { setEditingPort(undefined); setIsFormOpen(true); }}>
-                            <Plus className="mr-2 h-4 w-4" />
-                            Add your first port
-                        </Button>
+                        <p className="text-muted-foreground">No ports found in your network.</p>
                     </div>
                   </TableCell>
                 </TableRow>

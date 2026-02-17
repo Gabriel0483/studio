@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
@@ -35,6 +34,8 @@ import {
   doc,
   runTransaction,
   updateDoc,
+  query,
+  where
 } from 'firebase/firestore';
 import { BookCopy, Pencil, Search, Trash2, XCircle, CreditCard, Loader2, FilterX, Filter } from 'lucide-react';
 import { format } from 'date-fns';
@@ -49,10 +50,12 @@ import {
   Collapsible,
   CollapsibleContent,
 } from "@/components/ui/collapsible";
+import { useTenant } from '@/components/dashboard/tenant-context';
 
 interface Booking {
-  firestoreId: string; // The actual firestore document ID
-  id: string; // The 6-digit booking reference
+  firestoreId: string;
+  id: string;
+  tenantId: string;
   scheduleId: string;
   passengerInfo?: { fullName: string; birthDate?: string }[];
   passengerEmail: string;
@@ -74,8 +77,8 @@ export default function BookingsPage() {
   const router = useRouter();
   const { toast } = useToast();
   const { user } = useUser();
+  const { tenantId } = useTenant();
   
-  // State for filters
   const [search, setSearch] = useState('');
   const [filterRoute, setFilterRoute] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -83,16 +86,26 @@ export default function BookingsPage() {
   const [filterSchedule, setFilterSchedule] = useState('all');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
 
-  // State for dialogs
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [isPaidDialogOpen, setIsPaidDialogOpen] = useState(false);
   const [bookingToProcess, setBookingToProcess] = useState<Booking | null>(null);
 
-  // Data fetching
-  const bookingsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'bookings') : null, [firestore]);
-  const routesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'routes') : null, [firestore]);
-  const schedulesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'schedules') : null, [firestore]);
+  const bookingsQuery = useMemoFirebase(() => {
+    if (!firestore || !tenantId) return null;
+    return query(collection(firestore, 'bookings'), where('tenantId', '==', tenantId));
+  }, [firestore, tenantId]);
+
+  const routesQuery = useMemoFirebase(() => {
+    if (!firestore || !tenantId) return null;
+    return query(collection(firestore, 'routes'), where('tenantId', '==', tenantId));
+  }, [firestore, tenantId]);
+
+  const schedulesQuery = useMemoFirebase(() => {
+    if (!firestore || !tenantId) return null;
+    return query(collection(firestore, 'schedules'), where('tenantId', '==', tenantId));
+  }, [firestore, tenantId]);
+
   const staffDocRef = useMemoFirebase(() => firestore && user ? doc(firestore, 'staff', user.uid) : null, [firestore, user]);
 
   const { data: bookings, isLoading: isLoadingBookings } = useCollection<Booking>(bookingsQuery, { idField: 'firestoreId' });
@@ -152,14 +165,14 @@ export default function BookingsPage() {
       const scheduleMatch = filterSchedule === 'all' || booking.scheduleId === filterSchedule;
 
       const isDeskAgent = staffData?.roles?.includes('Desk Booking Agent');
-      const isManagerOrAdmin = staffData?.roles?.some((r: string) => ['Super Admin', 'Station Manager'].includes(r));
+      const isManagerOrAdmin = staffData?.roles?.some((r: string) => ['Super Admin', 'Station Manager', 'Operations Manager'].includes(r));
 
       let locationMatch = true;
       if (isDeskAgent && !isManagerOrAdmin) {
         if (staffData.assignedPortName) {
           locationMatch = booking.departurePortName === staffData.assignedPortName;
         } else {
-          locationMatch = false; // Agent not assigned to port, sees nothing.
+          locationMatch = false;
         }
       }
 
@@ -309,7 +322,7 @@ export default function BookingsPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Booking Management</h1>
           <p className="text-muted-foreground">
-            View, manage, and filter all passenger bookings.
+            View and manage all passenger bookings for your company.
           </p>
         </div>
 
@@ -317,9 +330,9 @@ export default function BookingsPage() {
           <CardHeader>
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
               <div>
-                <CardTitle>All Bookings</CardTitle>
+                <CardTitle>Passenger Bookings</CardTitle>
                 <CardDescription>
-                  A real-time list of all passenger bookings.
+                  A real-time list of all bookings tied to your operation.
                 </CardDescription>
               </div>
               <div className="flex w-full flex-col sm:w-auto sm:flex-row sm:items-center gap-2">
@@ -408,14 +421,13 @@ export default function BookingsPage() {
                     <TableHead>Seats</TableHead>
                     <TableHead>Total Price</TableHead>
                     <TableHead>Travel Date</TableHead>
-                    <TableHead>Booking Date</TableHead>
                     <TableHead className="w-[180px] text-right">Actions</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
                     {isLoading ? (
                     <TableRow key="loading">
-                        <TableCell colSpan={10} className="text-center h-24">
+                        <TableCell colSpan={9} className="text-center h-24">
                           <div className="flex items-center justify-center">
                             <Loader2 className="mr-2 h-6 w-6 animate-spin" />
                             Loading bookings...
@@ -447,7 +459,6 @@ export default function BookingsPage() {
                             ₱{booking.totalPrice?.toFixed(2) ?? '0.00'}
                         </TableCell>
                         <TableCell>{formatDate(booking.travelDate, 'PPP')}</TableCell>
-                        <TableCell>{formatDate(booking.bookingDate)}</TableCell>
                         <TableCell className="text-right">
                             <div className="flex justify-end gap-2">
                                 <Tooltip>
@@ -512,10 +523,10 @@ export default function BookingsPage() {
                     ))
                     ) : (
                     <TableRow key="no-bookings">
-                        <TableCell colSpan={10} className="h-24 text-center">
+                        <TableCell colSpan={9} className="h-24 text-center">
                         <div className="flex flex-col items-center gap-2">
                             <BookCopy className="h-8 w-8 text-muted-foreground" />
-                            <p className="text-muted-foreground">No bookings found for the current filters.</p>
+                            <p className="text-muted-foreground">No bookings found for your company.</p>
                         </div>
                         </TableCell>
                     </TableRow>
@@ -533,7 +544,7 @@ export default function BookingsPage() {
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
               This action cannot be undone. This will permanently delete the
-              booking and release the seats back into the schedule if the booking was reserved.
+              booking and release the seats back into the schedule.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -550,7 +561,7 @@ export default function BookingsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Confirm Booking Cancellation</AlertDialogTitle>
             <AlertDialogDescription>
-              This will cancel the booking and change its status to "Cancelled". If the booking was reserved or confirmed, the seats will be returned to the schedule. The booking record will be kept.
+              This will cancel the booking and release the seats. The record will be kept for history.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -567,7 +578,7 @@ export default function BookingsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Confirm Payment</AlertDialogTitle>
             <AlertDialogDescription>
-              This will mark the booking as "Paid" and the status as "Confirmed". This action can be reversed by editing the booking.
+              This will mark the booking as "Paid" and the status as "Confirmed".
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -580,3 +591,4 @@ export default function BookingsPage() {
       </AlertDialog>
     </>
   );
+}

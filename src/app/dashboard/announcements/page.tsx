@@ -1,8 +1,7 @@
-
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { collection, doc, serverTimestamp, query, orderBy, deleteDoc } from 'firebase/firestore';
+import { collection, doc, serverTimestamp, query, orderBy, deleteDoc, where, Firestore } from 'firebase/firestore';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import {
   addDocumentNonBlocking,
@@ -57,10 +56,12 @@ import {
 import { Pencil, Plus, Trash2, Megaphone } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
-import type { Firestore, Timestamp } from 'firebase/firestore';
+import type { Timestamp } from 'firebase/firestore';
+import { useTenant } from '@/components/dashboard/tenant-context';
 
 interface Announcement {
   id: string;
+  tenantId: string;
   title: string;
   content: string;
   category: string;
@@ -69,10 +70,12 @@ interface Announcement {
 
 const AnnouncementForm = ({
   firestore,
+  tenantId,
   announcement,
   onFinished,
 }: {
   firestore: Firestore;
+  tenantId: string;
   announcement?: Announcement;
   onFinished: () => void;
 }) => {
@@ -96,6 +99,7 @@ const AnnouncementForm = ({
       title,
       content,
       category,
+      tenantId,
       createdAt: announcement?.createdAt ? announcement.createdAt : serverTimestamp(),
     };
 
@@ -163,10 +167,16 @@ const AnnouncementForm = ({
 
 export default function AnnouncementsPage() {
   const firestore = useFirestore();
+  const { tenantId } = useTenant();
+
   const announcementsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return query(collection(firestore, 'announcements'), orderBy('createdAt', 'desc'));
-  }, [firestore]);
+    if (!firestore || !tenantId) return null;
+    return query(
+      collection(firestore, 'announcements'), 
+      where('tenantId', '==', tenantId),
+      orderBy('createdAt', 'desc')
+    );
+  }, [firestore, tenantId]);
 
   const { data: announcements, isLoading } = useCollection<Omit<Announcement, 'id'>>(announcementsQuery);
 
@@ -209,14 +219,14 @@ export default function AnnouncementsPage() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Public Announcements</h1>
+            <h1 className="text-2xl font-bold tracking-tight">Your Announcements</h1>
             <p className="text-muted-foreground">
-              Create, view, and manage all public advisories.
+              Create and manage public advisories for your passengers.
             </p>
           </div>
           <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
             <DialogTrigger asChild>
-              <Button onClick={() => setEditingAnnouncement(undefined)}>
+              <Button onClick={() => setEditingAnnouncement(undefined)} disabled={!tenantId}>
                 <Plus className="mr-2 h-4 w-4" />
                 New Announcement
               </Button>
@@ -228,9 +238,10 @@ export default function AnnouncementsPage() {
                   Fill in the details below. This will be visible to the public immediately.
                 </DialogDescription>
               </DialogHeader>
-              {firestore && (
+              {firestore && tenantId && (
                 <AnnouncementForm
                   firestore={firestore}
+                  tenantId={tenantId}
                   announcement={editingAnnouncement}
                   onFinished={() => setIsFormOpen(false)}
                 />
@@ -241,8 +252,8 @@ export default function AnnouncementsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>All Announcements</CardTitle>
-            <CardDescription>A list of all posted advisories, sorted by most recent.</CardDescription>
+            <CardTitle>Company Advisories</CardTitle>
+            <CardDescription>A list of all posted advisories for your operator.</CardDescription>
           </CardHeader>
           <CardContent>
             <Table>
@@ -297,10 +308,6 @@ export default function AnnouncementsPage() {
                       <div className="flex flex-col items-center gap-2">
                         <Megaphone className="h-8 w-8 text-muted-foreground" />
                         <p className="text-muted-foreground">No announcements found.</p>
-                        <Button variant="secondary" size="sm" onClick={() => { setEditingAnnouncement(undefined); setIsFormOpen(true); }}>
-                          <Plus className="mr-2 h-4 w-4" />
-                          Post your first announcement
-                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
