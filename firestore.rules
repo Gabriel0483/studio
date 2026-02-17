@@ -21,7 +21,6 @@ service cloud.firestore {
     }
 
     function isPlatformAdmin() {
-      // Emergency escape hatch or platform-wide admin (optional)
       return isSignedIn() && request.auth.token.email == 'rielmagpantay@gmail.com';
     }
 
@@ -30,12 +29,12 @@ service cloud.firestore {
     }
     
     function isSuperAdmin() {
-      return isPlatformAdmin() || (isAnyAdmin() && exists(/databases/$(database)/documents/staff/$(request.auth.uid)) && getStaffData().roles.hasAny(['Super Admin']));
+      return isPlatformAdmin() || (isAnyAdmin() && getStaffData().roles.hasAny(['Super Admin']));
     }
 
     // Helper to verify data belongs to the staff's tenant
     function isTenantData(resourceData) {
-      return isPlatformAdmin() || (isAnyAdmin() && exists(/databases/$(database)/documents/staff/$(request.auth.uid)) && (getStaffData().tenantId == resourceData.tenantId));
+      return isPlatformAdmin() || (isAnyAdmin() && (getStaffData().tenantId == resourceData.tenantId));
     }
 
     // ----------------------------------------------------------------------
@@ -44,14 +43,17 @@ service cloud.firestore {
     
     match /tenants/{tenantId} {
       allow read: if true;
-      allow write: if isPlatformAdmin();
+      allow create: if isSignedIn(); // Allow new operators to create their tenant profile
+      allow update, delete: if isPlatformAdmin();
     }
 
     match /staff/{staffId} {
       allow get: if isOwner(staffId) || isAnyAdmin();
       allow list: if isSuperAdmin();
-      // Only same-tenant staff can be seen by a tenant super admin
-      allow write: if isPlatformAdmin() || (isSuperAdmin() && exists(/databases/$(database)/documents/staff/$(request.auth.uid)) && getStaffData().tenantId == request.resource.data.tenantId);
+      // Allow new operators to create their own staff record, or Platform Admin to manage all, or Super Admin to manage tenant staff
+      allow create: if isSignedIn() && (request.auth.uid == staffId || isPlatformAdmin() || (isSuperAdmin() && getStaffData().tenantId == request.resource.data.tenantId));
+      allow update: if isPlatformAdmin() || (isSuperAdmin() && getStaffData().tenantId == request.resource.data.tenantId);
+      allow delete: if isPlatformAdmin() || (isSuperAdmin() && getStaffData().tenantId == resource.data.tenantId);
     }
 
     match /passengers/{passengerId} {
@@ -87,13 +89,13 @@ service cloud.firestore {
     }
 
     match /schedules/{id} {
-      allow read: if true;
+      allow read: if true; // Public status page
       allow write: if isTenantData(request.resource.data) || (resource != null && isTenantData(resource.data));
     }
 
     match /bookings/{id} {
       allow get: if isOwner(resource.data.passengerId) || isTenantData(resource.data);
-      allow list: if isAnyAdmin(); // Filtered client-side
+      allow list: if isAnyAdmin(); 
       allow create: if isSignedIn();
       allow update: if isTenantData(resource.data);
       allow delete: if isTenantData(resource.data);
@@ -104,7 +106,7 @@ service cloud.firestore {
     }
     
     match /boarding/{id} {
-      allow read, write: if isAnyAdmin(); // Filtered client-side
+      allow read, write: if isAnyAdmin();
     }
   }
 }

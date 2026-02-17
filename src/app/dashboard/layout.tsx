@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   SidebarProvider,
   Sidebar,
@@ -22,7 +22,6 @@ import { navLinks } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import { Home, Loader2 } from 'lucide-react';
 import { useUser, useAuthContext, initializeFirebase } from '@/firebase';
-import type { User } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { TenantProvider } from '@/components/dashboard/tenant-context';
 
@@ -37,7 +36,9 @@ export default function DashboardLayout({
   const { isAuthReady } = useAuthContext();
   
   const [authStatus, setAuthStatus] = useState<'checking' | 'authorized' | 'unauthorized'>('checking');
-  const [tenantInfo, setTenantInfo] = useState<{ id: string | null; name: string | null }>({ id: null, name: null });
+  const [staffInfo, setStaffInfo] = useState<{ roles: string[]; tenantId: string | null; tenantName: string | null }>({ roles: [], tenantId: null, tenantName: null });
+
+  const isPlatformAdmin = user?.email === 'rielmagpantay@gmail.com';
 
   useEffect(() => {
     if (!isAuthReady || isUserLoading) {
@@ -53,20 +54,17 @@ export default function DashboardLayout({
 
         if (staffDoc.exists()) {
           const data = staffDoc.data();
-          const roles = data.roles || [];
-          if (roles.length > 0) {
-            setTenantInfo({ 
-              id: data.tenantId || 'platform-default', 
-              name: data.tenantName || 'Isla Konek Operator' 
-            });
-            setAuthStatus('authorized');
-            return;
-          }
+          setStaffInfo({ 
+            roles: data.roles || [],
+            tenantId: data.tenantId || 'platform-default', 
+            tenantName: data.tenantName || 'Isla Konek Operator' 
+          });
+          setAuthStatus('authorized');
+          return;
         }
         
-        // Platform Admin Fallback
-        if (user.email === 'rielmagpantay@gmail.com') {
-          setTenantInfo({ id: 'platform-admin', name: 'Platform Administrator' });
+        if (isPlatformAdmin) {
+          setStaffInfo({ roles: ['Super Admin'], tenantId: 'platform-admin', tenantName: 'Platform Administrator' });
           setAuthStatus('authorized');
           return;
         }
@@ -80,7 +78,24 @@ export default function DashboardLayout({
       setAuthStatus('unauthorized');
       router.replace('/admin/login');
     }
-  }, [user, isAuthReady, isUserLoading, router]);
+  }, [user, isAuthReady, isUserLoading, router, isPlatformAdmin]);
+
+  const filteredLinks = useMemo(() => {
+    return navLinks.filter(link => {
+      // Platform Admin bypass
+      if (isPlatformAdmin) return true;
+      
+      // Hide platform admin only links from regular staff
+      if (link.platformAdminOnly) return false;
+
+      // Filter based on specific role requirements
+      if (link.roles) {
+        return link.roles.some(role => staffInfo.roles.includes(role));
+      }
+
+      return true;
+    });
+  }, [staffInfo.roles, isPlatformAdmin]);
 
   if (authStatus !== 'authorized') {
     return (
@@ -94,7 +109,7 @@ export default function DashboardLayout({
   }
 
   return (
-    <TenantProvider tenantId={tenantInfo.id} tenantName={tenantInfo.name}>
+    <TenantProvider tenantId={staffInfo.tenantId} tenantName={staffInfo.tenantName}>
       <SidebarProvider>
         <Sidebar>
           <SidebarRail />
@@ -102,13 +117,13 @@ export default function DashboardLayout({
             <div className="flex flex-col gap-1 px-2 py-1">
               <Logo />
               <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider truncate">
-                {tenantInfo.name}
+                {staffInfo.tenantName}
               </p>
             </div>
           </SidebarHeader>
           <SidebarContent>
             <SidebarMenu>
-              {navLinks.map((link) => (
+              {filteredLinks.map((link) => (
                 <SidebarMenuItem key={link.href}>
                   <SidebarMenuButton
                     asChild
