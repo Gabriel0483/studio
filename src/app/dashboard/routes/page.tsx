@@ -53,7 +53,7 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import { Badge } from '@/components/ui/badge';
-import { Pencil, Plus, Trash2, Route as RouteIcon, X } from 'lucide-react';
+import { Pencil, Plus, Trash2, Route as RouteIcon, X, Warehouse } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useTenant } from '@/components/dashboard/tenant-context';
 
