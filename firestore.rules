@@ -16,16 +16,16 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    function getStaffData() {
-      return get(/databases/$(database)/documents/staff/$(request.auth.uid)).data;
-    }
-
     function isPlatformAdmin() {
       return isSignedIn() && request.auth.token.email == 'rielmagpantay@gmail.com';
     }
 
     function isAnyAdmin() {
       return isSignedIn() && (isPlatformAdmin() || exists(/databases/$(database)/documents/staff/$(request.auth.uid)));
+    }
+    
+    function getStaffData() {
+      return get(/databases/$(database)/documents/staff/$(request.auth.uid)).data;
     }
     
     function isSuperAdmin() {
@@ -35,6 +35,15 @@ service cloud.firestore {
     // Helper to verify data belongs to the staff's tenant
     function isTenantData(resourceData) {
       return isPlatformAdmin() || (isAnyAdmin() && (getStaffData().tenantId == resourceData.tenantId));
+    }
+
+    // ----------------------------------------------------------------------
+    // Global Rules
+    // ----------------------------------------------------------------------
+    
+    // Platform Admin has full access to everything across all tenants for system management
+    match /{document=**} {
+      allow read, write: if isPlatformAdmin();
     }
 
     // ----------------------------------------------------------------------
