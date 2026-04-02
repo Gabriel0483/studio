@@ -66,7 +66,6 @@ const TripStatusControl = ({ baseSchedule, effectiveSchedule, tripDateStr }: { b
                 title: 'Trip Status Updated',
                 description: `The trip status has been set to ${newStatus}.`,
             });
-            // The page will auto-refresh due to the listener on the document.
         } catch (error) {
             console.error("Failed to update trip status:", error);
             toast({
@@ -142,7 +141,7 @@ function ManifestPageContent() {
             if (!querySnapshot.empty) {
                 setEffectiveSchedule({ ...querySnapshot.docs[0].data(), id: querySnapshot.docs[0].id });
             } else {
-                setEffectiveSchedule({ ...baseSchedule, date: tripDateStr }); // A virtual schedule object
+                setEffectiveSchedule({ ...baseSchedule, date: tripDateStr }); 
             }
         }
     };
@@ -154,10 +153,7 @@ function ManifestPageContent() {
     return doc(firestore, 'schedules', effectiveSchedule.id);
   }, [firestore, effectiveSchedule]);
   
-  // We use useDoc on the effective ref to get realtime updates after a transaction
   const { data: realtimeEffectiveSchedule } = useDoc(effectiveScheduleRef);
-
-  // The schedule to display is the realtime one if it exists, otherwise the one from state
   const displaySchedule = realtimeEffectiveSchedule || effectiveSchedule;
 
   const bookingsQuery = useMemoFirebase(() => {
@@ -172,9 +168,9 @@ function ManifestPageContent() {
   
   const { data: bookings, isLoading: isLoadingBookings } = useCollection(bookingsQuery, { idField: 'firestoreId' });
   const { data: boardingRecords, isLoading: isLoadingBoarding } = useCollection(boardingRecordsQuery);
-  const { data: route, isLoading: isLoadingRoute } = useDoc(useMemoFirebase(() => (firestore && displaySchedule?.routeId) ? doc(firestore, 'routes', displaySchedule.routeId) : null, [firestore, displaySchedule]));
-  const { data: ship, isLoading: isLoadingShip } = useDoc(useMemoFirebase(() => (firestore && displaySchedule?.shipId) ? doc(firestore, 'ships', displaySchedule.shipId) : null, [firestore, displaySchedule]));
-  const { data: allShips, isLoading: isLoadingAllShips } = useCollection(useMemoFirebase(() => firestore ? collection(firestore, 'ships') : null, [firestore]));
+  const { data: route } = useDoc(useMemoFirebase(() => (firestore && displaySchedule?.routeId) ? doc(firestore, 'routes', displaySchedule.routeId) : null, [firestore, displaySchedule]));
+  const { data: ship } = useDoc(useMemoFirebase(() => (firestore && displaySchedule?.shipId) ? doc(firestore, 'ships', displaySchedule.shipId) : null, [firestore, displaySchedule]));
+  const { data: allShips } = useCollection(useMemoFirebase(() => firestore ? collection(firestore, 'ships') : null, [firestore]));
 
   const passengers = useMemo(() => {
     if (!bookings) return [];
@@ -214,9 +210,9 @@ function ManifestPageContent() {
     if (!firestore || !displaySchedule?.id) return;
     
     const batch = writeBatch(firestore);
-
     const boardingCol = collection(firestore, 'boarding');
     const newBoardingRef = doc(boardingCol);
+    
     batch.set(newBoardingRef, {
         passengerId: passenger.id,
         passengerName: passenger.fullName,
@@ -231,10 +227,10 @@ function ManifestPageContent() {
 
     try {
         await batch.commit();
-        toast({ title: "Passenger Boarded", description: `${passenger.fullName} has been marked as boarded and booking is completed.` });
+        toast({ title: "Passenger Boarded", description: `${passenger.fullName} has been marked as boarded.` });
     } catch (error) {
         console.error("Failed to update records:", error);
-        toast({ variant: "destructive", title: "Boarding Incomplete", description: "Could not update the main booking status." });
+        toast({ variant: "destructive", title: "Boarding Failed", description: "Could not update the passenger status." });
     }
 
   }, [firestore, displaySchedule, toast]);
@@ -251,7 +247,7 @@ function ManifestPageContent() {
     
     try {
         await batch.commit();
-        toast({ title: "Passenger Deboarded", description: `${passenger.fullName}'s status has been reset and booking is now Confirmed.` });
+        toast({ title: "Passenger Deboarded", description: `${passenger.fullName} has been deboarded.` });
     } catch(error) {
         console.error("Failed to deboard passenger:", error);
         toast({ variant: "destructive", title: "Deboarding Failed", description: "Could not update records." });
@@ -274,8 +270,10 @@ function ManifestPageContent() {
     } catch { return 'N/A'; }
   };
 
-  const isLoading = isLoadingBaseSchedule || !displaySchedule || isLoadingBookings || isLoadingRoute || isLoadingBoarding || isLoadingShip || isLoadingAllShips;
-  const isBoardingActive = displaySchedule?.boardingStatus === 'Boarding';
+  const isLoading = isLoadingBaseSchedule || !displaySchedule || isLoadingBookings || isLoadingBoarding;
+  
+  // Boarding and deboarding are allowed during 'Boarding' phase and also when 'Boarding Closed' (before departure)
+  const isOperationAllowed = displaySchedule?.boardingStatus === 'Boarding' || displaySchedule?.boardingStatus === 'Boarding Closed';
 
   if (isLoading) {
     return (
@@ -296,7 +294,6 @@ function ManifestPageContent() {
 
   const BoardingWorkflowButtons = ({ baseSchedule, displaySchedule, allShips, passengers, tripDateStr }: { baseSchedule: any, displaySchedule: any, allShips: any[], passengers: any[], tripDateStr: string }) => {
     const [selectedShipId, setSelectedShipId] = useState(displaySchedule?.shipId || '');
-    
     const availableShips = useMemo(() => allShips?.filter(s => s.status === 'In Service') || [], [allShips]);
     
     const handleStatusChange = useCallback(async (newStatus: 'Boarding' | 'Boarding Closed' | 'Departed' | 'Arrived') => {
@@ -306,7 +303,6 @@ function ManifestPageContent() {
             await runTransaction(firestore, async (transaction) => {
                 let scheduleToUpdateRef: DocumentReference;
                 
-                // This block finds or creates the special schedule instance for the day
                 if (baseSchedule.tripType === 'Daily') {
                     const specialInstanceQuery = query(
                         collection(firestore, 'schedules'),
@@ -362,7 +358,6 @@ function ManifestPageContent() {
                     updateData.boardingStatus = newStatus;
                 }
 
-                // If it was a daily template, we need to set the full data for the new special instance
                 if (baseSchedule.tripType === 'Daily' && (await transaction.get(scheduleToUpdateRef)).exists() === false) {
                      const newInstanceData = {
                         ...baseSchedule,
@@ -373,7 +368,7 @@ function ManifestPageContent() {
                         ...updateData,
                     };
                     transaction.set(scheduleToUpdateRef, newInstanceData);
-                } else { // Otherwise just update the existing special instance
+                } else {
                     transaction.update(scheduleToUpdateRef, updateData);
                 }
             });
@@ -382,7 +377,7 @@ function ManifestPageContent() {
         } catch (error: any) {
             toast({ variant: 'destructive', title: 'Update Failed', description: error.message || 'Could not update the trip status.' });
         }
-    }, [baseSchedule, toast, selectedShipId, allShips, firestore, tripDateStr, passengers]);
+    }, [baseSchedule, selectedShipId, allShips, passengers, tripDateStr]);
 
 
     if (displaySchedule.status === 'Arrived') {
@@ -397,7 +392,12 @@ function ManifestPageContent() {
       case 'Boarding':
         return <Button onClick={() => handleStatusChange('Boarding Closed')}><Square className="mr-2 h-4 w-4" /> Close Boarding</Button>;
       case 'Boarding Closed':
-        return <Button onClick={() => handleStatusChange('Departed')}><Ship className="mr-2 h-4 w-4" /> Mark as Departed</Button>;
+        return (
+            <div className="flex gap-2">
+                <Button variant="outline" onClick={() => handleStatusChange('Boarding')}><Play className="mr-2 h-4 w-4" /> Reopen Boarding</Button>
+                <Button onClick={() => handleStatusChange('Departed')}><Ship className="mr-2 h-4 w-4" /> Mark as Departed</Button>
+            </div>
+        );
       default: // 'Awaiting'
         return (
             <div className="flex items-end gap-2">
@@ -441,11 +441,11 @@ function ManifestPageContent() {
             <BoardingWorkflowButtons 
                 baseSchedule={baseSchedule}
                 displaySchedule={displaySchedule}
-                allShips={allShips}
+                allShips={allShips || []}
                 passengers={passengers}
                 tripDateStr={tripDateStr}
             />
-            {displaySchedule.boardingStatus === 'Boarding Closed' && (
+            {(displaySchedule.boardingStatus === 'Boarding Closed' || displaySchedule.boardingStatus === 'Departed') && (
               <Button variant="outline" onClick={() => setIsPrintViewOpen(true)}>
                 <Printer className="mr-2 h-4 w-4" /> Print Manifest
               </Button>
@@ -472,7 +472,7 @@ function ManifestPageContent() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{boardingStats.boarded}</div>
-              <p className="text-xs text-muted-foreground">Passengers who have boarded.</p>
+              <p className="text-xs text-muted-foreground">Passengers currently on board.</p>
             </CardContent>
           </Card>
           <Card>
@@ -491,7 +491,7 @@ function ManifestPageContent() {
         <CardHeader>
           <CardTitle>Passenger List</CardTitle>
           <CardDescription>
-            {isBoardingActive ? "Boarding is in progress." : `Boarding is currently ${displaySchedule.boardingStatus || 'Awaiting'}.`}
+            {isOperationAllowed ? "Manage passenger boarding and deboarding below." : `Boarding is currently ${displaySchedule.boardingStatus || 'Awaiting'}.`}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -518,16 +518,18 @@ function ManifestPageContent() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                       {passenger.boardingStatus === 'Awaiting' && (
-                          <Button variant="outline" size="sm" onClick={() => handleBoarding(passenger)} disabled={!isBoardingActive}>
-                              <LogIn className="mr-2 h-4 w-4" /> Board
-                          </Button>
-                       )}
-                       {passenger.boardingStatus === 'Boarded' && (
-                          <Button variant="secondary" size="sm" onClick={() => handleDeboarding(passenger)} disabled={!isBoardingActive}>
-                             <LogOut className="mr-2 h-4 w-4" /> Deboard
-                          </Button>
-                       )}
+                       <div className="flex justify-end gap-2">
+                        {passenger.boardingStatus !== 'Boarded' && (
+                            <Button variant="outline" size="sm" onClick={() => handleBoarding(passenger)} disabled={!isOperationAllowed}>
+                                <LogIn className="mr-2 h-4 w-4" /> Board
+                            </Button>
+                        )}
+                        {passenger.boardingStatus === 'Boarded' && (
+                            <Button variant="secondary" size="sm" onClick={() => handleDeboarding(passenger)} disabled={!isOperationAllowed}>
+                                <LogOut className="mr-2 h-4 w-4" /> Deboard
+                            </Button>
+                        )}
+                       </div>
                     </TableCell>
                   </TableRow>
                 ))
