@@ -38,7 +38,7 @@ export const PrintableManifest = forwardRef<HTMLDivElement, PrintableManifestPro
     };
 
     return (
-      <div ref={ref} className="bg-white text-black p-8 printable-area">
+      <div ref={ref} className="bg-white text-black p-4 sm:p-8 printable-area w-full max-w-full overflow-hidden">
         <style jsx global>{`
           @media print {
             body * {
@@ -52,72 +52,75 @@ export const PrintableManifest = forwardRef<HTMLDivElement, PrintableManifestPro
               left: 0;
               top: 0;
               width: 100%;
+              padding: 0;
             }
             .no-print {
-              display: none;
+              display: none !important;
             }
           }
         `}</style>
-        <div className="flex justify-between items-start mb-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-6">
           <Logo />
-          <div className="text-right">
-            <h2 className="text-2xl font-bold">Passenger Manifest</h2>
-            <p className="text-muted-foreground">Generated on: {format(new Date(), 'PPP p')}</p>
+          <div className="text-left sm:text-right">
+            <h2 className="text-xl sm:text-2xl font-bold">Passenger Manifest</h2>
+            <p className="text-xs text-muted-foreground">Generated: {format(new Date(), 'PPP p')}</p>
           </div>
         </div>
         
-        <div className="grid grid-cols-3 gap-4 mb-6 text-sm">
-            <div>
-                <p className="font-bold">Route:</p>
-                <p>{route?.name || 'N/A'}</p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6 text-xs sm:text-sm">
+            <div className="border-l-2 border-primary pl-2">
+                <p className="font-bold text-muted-foreground uppercase text-[10px]">Route</p>
+                <p className="font-semibold">{route?.name || 'N/A'}</p>
             </div>
-             <div>
-                <p className="font-bold">Date & Time:</p>
-                <p>{format(new Date(schedule?.date || Date.now()), 'PPP')} @ {schedule?.departureTime}</p>
+             <div className="border-l-2 border-primary pl-2">
+                <p className="font-bold text-muted-foreground uppercase text-[10px]">Date & Time</p>
+                <p className="font-semibold">{format(new Date(schedule?.date || Date.now()), 'PPP')} @ {schedule?.departureTime}</p>
             </div>
-             <div>
-                <p className="font-bold">Ship:</p>
-                <p>{ship?.name || schedule?.shipName || 'N/A'}</p>
+             <div className="border-l-2 border-primary pl-2">
+                <p className="font-bold text-muted-foreground uppercase text-[10px]">Ship</p>
+                <p className="font-semibold">{ship?.name || schedule?.shipName || 'N/A'}</p>
             </div>
         </div>
         
         <Separator className="my-6" />
 
-        <h3 className="text-lg font-semibold mb-4">Boarded Passengers ({passengers.length} Total)</h3>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>#</TableHead>
-              <TableHead>Passenger Name</TableHead>
-              <TableHead>Age</TableHead>
-              <TableHead>Booking Ref</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {passengers.length > 0 ? passengers.map((p, index) => (
-              <TableRow key={p.id}>
-                <TableCell>{index + 1}</TableCell>
-                <TableCell className="font-medium">{p.fullName}</TableCell>
-                <TableCell>{calculateAge(p.birthDate)}</TableCell>
-                <TableCell className="font-mono">{p.bookingId}</TableCell>
-              </TableRow>
-            )) : (
-              <TableRow>
-                <TableCell colSpan={4} className="text-center h-24">No passengers have boarded.</TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-
-        <div className="mt-16 text-xs text-center text-gray-500">
-            <p>This manifest is for internal and compliance use only.</p>
-            <p>Isla Konek</p>
+        <h3 className="text-md sm:text-lg font-semibold mb-4">Boarded Passengers ({passengers.length} Total)</h3>
+        <div className="overflow-x-auto">
+            <Table className="text-xs sm:text-sm">
+            <TableHeader>
+                <TableRow>
+                <TableHead className="w-8">#</TableHead>
+                <TableHead>Passenger Name</TableHead>
+                <TableHead className="hidden sm:table-cell">Age</TableHead>
+                <TableHead>Ref</TableHead>
+                </TableRow>
+            </TableHeader>
+            <TableBody>
+                {passengers.length > 0 ? passengers.map((p, index) => (
+                <TableRow key={p.id}>
+                    <TableCell>{index + 1}</TableCell>
+                    <TableCell className="font-medium">{p.fullName}</TableCell>
+                    <TableCell className="hidden sm:table-cell">{calculateAge(p.birthDate)}</TableCell>
+                    <TableCell className="font-mono text-[10px]">{p.bookingId}</TableCell>
+                </TableRow>
+                )) : (
+                <TableRow>
+                    <TableCell colSpan={4} className="text-center h-24 text-muted-foreground">No passengers have boarded.</TableCell>
+                </TableRow>
+                )}
+            </TableBody>
+            </Table>
         </div>
 
-        <div className="mt-8 text-center no-print">
-            <button onClick={handlePrint} className="bg-blue-600 text-white px-6 py-2 rounded-md">
-                Print
-            </button>
+        <div className="mt-12 text-[10px] text-center text-gray-400">
+            <p>This manifest is for internal and compliance use only.</p>
+            <p className="font-bold uppercase tracking-widest mt-1">Isla Konek Maritime Command</p>
+        </div>
+
+        <div className="mt-8 flex justify-center no-print">
+            <Button onClick={handlePrint} className="w-full sm:w-auto">
+                <Printer className="mr-2 h-4 w-4" /> Print Document
+            </Button>
         </div>
       </div>
     );

@@ -82,14 +82,14 @@ const TripStatusControl = ({ baseSchedule, effectiveSchedule, tripDateStr }: { b
     const currentStatus = effectiveSchedule?.status || 'On Time';
 
     if (currentStatus === 'Departed' || currentStatus === 'Arrived') {
-        return <Badge variant="secondary">Status: {currentStatus}</Badge>
+        return <Badge variant="secondary" className="whitespace-nowrap">Status: {currentStatus}</Badge>
     }
 
     return (
         <div className="flex items-center gap-2">
-             <Label htmlFor="trip-status" className="text-sm shrink-0">Trip Status</Label>
+             <Label htmlFor="trip-status" className="text-sm shrink-0 sr-only sm:not-sr-only">Status</Label>
              <Select onValueChange={handleStatusUpdate} value={currentStatus} disabled={isUpdating}>
-                <SelectTrigger id="trip-status" className="w-[150px]">
+                <SelectTrigger id="trip-status" className="w-[120px] sm:w-[150px]">
                     <SelectValue placeholder="Set status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -385,28 +385,28 @@ function ManifestPageContent() {
     }
     
     if (displaySchedule.boardingStatus === 'Departed') {
-        return <Button onClick={() => handleStatusChange('Arrived')}><CheckCircle className="mr-2 h-4 w-4" /> Mark as Arrived</Button>;
+        return <Button onClick={() => handleStatusChange('Arrived')} className="w-full sm:w-auto"><CheckCircle className="mr-2 h-4 w-4" /> Arrived</Button>;
     }
 
     switch (displaySchedule.boardingStatus) {
       case 'Boarding':
-        return <Button onClick={() => handleStatusChange('Boarding Closed')}><Square className="mr-2 h-4 w-4" /> Close Boarding</Button>;
+        return <Button onClick={() => handleStatusChange('Boarding Closed')} className="w-full sm:w-auto"><Square className="mr-2 h-4 w-4" /> Close Boarding</Button>;
       case 'Boarding Closed':
         return (
-            <div className="flex gap-2">
-                <Button variant="outline" onClick={() => handleStatusChange('Boarding')}><Play className="mr-2 h-4 w-4" /> Reopen Boarding</Button>
-                <Button onClick={() => handleStatusChange('Departed')}><Ship className="mr-2 h-4 w-4" /> Mark as Departed</Button>
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                <Button variant="outline" onClick={() => handleStatusChange('Boarding')} className="w-full sm:w-auto"><Play className="mr-2 h-4 w-4" /> Reopen</Button>
+                <Button onClick={() => handleStatusChange('Departed')} className="w-full sm:w-auto"><Ship className="mr-2 h-4 w-4" /> Depart</Button>
             </div>
         );
       default: // 'Awaiting'
         return (
-            <div className="flex items-end gap-2">
+            <div className="flex flex-col sm:flex-row items-end gap-2 w-full sm:w-auto">
                 {!displaySchedule.shipId && (
-                    <div className="space-y-1">
-                        <Label htmlFor="ship-select">Assign Ship</Label>
+                    <div className="space-y-1 w-full sm:w-auto">
+                        <Label htmlFor="ship-select" className="text-[10px] uppercase font-bold text-muted-foreground">Assign Ship</Label>
                         <Select onValueChange={setSelectedShipId} value={selectedShipId}>
-                            <SelectTrigger id="ship-select" className="w-[200px]">
-                                <SelectValue placeholder="Select a ship..." />
+                            <SelectTrigger id="ship-select" className="w-full sm:w-[180px]">
+                                <SelectValue placeholder="Select ship..." />
                             </SelectTrigger>
                             <SelectContent>
                                 {availableShips.map(s => (
@@ -416,7 +416,9 @@ function ManifestPageContent() {
                         </Select>
                     </div>
                 )}
-                <Button onClick={() => handleStatusChange('Boarding')} disabled={!selectedShipId || displaySchedule.status === 'Cancelled'}><Play className="mr-2 h-4 w-4" /> Start Boarding</Button>
+                <Button onClick={() => handleStatusChange('Boarding')} disabled={!selectedShipId || displaySchedule.status === 'Cancelled'} className="w-full sm:w-auto">
+                    <Play className="mr-2 h-4 w-4" /> Start Boarding
+                </Button>
             </div>
         );
     }
@@ -429,14 +431,14 @@ function ManifestPageContent() {
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to Trips
       </Button>
 
-      <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
-        <div>
+      <div className="flex flex-col lg:flex-row justify-between items-start gap-6">
+        <div className="space-y-1">
           <CardTitle className="text-2xl font-bold tracking-tight">Passenger Manifest</CardTitle>
           <CardDescription>
-            Manifest for {route?.name} departing at {displaySchedule.departureTime} on {format(tripDate, 'PPP')}
+            {route?.name} • {displaySchedule.departureTime} • {format(tripDate, 'PPP')}
           </CardDescription>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-4 w-full lg:w-auto">
             <TripStatusControl baseSchedule={baseSchedule} effectiveSchedule={displaySchedule} tripDateStr={tripDateStr} />
             <BoardingWorkflowButtons 
                 baseSchedule={baseSchedule}
@@ -445,111 +447,109 @@ function ManifestPageContent() {
                 passengers={passengers}
                 tripDateStr={tripDateStr}
             />
-            {(displaySchedule.boardingStatus === 'Boarding Closed' || displaySchedule.boardingStatus === 'Departed') && (
-              <Button variant="outline" onClick={() => setIsPrintViewOpen(true)}>
-                <Printer className="mr-2 h-4 w-4" /> Print Manifest
+            {(displaySchedule.boardingStatus === 'Boarding Closed' || displaySchedule.boardingStatus === 'Departed' || displaySchedule.boardingStatus === 'Arrived') && (
+              <Button variant="outline" onClick={() => setIsPrintViewOpen(true)} className="w-full sm:w-auto">
+                <Printer className="mr-2 h-4 w-4" /> Print
               </Button>
             )}
         </div>
       </div>
       <Separator/>
 
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Confirmed Passengers</CardTitle>
+              <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Confirmed</CardTitle>
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{boardingStats.total}</div>
-              <p className="text-xs text-muted-foreground">Total confirmed passengers for this trip.</p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Boarded</CardTitle>
+              <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Boarded</CardTitle>
               <UserCheck className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{boardingStats.boarded}</div>
-              <p className="text-xs text-muted-foreground">Passengers currently on board.</p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Awaiting</CardTitle>
+              <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Awaiting</CardTitle>
               <UserMinus className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{boardingStats.awaiting}</div>
-              <p className="text-xs text-muted-foreground">Passengers yet to board.</p>
             </CardContent>
           </Card>
         </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Passenger List</CardTitle>
-          <CardDescription>
-            {isOperationAllowed ? "Manage passenger boarding and deboarding below." : `Boarding is currently ${displaySchedule.boardingStatus || 'Awaiting'}.`}
+        <CardHeader className="px-4 py-4 sm:px-6">
+          <CardTitle className="text-lg">Passenger List</CardTitle>
+          <CardDescription className="text-xs">
+            {isOperationAllowed ? "Tap 'Board' or 'Deboard' to update status." : `Trip is currently ${displaySchedule.boardingStatus || 'Awaiting'}.`}
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Passenger Name</TableHead>
-                <TableHead>Booking Ref</TableHead>
-                <TableHead>Age</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {passengers.length > 0 ? (
-                passengers.map((passenger) => (
-                  <TableRow key={passenger.id}>
-                    <TableCell className="font-medium">{passenger.fullName}</TableCell>
-                    <TableCell className="font-mono">{passenger.bookingId}</TableCell>
-                    <TableCell>{calculateAge(passenger.birthDate)}</TableCell>
-                    <TableCell>
-                      <Badge variant={getStatusVariant(passenger.boardingStatus)}>
-                        {passenger.boardingStatus}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                       <div className="flex justify-end gap-2">
-                        {passenger.boardingStatus !== 'Boarded' && (
-                            <Button variant="outline" size="sm" onClick={() => handleBoarding(passenger)} disabled={!isOperationAllowed}>
-                                <LogIn className="mr-2 h-4 w-4" /> Board
-                            </Button>
-                        )}
-                        {passenger.boardingStatus === 'Boarded' && (
-                            <Button variant="secondary" size="sm" onClick={() => handleDeboarding(passenger)} disabled={!isOperationAllowed}>
-                                <LogOut className="mr-2 h-4 w-4" /> Deboard
-                            </Button>
-                        )}
-                       </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
+        <CardContent className="p-0 sm:p-6">
+          <div className="overflow-x-auto">
+            <Table>
+                <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center">
-                    No confirmed passengers for this trip.
-                  </TableCell>
+                    <TableHead className="w-[200px]">Name</TableHead>
+                    <TableHead>Ref</TableHead>
+                    <TableHead className="hidden sm:table-cell">Age</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Action</TableHead>
                 </TableRow>
-              )}
-            </TableBody>
-          </Table>
+                </TableHeader>
+                <TableBody>
+                {passengers.length > 0 ? (
+                    passengers.map((passenger) => (
+                    <TableRow key={passenger.id}>
+                        <TableCell className="font-medium text-xs sm:text-sm">{passenger.fullName}</TableCell>
+                        <TableCell className="font-mono text-[10px] sm:text-xs">{passenger.bookingId}</TableCell>
+                        <TableCell className="hidden sm:table-cell text-xs">{calculateAge(passenger.birthDate)}</TableCell>
+                        <TableCell>
+                        <Badge variant={getStatusVariant(passenger.boardingStatus)} className="text-[10px] px-1.5 py-0">
+                            {passenger.boardingStatus}
+                        </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                        <div className="flex justify-end">
+                            {passenger.boardingStatus !== 'Boarded' ? (
+                                <Button variant="outline" size="sm" onClick={() => handleBoarding(passenger)} disabled={!isOperationAllowed} className="h-7 px-2 text-[10px]">
+                                    <LogIn className="mr-1 h-3 w-3" /> Board
+                                </Button>
+                            ) : (
+                                <Button variant="secondary" size="sm" onClick={() => handleDeboarding(passenger)} disabled={!isOperationAllowed} className="h-7 px-2 text-[10px]">
+                                    <LogOut className="mr-1 h-3 w-3" /> Deboard
+                                </Button>
+                            )}
+                        </div>
+                        </TableCell>
+                    </TableRow>
+                    ))
+                ) : (
+                    <TableRow>
+                    <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                        No confirmed passengers for this trip.
+                    </TableCell>
+                    </TableRow>
+                )}
+                </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
     </div>
     <Dialog open={isPrintViewOpen} onOpenChange={setIsPrintViewOpen}>
-      <DialogContent className="max-w-4xl p-0">
+      <DialogContent className="max-w-4xl p-0 h-[90vh] sm:h-auto overflow-y-auto">
           <DialogHeader className="sr-only">
-            <DialogTitle>Printable Passenger Manifest</DialogTitle>
-            <DialogDescription>A printable version of the passenger manifest for this trip.</DialogDescription>
+            <DialogTitle>Trip Manifest Preview</DialogTitle>
+            <DialogDescription>Review and print the manifest.</DialogDescription>
           </DialogHeader>
           <PrintableManifest 
             passengers={boardedPassengers}
