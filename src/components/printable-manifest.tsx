@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { forwardRef } from 'react';
@@ -6,6 +5,8 @@ import { Logo } from '@/components/logo';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format, differenceInYears } from 'date-fns';
 import { Separator } from './ui/separator';
+import { Button } from '@/components/ui/button';
+import { Printer } from 'lucide-react';
 
 interface Passenger {
   id: string;
