@@ -7,12 +7,15 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+    function isPlatformAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'rielmagpantay@gmail.com' || 
+        request.auth.token.email == 'mariel.dumaoal@gmail.com'
+      );
     }
 
     function isAdmin() {
-      return isSignedIn() && exists(/databases/$(database)/documents/staff/$(request.auth.uid));
+      return isPlatformAdmin() || (isSignedIn() && exists(/databases/$(database)/documents/staff/$(request.auth.uid)));
     }
     
     function getStaffData() {
@@ -20,7 +23,11 @@ service cloud.firestore {
     }
     
     function isSuperAdmin() {
-      return isAdmin() && getStaffData().roles.hasAny(['Super Admin', 'Operations Manager']);
+      return isPlatformAdmin() || (isAdmin() && getStaffData().roles.hasAny(['Super Admin', 'Operations Manager']));
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
     }
 
     match /config/settings {

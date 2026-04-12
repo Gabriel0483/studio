@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
@@ -36,9 +35,8 @@ import {
   runTransaction,
   updateDoc,
   query,
-  where
 } from 'firebase/firestore';
-import { BookCopy, Pencil, Search, Trash2, XCircle, CreditCard, Loader2, FilterX, Filter, Globe } from 'lucide-react';
+import { BookCopy, Pencil, Search, Trash2, XCircle, CreditCard, Loader2, FilterX, Filter } from 'lucide-react';
 import { format } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -47,17 +45,14 @@ import { useRouter } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
 import {
   Collapsible,
   CollapsibleContent,
 } from "@/components/ui/collapsible";
-import { useTenant } from '@/components/dashboard/tenant-context';
 
 interface Booking {
   firestoreId: string;
   id: string;
-  tenantId: string;
   scheduleId: string;
   passengerInfo?: { fullName: string; birthDate?: string }[];
   passengerEmail: string;
@@ -73,17 +68,12 @@ interface Booking {
 
 const bookingStatuses = ['Confirmed', 'Reserved', 'Waitlisted', 'Cancelled', 'Refunded', 'Completed'] as const;
 
-
 export default function BookingsPage() {
   const firestore = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
   const { user } = useUser();
-  const { tenantId } = useTenant();
   
-  const isPlatformAdmin = user?.email === 'rielmagpantay@gmail.com';
-  
-  const [isGlobalView, setIsGlobalView] = useState(false);
   const [search, setSearch] = useState('');
   const [filterRoute, setFilterRoute] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -97,22 +87,19 @@ export default function BookingsPage() {
   const [bookingToProcess, setBookingToProcess] = useState<Booking | null>(null);
 
   const bookingsQuery = useMemoFirebase(() => {
-    if (!firestore || !tenantId) return null;
-    if (isPlatformAdmin && isGlobalView) return collection(firestore, 'bookings');
-    return query(collection(firestore, 'bookings'), where('tenantId', '==', tenantId));
-  }, [firestore, tenantId, isPlatformAdmin, isGlobalView]);
+    if (!firestore) return null;
+    return collection(firestore, 'bookings');
+  }, [firestore]);
 
   const routesQuery = useMemoFirebase(() => {
-    if (!firestore || !tenantId) return null;
-    if (isPlatformAdmin && isGlobalView) return collection(firestore, 'routes');
-    return query(collection(firestore, 'routes'), where('tenantId', '==', tenantId));
-  }, [firestore, tenantId, isPlatformAdmin, isGlobalView]);
+    if (!firestore) return null;
+    return collection(firestore, 'routes');
+  }, [firestore]);
 
   const schedulesQuery = useMemoFirebase(() => {
-    if (!firestore || !tenantId) return null;
-    if (isPlatformAdmin && isGlobalView) return collection(firestore, 'schedules');
-    return query(collection(firestore, 'schedules'), where('tenantId', '==', tenantId));
-  }, [firestore, tenantId, isPlatformAdmin, isGlobalView]);
+    if (!firestore) return null;
+    return collection(firestore, 'schedules');
+  }, [firestore]);
 
   const staffDocRef = useMemoFirebase(() => firestore && user ? doc(firestore, 'staff', user.uid) : null, [firestore, user]);
 
@@ -176,7 +163,7 @@ export default function BookingsPage() {
       const isManagerOrAdmin = staffData?.roles?.some((r: string) => ['Super Admin', 'Station Manager', 'Operations Manager'].includes(r));
 
       let locationMatch = true;
-      if (isDeskAgent && !isManagerOrAdmin && !isGlobalView) {
+      if (isDeskAgent && !isManagerOrAdmin) {
         if (staffData.assignedPortName) {
           locationMatch = booking.departurePortName === staffData.assignedPortName;
         } else {
@@ -186,7 +173,7 @@ export default function BookingsPage() {
 
       return searchMatch && statusMatch && dateMatch && routeMatch && scheduleMatch && locationMatch;
     });
-  }, [bookings, search, filterStatus, filterDate, filterRoute, filterSchedule, routes, staffData, isGlobalView]);
+  }, [bookings, search, filterStatus, filterDate, filterRoute, filterSchedule, routes, staffData]);
   
   const clearFilters = () => {
     setSearch('');
@@ -327,24 +314,11 @@ export default function BookingsPage() {
   return (
     <>
       <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Booking Management</h1>
-            <p className="text-muted-foreground">
-              {isGlobalView ? 'Showing all bookings across the platform' : 'View and manage all passenger bookings for your company.'}
-            </p>
-          </div>
-          {isPlatformAdmin && (
-            <div className="flex items-center space-x-2 bg-primary/10 px-4 py-2 rounded-lg border border-primary/20">
-              <Globe className="h-4 w-4 text-primary" />
-              <Label htmlFor="global-bookings" className="text-sm font-bold text-primary">Global View</Label>
-              <Switch 
-                id="global-bookings" 
-                checked={isGlobalView} 
-                onCheckedChange={setIsGlobalView} 
-              />
-            </div>
-          )}
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Booking Management</h1>
+          <p className="text-muted-foreground">
+            View and manage all passenger bookings for the fleet.
+          </p>
         </div>
 
         <Card>
@@ -353,7 +327,7 @@ export default function BookingsPage() {
               <div>
                 <CardTitle>Passenger Bookings</CardTitle>
                 <CardDescription>
-                  A real-time list of all bookings tied to your operation.
+                  A real-time list of all bookings tied to the operation.
                 </CardDescription>
               </div>
               <div className="flex w-full flex-col sm:w-auto sm:flex-row sm:items-center gap-2">
@@ -547,7 +521,7 @@ export default function BookingsPage() {
                         <TableCell colSpan={9} className="h-24 text-center">
                         <div className="flex flex-col items-center gap-2">
                             <BookCopy className="h-8 w-8 text-muted-foreground" />
-                            <p className="text-muted-foreground">No bookings found for your company.</p>
+                            <p className="text-muted-foreground">No bookings found in the system.</p>
                         </div>
                         </TableCell>
                     </TableRow>
