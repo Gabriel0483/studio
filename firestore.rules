@@ -1,12 +1,7 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // ----------------------------------------------------------------------
-    // Helper Functions
-    // ----------------------------------------------------------------------
 
     function isSignedIn() {
       return request.auth != null;
@@ -16,12 +11,8 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    function isPlatformAdmin() {
-      return isSignedIn() && request.auth.token.email == 'rielmagpantay@gmail.com';
-    }
-
-    function isAnyAdmin() {
-      return isSignedIn() && (isPlatformAdmin() || exists(/databases/$(database)/documents/staff/$(request.auth.uid)));
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/staff/$(request.auth.uid));
     }
     
     function getStaffData() {
@@ -29,93 +20,71 @@ service cloud.firestore {
     }
     
     function isSuperAdmin() {
-      return isPlatformAdmin() || (isAnyAdmin() && getStaffData().roles.hasAny(['Super Admin']));
+      return isAdmin() && getStaffData().roles.hasAny(['Super Admin', 'Operations Manager']);
     }
 
-    // Helper to verify data belongs to the staff's tenant
-    function isTenantData(resourceData) {
-      return isPlatformAdmin() || (isAnyAdmin() && (getStaffData().tenantId == resourceData.tenantId));
-    }
-
-    // ----------------------------------------------------------------------
-    // Global Rules
-    // ----------------------------------------------------------------------
-    
-    // Platform Admin has full access to everything across all tenants for system management
-    match /{document=**} {
-      allow read, write: if isPlatformAdmin();
-    }
-
-    // ----------------------------------------------------------------------
-    // Collection Rules
-    // ----------------------------------------------------------------------
-    
-    match /tenants/{tenantId} {
+    match /config/settings {
       allow read: if true;
-      allow create: if isSignedIn(); // Allow new operators to create their tenant profile
-      allow update, delete: if isPlatformAdmin();
+      allow write: if isSuperAdmin();
     }
 
     match /staff/{staffId} {
-      allow get: if isOwner(staffId) || isAnyAdmin();
+      allow get: if isOwner(staffId) || isAdmin();
       allow list: if isSuperAdmin();
-      // Allow new operators to create their own staff record, or Platform Admin to manage all, or Super Admin to manage tenant staff
-      allow create: if isSignedIn() && (request.auth.uid == staffId || isPlatformAdmin() || (isSuperAdmin() && getStaffData().tenantId == request.resource.data.tenantId));
-      allow update: if isPlatformAdmin() || (isSuperAdmin() && getStaffData().tenantId == request.resource.data.tenantId);
-      allow delete: if isPlatformAdmin() || (isSuperAdmin() && getStaffData().tenantId == resource.data.tenantId);
+      allow create: if isSignedIn(); // Allow initial setup
+      allow update, delete: if isSuperAdmin();
     }
 
     match /passengers/{passengerId} {
-      allow get: if isOwner(passengerId) || isAnyAdmin();
-      allow list: if isAnyAdmin();
-      allow create: if isOwner(passengerId) || isAnyAdmin();
-      allow update: if isOwner(passengerId) || isAnyAdmin();
+      allow get: if isOwner(passengerId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if true; // Public signup
+      allow update: if isOwner(passengerId) || isAdmin();
     }
     
     match /announcements/{id} {
       allow read: if true;
-      allow write: if isTenantData(request.resource.data) || (resource != null && isTenantData(resource.data));
+      allow write: if isAdmin();
     }
     
     match /ports/{id} {
       allow read: if true;
-      allow write: if isTenantData(request.resource.data) || (resource != null && isTenantData(resource.data));
+      allow write: if isAdmin();
     }
 
     match /ships/{id} {
-      allow read: if isTenantData(resource.data);
-      allow write: if isTenantData(request.resource.data) || (resource != null && isTenantData(resource.data));
+      allow read: if isAdmin();
+      allow write: if isAdmin();
     }
 
     match /routes/{id} {
       allow read: if true;
-      allow write: if isTenantData(request.resource.data) || (resource != null && isTenantData(resource.data));
+      allow write: if isAdmin();
     }
 
     match /fares/{id} {
       allow read: if true;
-      allow write: if isTenantData(request.resource.data) || (resource != null && isTenantData(resource.data));
+      allow write: if isAdmin();
     }
 
     match /schedules/{id} {
-      allow read: if true; // Public status page
-      allow write: if isTenantData(request.resource.data) || (resource != null && isTenantData(resource.data));
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     match /bookings/{id} {
-      allow get: if isOwner(resource.data.passengerId) || isTenantData(resource.data);
-      allow list: if isAnyAdmin(); 
-      allow create: if isSignedIn();
-      allow update: if isTenantData(resource.data);
-      allow delete: if isTenantData(resource.data);
+      allow get: if isOwner(resource.data.passengerId) || isAdmin();
+      allow list: if isAdmin(); 
+      allow create: if true;
+      allow update, delete: if isAdmin();
     }
 
     match /maintenanceRecords/{id} {
-      allow read, write: if isTenantData(resource.data) || isTenantData(request.resource.data);
+      allow read, write: if isAdmin();
     }
     
     match /boarding/{id} {
-      allow read, write: if isAnyAdmin();
+      allow read, write: if isAdmin();
     }
   }
 }

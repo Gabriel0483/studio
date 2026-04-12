@@ -1,24 +1,5 @@
-
 {
   "entities": {
-    "Tenant": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Tenant",
-      "type": "object",
-      "description": "Represents an operator or company using the platform.",
-      "properties": {
-        "id": { "type": "string", "description": "Unique identifier for the tenant." },
-        "name": { "type": "string", "description": "The name of the operator." },
-        "subdomain": { "type": "string", "description": "Reserved for future vanity URL use." },
-        "logoUrl": { "type": "string" },
-        "heroTitle": { "type": "string", "description": "Custom headline for the operator portal." },
-        "heroDescription": { "type": "string", "description": "Custom sub-headline for the operator portal." },
-        "heroImageUrl": { "type": "string", "description": "Custom background image for the operator portal." },
-        "contactEmail": { "type": "string", "format": "email" },
-        "createdAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["id", "name"]
-    },
     "Announcement": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Announcement",
@@ -26,13 +7,12 @@
       "description": "Represents a public advisory or announcement.",
       "properties": {
         "id": { "type": "string" },
-        "tenantId": { "type": "string", "description": "The ID of the tenant this announcement belongs to." },
         "title": { "type": "string" },
         "content": { "type": "string" },
         "category": { "type": "string", "enum": ["General Information", "Weather Update", "Route Change", "Fare Change", "Service Disruption"] },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["id", "tenantId", "title", "content", "category", "createdAt"]
+      "required": ["id", "title", "content", "category", "createdAt"]
     },
     "Port": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -40,17 +20,16 @@
       "type": "object",
       "properties": {
         "id": { "type": "string" },
-        "tenantId": { "type": "string" },
         "name": { "type": "string" },
         "location": { "type": "string" }
       },
-      "required": ["id", "tenantId", "name", "location"]
+      "required": ["id", "name", "location"]
     },
     "Passenger": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Passenger",
       "type": "object",
-      "description": "Global passenger profile (shared across tenants).",
+      "description": "Passenger profile.",
       "properties": {
         "id": { "type": "string" },
         "firstName": { "type": "string" },
@@ -67,13 +46,12 @@
       "type": "object",
       "properties": {
         "id": { "type": "string" },
-        "tenantId": { "type": "string" },
         "name": { "type": "string" },
         "capacity": { "type": "number" },
         "status": { "type": "string" },
         "vesselType": { "type": "string" }
       },
-      "required": ["id", "tenantId", "name", "capacity", "status", "vesselType"]
+      "required": ["id", "name", "capacity", "status", "vesselType"]
     },
     "AdminUser": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -81,12 +59,11 @@
       "type": "object",
       "properties": {
         "uid": { "type": "string" },
-        "tenantId": { "type": "string", "description": "The operator this staff member works for." },
         "email": { "type": "string", "format": "email" },
         "name": { "type": "string" },
         "roles": { "type": "array", "items": { "type": "string" } }
       },
-      "required": ["uid", "tenantId", "email", "name", "roles"]
+      "required": ["uid", "email", "name", "roles"]
     },
     "Route": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -94,12 +71,11 @@
       "type": "object",
       "properties": {
         "id": { "type": "string" },
-        "tenantId": { "type": "string" },
         "name": { "type": "string" },
         "departure": { "type": "string" },
         "destination": { "type": "string" }
       },
-      "required": ["id", "tenantId", "name", "departure", "destination"]
+      "required": ["id", "name", "departure", "destination"]
     },
     "Fare": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -107,12 +83,11 @@
       "type": "object",
       "properties": {
         "id": { "type": "string" },
-        "tenantId": { "type": "string" },
         "routeId": { "type": "string" },
         "price": { "type": "number" },
         "passengerType": { "type": "string" }
       },
-      "required": ["id", "tenantId", "routeId", "price", "passengerType"]
+      "required": ["id", "routeId", "price", "passengerType"]
     },
     "Schedule": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -120,7 +95,6 @@
       "type": "object",
       "properties": {
         "id": { "type": "string" },
-        "tenantId": { "type": "string" },
         "tripType": { "type": "string", "enum": ["Daily", "Special"] },
         "shipId": { "type": "string" },
         "routeId": { "type": "string" },
@@ -128,7 +102,7 @@
         "departureTime": { "type": "string", "format": "time" },
         "availableSeats": { "type": "number" }
       },
-      "required": ["id", "tenantId", "tripType", "routeId", "departureTime", "availableSeats"]
+      "required": ["id", "tripType", "routeId", "departureTime", "availableSeats"]
     },
     "Booking": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -136,14 +110,26 @@
       "type": "object",
       "properties": {
         "id": { "type": "string" },
-        "tenantId": { "type": "string" },
         "passengerId": { "type": "string" },
         "scheduleId": { "type": "string" },
         "travelDate": { "type": "string", "format": "date" },
         "totalPrice": { "type": "number" },
         "status": { "type": "string" }
       },
-      "required": ["id", "tenantId", "passengerId", "scheduleId", "travelDate", "totalPrice", "status"]
+      "required": ["id", "passengerId", "scheduleId", "travelDate", "totalPrice", "status"]
+    },
+    "SystemConfig": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "SystemConfig",
+      "type": "object",
+      "description": "Global settings for the application.",
+      "properties": {
+        "companyName": { "type": "string" },
+        "logoUrl": { "type": "string" },
+        "heroTitle": { "type": "string" },
+        "heroDescription": { "type": "string" },
+        "heroImageUrl": { "type": "string" }
+      }
     }
   },
   "auth": {
@@ -151,10 +137,10 @@
   },
   "firestore": {
     "structure": [
-      { "path": "/tenants/{tenantId}", "definition": { "entityName": "Tenant", "schema": { "$ref": "#/backend/entities/Tenant" }, "description": "Operator profile." } },
-      { "path": "/staff/{staffId}", "definition": { "entityName": "AdminUser", "schema": { "$ref": "#/backend/entities/AdminUser" }, "description": "Staff account with tenantId." } },
-      { "path": "/passengers/{passengerId}", "definition": { "entityName": "Passenger", "schema": { "$ref": "#/backend/entities/Passenger" }, "description": "Global passenger profile." } },
-      { "path": "/announcements/{id}", "definition": { "entityName": "Announcement", "schema": { "$ref": "#/backend/entities/Announcement" }, "description": "Tenant specific announcements." } },
+      { "path": "/config/settings", "definition": { "entityName": "SystemConfig", "schema": { "$ref": "#/backend/entities/SystemConfig" } } },
+      { "path": "/staff/{staffId}", "definition": { "entityName": "AdminUser", "schema": { "$ref": "#/backend/entities/AdminUser" } } },
+      { "path": "/passengers/{passengerId}", "definition": { "entityName": "Passenger", "schema": { "$ref": "#/backend/entities/Passenger" } } },
+      { "path": "/announcements/{id}", "definition": { "entityName": "Announcement", "schema": { "$ref": "#/backend/entities/Announcement" } } },
       { "path": "/ports/{id}", "definition": { "entityName": "Port", "schema": { "$ref": "#/backend/entities/Port" } } },
       { "path": "/ships/{id}", "definition": { "entityName": "Ship", "schema": { "$ref": "#/backend/entities/Ship" } } },
       { "path": "/routes/{id}", "definition": { "entityName": "Route", "schema": { "$ref": "#/backend/entities/Route" } } },

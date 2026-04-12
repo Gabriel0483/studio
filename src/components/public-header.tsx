@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -6,24 +5,20 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/logo';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from '@/components/ui/sheet';
-import { Menu, User, LogOut, BookCopy, ChevronDown, ExternalLink } from 'lucide-react';
+import { Menu, User, LogOut, BookCopy } from 'lucide-react';
 import { useUser, useDoc, useFirestore, useMemoFirebase, useAuth } from '@/firebase';
 import { handleSignOut } from '@/firebase/auth';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { doc } from 'firebase/firestore';
-import { useTenant } from './dashboard/tenant-context';
 
 export function PublicHeader() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
   const auth = useAuth();
   const router = useRouter();
-  const params = useParams();
-  const { tenantName, logoUrl } = useTenant();
   
-  const tenantId = params.tenantId as string;
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -54,34 +49,17 @@ export function PublicHeader() {
     return user?.email || 'Passenger';
   };
 
-  const navLinks = tenantId ? [
-    { href: `/o/${tenantId}`, label: 'Home' },
-    { href: `/o/${tenantId}/book`, label: 'Book Trip' },
-    { href: `/o/${tenantId}/status`, label: 'Status' },
-    { href: `/o/${tenantId}/advisories`, label: 'Advisories' },
-  ] : [
+  const navLinks = [
     { href: '/welcome', label: 'Home' },
-    { href: '/register-operator', label: 'For Operators' },
+    { href: '/book', label: 'Book Trip' },
+    { href: '/status', label: 'Status' },
+    { href: '/advisories', label: 'Advisories' },
   ];
 
   return (
     <header className="sticky top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-sm border-b">
       <div className="container mx-auto flex items-center justify-between px-4 md:px-6 h-16">
-        <div className="flex items-center gap-2">
-          {logoUrl && tenantId ? (
-            <Link href={`/o/${tenantId}`} className="flex items-center gap-2">
-              <Avatar className="h-8 w-8 rounded-sm">
-                <AvatarImage src={logoUrl} alt={tenantName || 'Logo'} />
-                <AvatarFallback className="rounded-sm bg-primary text-white text-[10px]">
-                  {tenantName?.substring(0, 2).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              <span className="font-bold text-lg hidden sm:inline-block">{tenantName}</span>
-            </Link>
-          ) : (
-            <Logo />
-          )}
-        </div>
+        <Logo />
         <nav className="hidden items-center gap-6 md:flex">
           {navLinks.map((link) => (
             <Link
@@ -136,7 +114,7 @@ export function PublicHeader() {
               ) : (
                 <>
                   <Button variant="ghost" asChild>
-                    <Link href={`/login?redirect=${tenantId ? `/o/${tenantId}/book` : '/welcome'}`}>Login</Link>
+                    <Link href="/login">Login</Link>
                   </Button>
                   <Button asChild>
                     <Link href="/signup">Sign Up</Link>
@@ -158,12 +136,7 @@ export function PublicHeader() {
                     <SheetDescription>Navigation links for mobile users.</SheetDescription>
                 </SheetHeader>
               <div className="flex flex-col gap-6 pt-12">
-                {tenantId && tenantName ? (
-                   <div className="flex items-center gap-2">
-                      {logoUrl && <Avatar className="h-8 w-8 rounded-sm"><AvatarImage src={logoUrl} /></Avatar>}
-                      <span className="font-bold text-lg">{tenantName}</span>
-                   </div>
-                ) : <Logo />}
+                <Logo />
                 {navLinks.map((link) => (
                   <Link
                     key={link.href}
