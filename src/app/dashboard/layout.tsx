@@ -56,8 +56,9 @@ export default function DashboardLayout({
           return;
         }
         
-        // Initial fallback for first setup
-        if (user.email === 'rielmagpantay@gmail.com') {
+        // Initial fallbacks for known admin emails
+        const adminEmails = ['rielmagpantay@gmail.com', 'mariel.dumaoal@gmail.com'];
+        if (user.email && adminEmails.includes(user.email)) {
           setStaffInfo({ roles: ['Super Admin'] });
           setAuthStatus('authorized');
           return;
@@ -76,7 +77,6 @@ export default function DashboardLayout({
 
   const filteredLinks = useMemo(() => {
     return navLinks.filter(link => {
-      if (link.platformAdminOnly) return false; // SaaS only
       if (link.roles) {
         return link.roles.some(role => staffInfo.roles.includes(role));
       }
@@ -86,10 +86,10 @@ export default function DashboardLayout({
 
   if (authStatus !== 'authorized') {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-background">
+      <div className="flex h-screen w-full flex-col items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="ml-3 text-muted-foreground">
-          {authStatus === 'checking' ? 'Verifying access...' : 'Redirecting...'}
+        <p className="mt-4 text-sm font-medium text-muted-foreground">
+          {authStatus === 'checking' ? 'Verifying secure access...' : 'Redirecting to login...'}
         </p>
       </div>
     );
@@ -103,7 +103,7 @@ export default function DashboardLayout({
           <div className="flex flex-col gap-1 px-2 py-1">
             <Logo />
             <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider truncate">
-              Command Center
+              Maritime Command
             </p>
           </div>
         </SidebarHeader>
@@ -113,7 +113,7 @@ export default function DashboardLayout({
               <SidebarMenuItem key={link.href}>
                 <SidebarMenuButton
                   asChild
-                  isActive={pathname.startsWith(link.href)}
+                  isActive={pathname === link.href || (link.href !== '/dashboard' && pathname.startsWith(link.href))}
                   tooltip={{ children: link.label }}
                 >
                   <Link href={link.href}>
@@ -136,10 +136,10 @@ export default function DashboardLayout({
         <header className="flex h-14 items-center gap-4 border-b bg-card px-4 lg:h-[60px] lg:px-6">
             <SidebarTrigger />
             <div className='hidden md:block'>
-                <Button asChild variant="outline" size="icon">
+                <Button asChild variant="outline" size="sm">
                     <Link href="/welcome">
-                        <Home className="h-4 w-4"/>
-                        <span className="sr-only">Back to Homepage</span>
+                        <Home className="mr-2 h-4 w-4"/>
+                        Portal
                     </Link>
                 </Button>
             </div>
