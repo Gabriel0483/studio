@@ -8,6 +8,7 @@ service cloud.firestore {
     }
 
     // Global administrative override for the system owners
+    // This provides a "Super Admin" capability for specific maintenance emails
     function isPlatformAdmin() {
       return isSignedIn() && (
         request.auth.token.email == 'rielmagpantay@gmail.com' || 
@@ -31,6 +32,12 @@ service cloud.firestore {
 
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // System-wide administrative access
+    // This allows platform admins to list and manage all documents regardless of individual path rules
+    match /{document=**} {
+      allow read, write: if isPlatformAdmin();
     }
 
     // System configuration is readable by all, but only editable by super admins
