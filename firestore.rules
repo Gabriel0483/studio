@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -8,7 +9,6 @@ service cloud.firestore {
     }
 
     // Global administrative override for the system owners
-    // This provides a "Super Admin" capability for specific maintenance emails
     function isPlatformAdmin() {
       return isSignedIn() && (
         request.auth.token.email == 'rielmagpantay@gmail.com' || 
@@ -25,6 +25,10 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/staff/$(request.auth.uid)).data;
     }
     
+    function hasRole(role) {
+      return isPlatformAdmin() || (isAdmin() && getStaffData().roles.hasAny([role]));
+    }
+    
     // Check for specific management roles
     function isSuperAdmin() {
       return isPlatformAdmin() || (isAdmin() && getStaffData().roles.hasAny(['Super Admin', 'Operations Manager']));
@@ -35,7 +39,6 @@ service cloud.firestore {
     }
 
     // System-wide administrative access
-    // This allows platform admins to list and manage all documents regardless of individual path rules
     match /{document=**} {
       allow read, write: if isPlatformAdmin();
     }
@@ -72,17 +75,17 @@ service cloud.firestore {
 
     match /ships/{id} {
       allow read: if isAdmin();
-      allow write: if isAdmin();
+      allow write: if isSuperAdmin();
     }
 
     match /routes/{id} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isSuperAdmin();
     }
 
     match /fares/{id} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isSuperAdmin();
     }
 
     match /schedules/{id} {
@@ -91,18 +94,33 @@ service cloud.firestore {
     }
 
     match /bookings/{id} {
+      // Passenger can read their own. Staff can read based on location.
       allow get: if isOwner(resource.data.passengerId) || isAdmin();
-      allow list: if isAdmin(); 
+      
+      // LBAC: Desk Booking Agents only see bookings for their port
+      allow list: if isSuperAdmin() || 
+                   (hasRole('Desk Booking Agent') && resource.data.departurePortName == getStaffData().assignedPortName) ||
+                   (hasRole('Station Manager') && resource.data.departurePortName == getStaffData().assignedPortName);
+      
       allow create: if true;
-      allow update, delete: if isAdmin();
+      
+      // LBAC: Only agents at the correct port can update (e.g., mark as paid)
+      allow update: if isSuperAdmin() || 
+                     (hasRole('Desk Booking Agent') && resource.data.departurePortName == getStaffData().assignedPortName);
+                     
+      allow delete: if isSuperAdmin();
     }
 
     match /maintenanceRecords/{id} {
-      allow read, write: if isAdmin();
+      allow read: if isAdmin();
+      allow write: if isSuperAdmin();
     }
     
     match /boarding/{id} {
-      allow read, write: if isAdmin();
+      allow read: if isAdmin();
+      // Only staff at the correct port (via schedule reference) should really write here, 
+      // but for simplicity in MVP we allow all registered staff.
+      allow write: if isAdmin();
     }
   }
 }

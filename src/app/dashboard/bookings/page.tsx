@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
@@ -36,7 +37,7 @@ import {
   updateDoc,
   query,
 } from 'firebase/firestore';
-import { BookCopy, Pencil, Search, Trash2, XCircle, CreditCard, Loader2, FilterX, Filter } from 'lucide-react';
+import { BookCopy, Pencil, Search, Trash2, XCircle, CreditCard, Loader2, FilterX, Filter, MapPin } from 'lucide-react';
 import { format } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -159,14 +160,19 @@ export default function BookingsPage() {
       const routeMatch = filterRoute === 'all' || booking.routeName === selectedRoute?.name;
       const scheduleMatch = filterSchedule === 'all' || booking.scheduleId === filterSchedule;
 
+      // LBAC Implementation: Filter by location for Desk Agents and Station Managers
       const isDeskAgent = staffData?.roles?.includes('Desk Booking Agent');
-      const isManagerOrAdmin = staffData?.roles?.some((r: string) => ['Super Admin', 'Station Manager', 'Operations Manager'].includes(r));
+      const isStationManager = staffData?.roles?.includes('Station Manager');
+      const isManagerOrAdmin = staffData?.roles?.some((r: string) => ['Super Admin', 'Operations Manager'].includes(r));
 
       let locationMatch = true;
-      if (isDeskAgent && !isManagerOrAdmin) {
+      // Note: rielmagpantay@gmail.com override is handled by security rules, 
+      // but for UI experience we also want to filter if they aren't global admins.
+      if ((isDeskAgent || isStationManager) && !isManagerOrAdmin) {
         if (staffData.assignedPortName) {
           locationMatch = booking.departurePortName === staffData.assignedPortName;
         } else {
+          // If they have a location-bound role but no location assigned, they see nothing
           locationMatch = false;
         }
       }
@@ -314,11 +320,19 @@ export default function BookingsPage() {
   return (
     <>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Booking Management</h1>
-          <p className="text-muted-foreground">
-            View and manage all passenger bookings for the fleet.
-          </p>
+        <div className="flex justify-between items-start">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Booking Management</h1>
+            <p className="text-muted-foreground">
+              View and manage all passenger bookings for the fleet.
+            </p>
+          </div>
+          {staffData?.assignedPortName && (
+            <Badge variant="outline" className="flex items-center gap-1">
+              <MapPin className="h-3 w-3" />
+              Location: {staffData.assignedPortName}
+            </Badge>
+          )}
         </div>
 
         <Card>
