@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { collection, doc, query, writeBatch, getDocs, orderBy, where, Firestore } from 'firebase/firestore';
+import { collection, doc, query, writeBatch, getDocs, orderBy, Firestore, where } from 'firebase/firestore';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import {
   addDocumentNonBlocking,
@@ -55,7 +55,6 @@ import {
 import { Pencil, Plus, Trash2, Calendar as CalendarIcon, Users } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format, parse } from 'date-fns';
-import { useTenant } from '@/components/dashboard/tenant-context';
 
 interface Ship {
   id: string;
@@ -77,7 +76,6 @@ interface Staff {
 
 interface Schedule {
   id: string;
-  tenantId: string;
   tripType: 'Daily' | 'Special';
   shipId?: string | null;
   shipName?: string | null;
@@ -93,7 +91,6 @@ interface Schedule {
 
 const ScheduleForm = ({
   firestore,
-  tenantId,
   schedule,
   ships,
   routes,
@@ -101,7 +98,6 @@ const ScheduleForm = ({
   onFinished,
 }: {
   firestore: Firestore;
-  tenantId: string;
   schedule?: Schedule;
   ships: Ship[];
   routes: Route[];
@@ -161,7 +157,6 @@ const ScheduleForm = ({
       arrivalTime,
       availableSeats: seatsNum,
       status: schedule?.status || 'On Time',
-      tenantId
     };
 
     if (schedule) {
@@ -262,31 +257,29 @@ const ScheduleForm = ({
 
 export default function SchedulesPage() {
   const firestore = useFirestore();
-  const { tenantId } = useTenant();
 
   const schedulesQuery = useMemoFirebase(() => {
-    if (!firestore || !tenantId) return null;
+    if (!firestore) return null;
     return query(
       collection(firestore, 'schedules'), 
-      where('tenantId', '==', tenantId),
       orderBy('departureTime', 'asc')
     );
-  }, [firestore, tenantId]);
+  }, [firestore]);
 
   const shipsQuery = useMemoFirebase(() => {
-    if (!firestore || !tenantId) return null;
-    return query(collection(firestore, 'ships'), where('tenantId', '==', tenantId));
-  }, [firestore, tenantId]);
+    if (!firestore) return null;
+    return collection(firestore, 'ships');
+  }, [firestore]);
 
   const routesQuery = useMemoFirebase(() => {
-    if (!firestore || !tenantId) return null;
-    return query(collection(firestore, 'routes'), where('tenantId', '==', tenantId));
-  }, [firestore, tenantId]);
+    if (!firestore) return null;
+    return collection(firestore, 'routes');
+  }, [firestore]);
 
   const staffQuery = useMemoFirebase(() => {
-    if (!firestore || !tenantId) return null;
-    return query(collection(firestore, 'staff'), where('tenantId', '==', tenantId));
-  }, [firestore, tenantId]);
+    if (!firestore) return null;
+    return collection(firestore, 'staff');
+  }, [firestore]);
 
   const { data: schedules, isLoading: isLoadingSchedules } = useCollection<Schedule>(schedulesQuery);
   const { data: ships, isLoading: isLoadingShips } = useCollection<Omit<Ship, 'id'>>(shipsQuery);
@@ -374,13 +367,13 @@ export default function SchedulesPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Schedule Management</h1>
           <p className="text-muted-foreground">
-            Manage recurring daily trip templates for your company.
+            Manage recurring daily trip templates for the organization.
           </p>
         </div>
         <div className="flex gap-2">
             <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
             <DialogTrigger asChild>
-                <Button onClick={() => setEditingSchedule(undefined)} disabled={!tenantId}>
+                <Button onClick={() => setEditingSchedule(undefined)}>
                 <Plus className="mr-2 h-4 w-4" />
                 Add Schedule
                 </Button>
@@ -392,10 +385,9 @@ export default function SchedulesPage() {
                     Fill in the details for a recurring daily trip.
                 </DialogDescription>
                 </DialogHeader>
-                {firestore && tenantId && (
+                {firestore && (
                 <ScheduleForm
                     firestore={firestore}
-                    tenantId={tenantId}
                     schedule={editingSchedule}
                     ships={ships || []}
                     routes={routes || []}
@@ -411,7 +403,7 @@ export default function SchedulesPage() {
       <Card>
         <CardHeader>
           <CardTitle>Daily Schedule Templates</CardTitle>
-          <CardDescription>A list of all recurring daily trips for your operator.</CardDescription>
+          <CardDescription>A list of all recurring daily trips.</CardDescription>
           <div className="pt-4">
             <Label htmlFor="filter-route">Filter by Route</Label>
             <Select value={filterRouteId} onValueChange={setFilterRouteId}>
@@ -483,7 +475,7 @@ export default function SchedulesPage() {
                   <TableCell colSpan={5} className="h-24 text-center">
                     <div className="flex flex-col items-center gap-2">
                         <CalendarIcon className="h-8 w-8 text-muted-foreground" />
-                        <p className="text-muted-foreground">No schedule templates found for the selected route.</p>
+                        <p className="text-muted-foreground">No schedule templates found.</p>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -499,7 +491,7 @@ export default function SchedulesPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete this schedule template and all future special trips created from it. This action cannot be undone.
+              This will permanently delete this schedule template and all future instances. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

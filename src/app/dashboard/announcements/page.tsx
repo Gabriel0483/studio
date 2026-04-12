@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
-import { collection, doc, serverTimestamp, query, orderBy, deleteDoc, where, Firestore } from 'firebase/firestore';
+import React, { useState } from 'react';
+import { collection, doc, serverTimestamp, query, orderBy, deleteDoc, Firestore } from 'firebase/firestore';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import {
   addDocumentNonBlocking,
@@ -57,11 +57,9 @@ import { Pencil, Plus, Trash2, Megaphone } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import type { Timestamp } from 'firebase/firestore';
-import { useTenant } from '@/components/dashboard/tenant-context';
 
 interface Announcement {
   id: string;
-  tenantId: string;
   title: string;
   content: string;
   category: string;
@@ -70,12 +68,10 @@ interface Announcement {
 
 const AnnouncementForm = ({
   firestore,
-  tenantId,
   announcement,
   onFinished,
 }: {
   firestore: Firestore;
-  tenantId: string;
   announcement?: Announcement;
   onFinished: () => void;
 }) => {
@@ -99,7 +95,6 @@ const AnnouncementForm = ({
       title,
       content,
       category,
-      tenantId,
       createdAt: announcement?.createdAt ? announcement.createdAt : serverTimestamp(),
     };
 
@@ -167,16 +162,14 @@ const AnnouncementForm = ({
 
 export default function AnnouncementsPage() {
   const firestore = useFirestore();
-  const { tenantId } = useTenant();
 
   const announcementsQuery = useMemoFirebase(() => {
-    if (!firestore || !tenantId) return null;
+    if (!firestore) return null;
     return query(
       collection(firestore, 'announcements'), 
-      where('tenantId', '==', tenantId),
       orderBy('createdAt', 'desc')
     );
-  }, [firestore, tenantId]);
+  }, [firestore]);
 
   const { data: announcements, isLoading } = useCollection<Omit<Announcement, 'id'>>(announcementsQuery);
 
@@ -226,7 +219,7 @@ export default function AnnouncementsPage() {
           </div>
           <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
             <DialogTrigger asChild>
-              <Button onClick={() => setEditingAnnouncement(undefined)} disabled={!tenantId}>
+              <Button onClick={() => setEditingAnnouncement(undefined)}>
                 <Plus className="mr-2 h-4 w-4" />
                 New Announcement
               </Button>
@@ -238,10 +231,9 @@ export default function AnnouncementsPage() {
                   Fill in the details below. This will be visible to the public immediately.
                 </DialogDescription>
               </DialogHeader>
-              {firestore && tenantId && (
+              {firestore && (
                 <AnnouncementForm
                   firestore={firestore}
-                  tenantId={tenantId}
                   announcement={editingAnnouncement}
                   onFinished={() => setIsFormOpen(false)}
                 />
@@ -253,7 +245,7 @@ export default function AnnouncementsPage() {
         <Card>
           <CardHeader>
             <CardTitle>Company Advisories</CardTitle>
-            <CardDescription>A list of all posted advisories for your operator.</CardDescription>
+            <CardDescription>A list of all posted advisories for the organization.</CardDescription>
           </CardHeader>
           <CardContent>
             <Table>

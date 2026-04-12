@@ -7,6 +7,7 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // Global administrative override for the system owners
     function isPlatformAdmin() {
       return isSignedIn() && (
         request.auth.token.email == 'rielmagpantay@gmail.com' || 
@@ -14,6 +15,7 @@ service cloud.firestore {
       );
     }
 
+    // Check if the user is a registered staff member or a platform admin
     function isAdmin() {
       return isPlatformAdmin() || (isSignedIn() && exists(/databases/$(database)/documents/staff/$(request.auth.uid)));
     }
@@ -22,6 +24,7 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/staff/$(request.auth.uid)).data;
     }
     
+    // Check for specific management roles
     function isSuperAdmin() {
       return isPlatformAdmin() || (isAdmin() && getStaffData().roles.hasAny(['Super Admin', 'Operations Manager']));
     }
@@ -30,6 +33,7 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    // System configuration is readable by all, but only editable by super admins
     match /config/settings {
       allow read: if true;
       allow write: if isSuperAdmin();
@@ -38,14 +42,14 @@ service cloud.firestore {
     match /staff/{staffId} {
       allow get: if isOwner(staffId) || isAdmin();
       allow list: if isSuperAdmin();
-      allow create: if isSignedIn(); // Allow initial setup
+      allow create: if isSignedIn();
       allow update, delete: if isSuperAdmin();
     }
 
     match /passengers/{passengerId} {
       allow get: if isOwner(passengerId) || isAdmin();
       allow list: if isAdmin();
-      allow create: if true; // Public signup
+      allow create: if true;
       allow update: if isOwner(passengerId) || isAdmin();
     }
     

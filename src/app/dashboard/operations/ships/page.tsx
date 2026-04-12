@@ -1,8 +1,7 @@
-
 'use client';
 
 import React, { useState } from 'react';
-import { collection, doc, deleteDoc, query, where } from 'firebase/firestore';
+import { collection, doc, deleteDoc } from 'firebase/firestore';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import {
   addDocumentNonBlocking,
@@ -57,11 +56,9 @@ import { Pencil, Plus, Trash2, Ship as ShipIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { Firestore } from 'firebase/firestore';
 import { Badge } from '@/components/ui/badge';
-import { useTenant } from '@/components/dashboard/tenant-context';
 
 interface Ship {
   id: string;
-  tenantId: string;
   name: string;
   capacity: number;
   status: string;
@@ -70,12 +67,10 @@ interface Ship {
 
 const ShipForm = ({
   firestore,
-  tenantId,
   ship,
   onFinished,
 }: {
   firestore: Firestore;
-  tenantId: string;
   ship?: Ship;
   onFinished: () => void;
 }) => {
@@ -102,8 +97,7 @@ const ShipForm = ({
       name, 
       capacity: capacityNum, 
       status, 
-      vesselType,
-      tenantId: tenantId // Ensure data is tied to the correct tenant
+      vesselType
     };
 
     if (ship) {
@@ -164,13 +158,11 @@ const ShipForm = ({
 
 export default function ShipsPage() {
   const firestore = useFirestore();
-  const { tenantId } = useTenant();
 
   const shipsQuery = useMemoFirebase(() => {
-    if (!firestore || !tenantId) return null;
-    // Multi-tenant isolation: always filter by tenantId
-    return query(collection(firestore, 'ships'), where('tenantId', '==', tenantId));
-  }, [firestore, tenantId]);
+    if (!firestore) return null;
+    return collection(firestore, 'ships');
+  }, [firestore]);
 
   const { data: ships, isLoading } = useCollection<Omit<Ship, 'id'>>(shipsQuery);
 
@@ -216,11 +208,11 @@ export default function ShipsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Fleet Management</h1>
-          <p className="text-muted-foreground">Manage your operator's private fleet.</p>
+          <p className="text-muted-foreground">Manage the organization's private fleet.</p>
         </div>
         <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
           <DialogTrigger asChild>
-            <Button onClick={() => setEditingShip(undefined)} disabled={!tenantId}>
+            <Button onClick={() => setEditingShip(undefined)}>
               <Plus className="mr-2 h-4 w-4" /> Add Ship
             </Button>
           </DialogTrigger>
@@ -229,10 +221,9 @@ export default function ShipsPage() {
               <DialogTitle>{editingShip ? 'Edit Ship' : 'Add a New Ship'}</DialogTitle>
               <DialogDescription>Fill in the details for your fleet.</DialogDescription>
             </DialogHeader>
-            {tenantId && (
+            {firestore && (
               <ShipForm
                 firestore={firestore}
-                tenantId={tenantId}
                 ship={editingShip}
                 onFinished={() => setIsFormOpen(false)}
               />
@@ -244,7 +235,7 @@ export default function ShipsPage() {
       <Card>
         <CardHeader>
           <CardTitle>All Ships</CardTitle>
-          <CardDescription>A list of all ships in your fleet.</CardDescription>
+          <CardDescription>A list of all ships in the operational fleet.</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
@@ -280,7 +271,7 @@ export default function ShipsPage() {
                   <TableCell colSpan={5} className="h-24 text-center">
                      <div className="flex flex-col items-center gap-2">
                         <ShipIcon className="h-8 w-8 text-muted-foreground" />
-                        <p className="text-muted-foreground">No ships found in your fleet.</p>
+                        <p className="text-muted-foreground">No ships found in the fleet.</p>
                     </div>
                   </TableCell>
                 </TableRow>

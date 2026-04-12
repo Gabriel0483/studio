@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { collection, doc, deleteDoc, query, where, Firestore } from 'firebase/firestore';
+import { collection, doc, deleteDoc, Firestore } from 'firebase/firestore';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import {
   addDocumentNonBlocking,
@@ -54,7 +54,6 @@ import {
 } from '@/components/ui/table';
 import { Pencil, Plus, Trash2, Ticket } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useTenant } from '@/components/dashboard/tenant-context';
 
 interface Route {
   id: string;
@@ -67,7 +66,6 @@ interface Route {
 
 interface Fare {
   id: string;
-  tenantId: string;
   routeId: string;
   routeName: string;
   price: number;
@@ -76,13 +74,11 @@ interface Fare {
 
 const FareForm = ({
   firestore,
-  tenantId,
   fare,
   routes,
   onFinished,
 }: {
   firestore: Firestore;
-  tenantId: string;
   fare?: Fare;
   routes: Route[];
   onFinished: () => void;
@@ -138,8 +134,7 @@ const FareForm = ({
         routeId, 
         routeName: selectedRoute.name, 
         price: priceNum, 
-        passengerType,
-        tenantId
+        passengerType
     };
 
     if (fare) {
@@ -212,17 +207,16 @@ const FareForm = ({
 
 export default function FaresPage() {
   const firestore = useFirestore();
-  const { tenantId } = useTenant();
 
   const faresQuery = useMemoFirebase(() => {
-    if (!firestore || !tenantId) return null;
-    return query(collection(firestore, 'fares'), where('tenantId', '==', tenantId));
-  }, [firestore, tenantId]);
+    if (!firestore) return null;
+    return collection(firestore, 'fares');
+  }, [firestore]);
 
   const routesQuery = useMemoFirebase(() => {
-    if (!firestore || !tenantId) return null;
-    return query(collection(firestore, 'routes'), where('tenantId', '==', tenantId));
-  }, [firestore, tenantId]);
+    if (!firestore) return null;
+    return collection(firestore, 'routes');
+  }, [firestore]);
 
   const { data: fares, isLoading: isLoadingFares } = useCollection<Omit<Fare, 'id'>>(faresQuery);
   const { data: routes, isLoading: isLoadingRoutes } = useCollection<Omit<Route, 'id'>>(routesQuery);
@@ -269,7 +263,7 @@ export default function FaresPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Fare Management</h1>
           <p className="text-muted-foreground">
-            Manage pricing for your operator's routes.
+            Manage pricing for the fleet's routes.
           </p>
         </div>
         <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
@@ -286,10 +280,9 @@ export default function FaresPage() {
                 Fill in the details below. Click save when you're done.
               </DialogDescription>
             </DialogHeader>
-            {tenantId && (
+            {firestore && (
               <FareForm
                 firestore={firestore}
-                tenantId={tenantId}
                 fare={editingFare}
                 routes={routes || []}
                 onFinished={() => setIsFormOpen(false)}
@@ -307,7 +300,7 @@ export default function FaresPage() {
                     </div>
                     <div>
                         <CardTitle className="text-base text-yellow-800">No Routes Found</CardTitle>
-                        <p className="text-sm text-yellow-700">Please add your operator's routes before creating fares.</p>
+                        <p className="text-sm text-yellow-700">Please add routes before creating fares.</p>
                     </div>
                 </div>
             </CardContent>
@@ -315,8 +308,8 @@ export default function FaresPage() {
       )}
       <Card>
         <CardHeader>
-          <CardTitle>Your Fares</CardTitle>
-          <CardDescription>A breakdown of your operator's passenger pricing.</CardDescription>
+          <CardTitle>System Fares</CardTitle>
+          <CardDescription>A breakdown of organization-wide passenger pricing.</CardDescription>
             <div className="pt-4">
                 <Label htmlFor="filter-route">Filter by Route</Label>
                 <Select value={filterRouteId} onValueChange={setFilterRouteId}>
