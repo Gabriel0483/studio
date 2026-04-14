@@ -1,59 +1,44 @@
 
-# Isla Konek: Maritime Command & Booking SaaS
+# Isla Konek: Maritime Command & Booking System
 
-Isla Konek is a professional, multi-tenant Software-as-a-Service (SaaS) platform designed to digitalize shipping and ferry operations. It provides a comprehensive ecosystem for operators to manage their fleets and for passengers to book and track their sea journeys.
+Isla Konek is a dedicated, single-tenant maritime management platform designed to digitalize shipping and ferry operations. It provides a comprehensive ecosystem for operators to manage their fleets and for passengers to book and track their sea journeys.
 
-## Detailed Product Feature Outline
+## 🚀 Getting to Production
 
-### 1. Traveler Experience (Public Portal)
-Isla Konek provides a seamless, mobile-first interface for passengers to manage their maritime travel.
-- **Secure Online Booking**: Self-service seat reservation with real-time availability checks.
-- **Flexible Passenger Entry**: Users can book for themselves, their saved family members, or manual guests in a single transaction.
-- **Personal Travel Profiles**: Manage personal details and maintain a list of frequent travelers (family members) for rapid booking.
-- **Live Trip Status**: A public dashboard showing today's departures, arrivals, and estimated arrival times (ETAs) directly from port dispatchers.
-- **Digital Itineraries**: Instant access to booking references and trip details via the "My Bookings" portal.
-- **Public Advisories**: Real-time service announcements (weather updates, route changes, disruptions) categorized by urgency.
+While you are building in **Firebase Studio**, your production deployment relies on **GitHub**. Follow these steps to take your app live:
 
-### 2. Ferry Operator (Tenant) Command Center
-A siloed, enterprise-grade dashboard for shipping companies to run their daily operations.
-- **Fleet Management**: Complete tracking of vessels, including passenger capacity, vessel types, and maintenance status.
-- **Transit Network Control**: Manage a private network of Ports and Routes with distance tracking and port-to-port definitions.
-- **Smart Scheduling Engine**:
-    - **Daily Templates**: Define recurring daily trips that auto-generate instances.
-    - **Special Voyages**: Create one-off trips for holidays or peak seasons.
-    - **Ship Assignment**: Dynamically assign or swap ships for specific trip instances.
-- **Dynamic Fare Management**: Set route-specific pricing for different passenger demographics (Adult, Child, Senior, Student, etc.).
-- **Real-time Manifest & Boarding**:
-    - **Digital Check-in**: High-speed boarding workflow for ground staff.
-    - **Status Tracking**: Mark passengers as "Boarded" or "No-show" in real-time.
-    - **Printable Manifests**: Compliant, formatted PDF/Print-ready manifests for coast guard and port authority requirements.
-- **Desk Booking Agent Portal**: A streamlined interface designed for high-volume, port-side ticket sales with integrated passenger search.
-- **Rebooking & Refunds**: Integrated workflow for handling passenger changes, applying rebooking fees, and processing partial or full refunds.
-- **Portal Customization**: Self-service branding tools to set company logos, custom hero headlines, and background imagery for the public portal.
-- **Sales & Accounting Reports**: 
-    - **Revenue Breakdown**: Gross vs. Net vs. Earned revenue analysis.
-    - **Analytics**: Visualization of route popularity and revenue trends over time.
-    - **Data Export**: CSV exports for internal accounting reconciliation.
+1.  **Create a GitHub Repository**: Create a new repository on your GitHub account.
+2.  **Push your Code**: Push the files from this environment to your new GitHub repository.
+3.  **Connect to Firebase App Hosting**:
+    *   Go to the [Firebase Console](https://console.firebase.google.com/).
+    *   Select your project.
+    *   Navigate to **App Hosting** in the sidebar.
+    *   Click "Get Started" and connect your GitHub repository.
+    *   Firebase will automatically build and deploy your app every time you push to your main branch.
 
-### 3. Platform Administration (SaaS Level)
-Centralized tools for the platform owner to manage the ecosystem.
-- **Tenant Onboarding**: Self-service and manual onboarding of new shipping companies.
-- **Global Visibility**: A "Global View" toggle for the Platform Admin to see aggregated data across all active operators.
-- **Secure Data Isolation**: Strict path-based multi-tenancy and Firestore security rules ensuring no cross-tenant data leakage.
-- **Role-Based Access Control (RBAC)**: Fine-grained permissions for various staff roles:
-    - **Super Admin**: Full control over company settings and users.
-    - **Operations Manager**: Manage fleet, routes, and schedules.
-    - **Desk Booking Agent**: Restricted to booking and passenger search.
-    - **Crew**: Access to manifests and boarding workflows.
-- **Data Retention Tools**: Automated tools to purge old records for data privacy and storage optimization.
+## Key Features
+
+### 1. Traveler Experience
+- **Secure Online Booking**: Multi-step reservation process with real-time availability.
+- **Passenger Profiles**: Save personal and family details for faster "one-click" bookings.
+- **Live Trip Status**: Real-time dashboard for today's departures and arrivals.
+- **Public Advisories**: Urgent service updates and weather alerts.
+
+### 2. Command Center (Admin Dashboard)
+- **Fleet & Route Management**: Control ships, ports, and transit networks.
+- **Smart Scheduling**: Manage recurring daily templates and special voyage instances.
+- **Real-time Manifest**: Digital boarding workflow for ground staff with printable manifests.
+- **Desk Booking Agent Portal**: Streamlined interface for high-volume port-side sales.
+- **RBAC & LBAC**: Role-Based and Location-Based Access Control to ensure staff only see what they need to.
+- **Reports**: Financial reconciliation and sales analysis.
 
 ## Technical Stack
 - **Framework**: Next.js 15 (App Router)
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS + ShadCN UI
-- **Database**: Firebase Firestore (Real-time NoSQL)
+- **Database**: Firebase Firestore (Real-time)
 - **Auth**: Firebase Authentication
-- **Multi-tenancy**: Path-based dynamic routing with Tenant Context Providers
+- **Hosting**: Firebase App Hosting
 
 ## License
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License.
