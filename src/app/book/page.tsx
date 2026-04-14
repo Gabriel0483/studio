@@ -1,10 +1,9 @@
-
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useFieldArray, useForm } from "react-hook-form"
 import * as z from "zod"
-import { PlusCircle, Trash2, ArrowLeft, RefreshCw, UserPlus, Loader2, Users, MapPin } from "lucide-react"
+import { PlusCircle, Trash2, ArrowLeft, RefreshCw, UserPlus, Loader2, Users, MapPin, CheckCircle2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -37,6 +36,7 @@ import { TripItinerary } from "@/components/trip-itinerary";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { nanoid } from "nanoid"
 import { useRouter } from "next/navigation"
+import { Badge } from "@/components/ui/badge"
 
 const passengerSchema = z.object({
   id: z.string(),
@@ -135,16 +135,16 @@ export default function BookingPage() {
 
   useEffect(() => {
     const today = new Date();
-    const fiveDaysFromNow = addDays(today, 4);
+    const sixtyDaysFromNow = addDays(today, 60);
     
     const minDate = format(today, "yyyy-MM-dd");
-    const maxDate = format(fiveDaysFromNow, "yyyy-MM-dd");
+    const maxDate = format(sixtyDaysFromNow, "yyyy-MM-dd");
     
     setDateRange({ min: minDate, max: maxDate });
     if (!form.getValues('travelDate')) {
         form.setValue('travelDate', minDate);
     }
-  }, []);
+  }, [form]);
 
   useEffect(() => {
     if (user && passengerData) {
@@ -259,6 +259,7 @@ export default function BookingPage() {
     const summary = calculateBookingSummary(data);
     setBookingSummary(summary);
     setStep('summary');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   async function handleFinalReserve(data: BookingFormData) {
@@ -377,7 +378,7 @@ export default function BookingPage() {
   
       toast({
         title: "Booking Successful!",
-        description: `Your booking is now ${bookingStatus}. Check your itinerary for details.`,
+        description: `Your booking is now ${bookingStatus}.`,
       });
   
       const currentScheduleDoc = await getDoc(doc(firestore, 'schedules', finalScheduleId));
@@ -397,6 +398,7 @@ export default function BookingPage() {
       });
   
       setStep('confirmation');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
   
     } catch (e: any) {
       console.error(e);
@@ -414,6 +416,7 @@ export default function BookingPage() {
     form.reset();
     setStep('form');
     setConfirmedBooking(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const isLoading = isLoadingSchedules || isLoadingRoutes || isLoadingFares || isLoadingPorts || !isAuthReady || isUserLoading;
@@ -424,11 +427,11 @@ export default function BookingPage() {
     return (
         <div className="flex min-h-screen flex-col">
           <PublicHeader />
-          <main className="flex-1">
+          <main className="flex-1 bg-secondary/30">
             <div className="container mx-auto px-4 py-24 md:px-6 md:py-32">
-                <div className="flex h-64 w-full items-center justify-center">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    <p className="ml-3 text-muted-foreground">Loading your session...</p>
+                <div className="flex h-64 w-full flex-col items-center justify-center">
+                    <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                    <p className="mt-4 text-muted-foreground animate-pulse">Preparing your booking dashboard...</p>
                 </div>
             </div>
           </main>
@@ -437,273 +440,313 @@ export default function BookingPage() {
     );
   }
 
-  if (!user) {
-    return (
-        <div className="flex min-h-screen flex-col">
-            <PublicHeader />
-            <main className="flex-1">
-                <div className="container mx-auto px-4 py-24 md:px-6 md:py-32">
-                    <div className="flex h-64 w-full items-center justify-center">
-                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                        <p className="ml-3 text-muted-foreground">Redirecting to login...</p>
-                    </div>
-                </div>
-            </main>
-          <PublicFooter />
-        </div>
-    );
-  }
-
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen flex-col bg-secondary/20">
       <PublicHeader />
       <main className="flex-1">
-        <div className="container mx-auto px-4 py-24 md:px-6 md:py-32">
-          <Card className="mx-auto max-w-3xl">
-            <CardHeader>
-              <CardTitle className="text-3xl font-bold tracking-tight">
-                {step === 'form' && 'Book Your Seat Online'}
-                {step === 'summary' && 'Your Trip Itinerary'}
-                {step === 'confirmation' && 'Booking Confirmed!'}
+        <div className="container mx-auto px-4 py-12 md:py-24">
+          
+          {/* Progress Steps */}
+          <div className="max-w-3xl mx-auto mb-12">
+            <div className="flex items-center justify-between relative">
+                <div className="absolute top-1/2 left-0 w-full h-0.5 bg-border -z-10 -translate-y-1/2" />
+                <div className="flex flex-col items-center gap-2">
+                    <div className={cn("h-10 w-10 rounded-full flex items-center justify-center font-bold text-sm transition-colors", step === 'form' ? "bg-primary text-primary-foreground shadow-lg" : "bg-primary/20 text-primary")}>
+                        {step === 'summary' || step === 'confirmation' ? <CheckCircle2 className="h-6 w-6" /> : "1"}
+                    </div>
+                    <span className="text-xs font-bold uppercase tracking-wider">Details</span>
+                </div>
+                <div className="flex flex-col items-center gap-2">
+                    <div className={cn("h-10 w-10 rounded-full flex items-center justify-center font-bold text-sm transition-colors", step === 'summary' ? "bg-primary text-primary-foreground shadow-lg" : (step === 'confirmation' ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"))}>
+                        {step === 'confirmation' ? <CheckCircle2 className="h-6 w-6" /> : "2"}
+                    </div>
+                    <span className="text-xs font-bold uppercase tracking-wider">Summary</span>
+                </div>
+                <div className="flex flex-col items-center gap-2">
+                    <div className={cn("h-10 w-10 rounded-full flex items-center justify-center font-bold text-sm transition-colors", step === 'confirmation' ? "bg-primary text-primary-foreground shadow-lg" : "bg-muted text-muted-foreground")}>
+                        3
+                    </div>
+                    <span className="text-xs font-bold uppercase tracking-wider">Confirmed</span>
+                </div>
+            </div>
+          </div>
+
+          <Card className="mx-auto max-w-3xl shadow-xl overflow-hidden border-none ring-1 ring-border">
+            <CardHeader className="bg-primary/5 text-center pb-8 border-b">
+              <CardTitle className="text-3xl font-bold tracking-tight text-foreground">
+                {step === 'form' && 'Plan Your Voyage'}
+                {step === 'summary' && 'Review Your Trip'}
+                {step === 'confirmation' && 'Smooth Sailing!'}
               </CardTitle>
-              <CardDescription>
-                {step === 'form' && "Select your departure port and destination to view available trips."}
-                {step === 'summary' && "Please review your trip itinerary before confirming your booking."}
-                {step === 'confirmation' && "Your booking is complete. You can view your itinerary below."}
+              <CardDescription className="text-base">
+                {step === 'form' && "Select your ports and add passengers to get started."}
+                {step === 'summary' && "Verify your itinerary and passenger details before booking."}
+                {step === 'confirmation' && "Your seats are secured. We've sent a copy to your email."}
               </CardDescription>
             </CardHeader>
             
             {step === 'form' && (
-              <CardContent>
+              <CardContent className="pt-8">
                 <Form {...form}>
-                  <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-8">
-                    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                        <FormField
-                            control={form.control}
-                            name="departurePort"
-                            render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Departure Port</FormLabel>
-                                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl>
-                                    <SelectTrigger disabled={isLoadingPorts}>
-                                      <SelectValue placeholder={isLoadingPorts ? "Loading ports..." : "Select from"} />
-                                    </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                    {ports?.map(port => (
-                                        <SelectItem key={port.id} value={port.name}>
-                                            {port.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                                </Select>
-                                <FormMessage />
-                            </FormItem>
-                            )}
-                        />
-                        <FormField
-                            control={form.control}
-                            name="routeId"
-                            render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Destination</FormLabel>
-                                <Select onValueChange={field.onChange} value={field.value} disabled={!watchDeparturePort}>
-                                <FormControl>
-                                    <SelectTrigger>
-                                      <SelectValue placeholder={!watchDeparturePort ? "Select port first" : "Select destination"} />
-                                    </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                    {availableDestinations.map(route => (
-                                        <SelectItem key={route.id} value={route.id}>
-                                            {route.destination}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                                </Select>
-                                <FormMessage />
-                            </FormItem>
-                            )}
-                        />
-                    </div>
-                    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                        <FormField
-                            control={form.control}
-                            name="travelDate"
-                            render={({ field }) => (
-                                <FormItem>
-                                <FormLabel>Date of Travel</FormLabel>
-                                <FormControl>
-                                  <Input type="date" {...field} min={dateRange.min} max={dateRange.max} disabled={!watchRouteId || !dateRange.min} />
-                                </FormControl>
-                                <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                        <FormField
-                            control={form.control}
-                            name="scheduleId"
-                            render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Available Trips</FormLabel>
-                                <Select onValueChange={field.onChange} value={field.value} disabled={!watchRouteId || !watchTravelDate}>
-                                <FormControl>
-                                    <SelectTrigger>
-                                    <SelectValue placeholder="Select a time" />
-                                    </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                    {filteredSchedules.map(schedule => (
-                                        <SelectItem key={schedule.id} value={schedule.id}>
-                                            {schedule.departureTime} - {schedule.arrivalTime} ({schedule.availableSeats > 0 ? `${schedule.availableSeats} seats left` : 'Waitlist available'})
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                                </Select>
-                                {(!filteredSchedules || filteredSchedules.length === 0) && watchRouteId && watchTravelDate && (
-                                    <p className="text-sm text-muted-foreground pt-1">No available trips for the selected route and date.</p>
-                                )}
-                                <FormMessage />
-                            </FormItem>
-                            )}
-                        />
-                    </div>
+                  <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-10">
+                    
                     <div className="space-y-6">
-                      <h3 className="font-medium text-lg border-b pb-2">Passenger Details</h3>
-                      {fields.length === 0 ? (
-                        <div className="text-center text-muted-foreground p-4 border border-dashed rounded-lg">
-                            Please add at least one passenger to the booking.
+                        <div className="flex items-center gap-2 text-primary font-bold uppercase tracking-widest text-xs">
+                            <MapPin className="h-4 w-4" />
+                            Route Selection
                         </div>
-                        ) : (fields.map((field, index) => (
-                        <div key={field.id} className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end p-4 border rounded-lg relative">
-                          <div className="sm:col-span-12">
-                            <p className="font-semibold text-md">Passenger {index + 1}</p>
-                          </div>
-                          <FormField
-                            control={form.control}
-                            name={`passengers.${index}.fullName`}
-                            render={({ field }) => (
-                              <FormItem className="sm:col-span-6">
-                                <FormLabel>Full Name</FormLabel>
-                                <FormControl>
-                                  <Input placeholder="John Doe" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={form.control}
-                            name={`passengers.${index}.birthDate`}
-                            render={({ field }) => (
-                              <FormItem className="sm:col-span-3">
-                                <FormLabel>Birth Date</FormLabel>
-                                <FormControl>
-                                  <Input type="date" {...field} placeholder="YYYY-MM-DD" />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={form.control}
-                            name={`passengers.${index}.fareType`}
-                            render={({ field }) => (
-                              <FormItem className="sm:col-span-2">
-                                <FormLabel>Fare Type</FormLabel>
-                                <Select onValueChange={field.onChange} value={field.value} disabled={!watchScheduleId}>
+                        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                            <FormField
+                                control={form.control}
+                                name="departurePort"
+                                render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>From</FormLabel>
+                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
                                     <FormControl>
-                                        <SelectTrigger>
-                                            <SelectValue placeholder={isLoadingFares ? "Loading..." : "Select fare"} />
+                                        <SelectTrigger className="h-12 border-2 hover:border-primary transition-all">
+                                        <SelectValue placeholder={isLoadingPorts ? "Loading ports..." : "Choose Port"} />
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        {availableFares.map(fare => (
-                                            <SelectItem key={fare.id} value={fare.passengerType}>
-                                                {fare.passengerType} (₱{fare.price.toFixed(2)})
+                                        {ports?.map(port => (
+                                            <SelectItem key={port.id} value={port.name}>
+                                                {port.name}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
-                                </Select>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <div className="sm:col-span-1">
+                                    </Select>
+                                    <FormMessage />
+                                </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="routeId"
+                                render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>To</FormLabel>
+                                    <Select onValueChange={field.onChange} value={field.value} disabled={!watchDeparturePort}>
+                                    <FormControl>
+                                        <SelectTrigger className="h-12 border-2 hover:border-primary transition-all">
+                                        <SelectValue placeholder={!watchDeparturePort ? "Choose Port first" : "Choose Destination"} />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        {availableDestinations.map(route => (
+                                            <SelectItem key={route.id} value={route.id}>
+                                                {route.destination}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                </FormItem>
+                                )}
+                            />
+                        </div>
+                        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                            <FormField
+                                control={form.control}
+                                name="travelDate"
+                                render={({ field }) => (
+                                    <FormItem>
+                                    <FormLabel>Date of Travel</FormLabel>
+                                    <FormControl>
+                                    <Input type="date" {...field} min={dateRange.min} max={dateRange.max} disabled={!watchRouteId || !dateRange.min} className="h-12 border-2 hover:border-primary" />
+                                    </FormControl>
+                                    <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="scheduleId"
+                                render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Departure Time</FormLabel>
+                                    <Select onValueChange={field.onChange} value={field.value} disabled={!watchRouteId || !watchTravelDate}>
+                                    <FormControl>
+                                        <SelectTrigger className="h-12 border-2 hover:border-primary transition-all">
+                                        <SelectValue placeholder="Select a time" />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        {filteredSchedules.map(schedule => (
+                                            <SelectItem key={schedule.id} value={schedule.id}>
+                                                {schedule.departureTime} - {schedule.arrivalTime} ({schedule.availableSeats > 0 ? `${schedule.availableSeats} seats left` : 'Waitlist available'})
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                    </Select>
+                                    {(!filteredSchedules || filteredSchedules.length === 0) && watchRouteId && watchTravelDate && (
+                                        <p className="text-xs text-muted-foreground pt-1">No trips available for this date.</p>
+                                    )}
+                                    <FormMessage />
+                                </FormItem>
+                                )}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="space-y-6">
+                      <div className="flex items-center justify-between border-b pb-4">
+                        <div className="flex items-center gap-2 text-primary font-bold uppercase tracking-widest text-xs">
+                            <Users className="h-4 w-4" />
+                            Passenger Manifest
+                        </div>
+                        <div className="flex gap-2">
                             <Button
                                 type="button"
-                                variant="destructive"
-                                size="icon"
-                                onClick={() => remove(index)}
-                                className="w-full"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                    const userName = (passengerData?.firstName && passengerData?.lastName) ? `${passengerData.firstName} ${passengerData.lastName}`.trim() : user?.displayName || '';
+                                    const userBirthDate = passengerData?.birthDate || '';
+                                    append({ id: nanoid(), fullName: userName, birthDate: userBirthDate, fareType: "" });
+                                }}
+                                disabled={!watchScheduleId}
+                                className="h-8"
                             >
-                                <Trash2 className="h-4 w-4" />
+                                <UserPlus className="mr-2 h-3.5 w-3.5" /> Me
                             </Button>
-                          </div>
-                        </div>
-                      )))}
-                      <div className="flex gap-2 flex-wrap">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => append({ id: nanoid(), fullName: "", birthDate: "", fareType: "" })}
-                          disabled={!watchScheduleId}
-                        >
-                          <PlusCircle className="mr-2 h-4 w-4" /> Add Passenger
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => {
-                            const userName = (passengerData?.firstName && passengerData?.lastName) ? `${passengerData.firstName} ${passengerData.lastName}`.trim() : user?.displayName || '';
-                            const userBirthDate = passengerData?.birthDate || '';
-                            append({ id: nanoid(), fullName: userName, birthDate: userBirthDate, fareType: "" });
-                          }}
-                          disabled={!watchScheduleId}
-                        >
-                          <UserPlus className="mr-2 h-4 w-4" /> Add Myself
-                        </Button>
-                        {familyMembers.length > 0 && (
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                    <Button type="button" variant="secondary" size="sm" disabled={!watchScheduleId}>
-                                        <Users className="mr-2 h-4 w-4" /> Add Family Member
-                                    </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-80">
-                                    <div className="grid gap-4">
-                                        <div className="space-y-2">
-                                            <h4 className="font-medium leading-none">Select Family Member</h4>
-                                            <p className="text-sm text-muted-foreground">Click to add a family member to this booking.</p>
-                                        </div>
+                            {familyMembers.length > 0 && (
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button type="button" variant="outline" size="sm" disabled={!watchScheduleId} className="h-8">
+                                            <Users className="mr-2 h-3.5 w-3.5" /> +Family
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-64" align="end">
                                         <div className="grid gap-2">
-                                        {familyMembers.map((member: any) => (
-                                            <div key={member.id} className="grid grid-cols-3 items-center gap-4">
-                                                <span className="col-span-2 truncate">{member.fullName}</span>
-                                                <Button size="sm" onClick={() => append({ id: member.id, fullName: member.fullName, birthDate: member.birthDate, fareType: '' })}>
-                                                    Add
+                                            <h4 className="font-bold text-xs uppercase text-muted-foreground border-b pb-2 mb-1">Saved Travelers</h4>
+                                            {familyMembers.map((member: any) => (
+                                                <Button 
+                                                    key={member.id} 
+                                                    variant="ghost" 
+                                                    size="sm" 
+                                                    className="justify-start font-medium h-9" 
+                                                    onClick={() => append({ id: member.id, fullName: member.fullName, birthDate: member.birthDate, fareType: '' })}
+                                                >
+                                                    {member.fullName}
                                                 </Button>
-                                            </div>
-                                        ))}
+                                            ))}
                                         </div>
-                                    </div>
-                                </PopoverContent>
-                            </Popover>
-                        )}
+                                    </PopoverContent>
+                                </Popover>
+                            )}
+                        </div>
                       </div>
+
+                      {fields.length === 0 ? (
+                        <div className="text-center py-12 px-4 border-2 border-dashed rounded-xl bg-muted/30">
+                            <Users className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
+                            <p className="text-sm text-muted-foreground font-medium mb-4">Please add at least one passenger to continue.</p>
+                            <Button
+                                type="button"
+                                variant="default"
+                                size="sm"
+                                onClick={() => append({ id: nanoid(), fullName: "", birthDate: "", fareType: "" })}
+                                disabled={!watchScheduleId}
+                            >
+                                <PlusCircle className="mr-2 h-4 w-4" /> Add First Passenger
+                            </Button>
+                        </div>
+                        ) : (
+                        <div className="grid gap-4">
+                            {fields.map((field, index) => (
+                                <div key={field.id} className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end p-5 bg-card border-2 rounded-xl shadow-sm relative group hover:border-primary/50 transition-colors">
+                                    <div className="sm:col-span-6 space-y-2">
+                                        <FormField
+                                            control={form.control}
+                                            name={`passengers.${index}.fullName`}
+                                            render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-xs font-bold uppercase text-muted-foreground">Passenger {index + 1} Name</FormLabel>
+                                                <FormControl>
+                                                <Input placeholder="Legal Full Name" {...field} className="h-10 border-muted" />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                            )}
+                                        />
+                                    </div>
+                                    <div className="sm:col-span-3 space-y-2">
+                                        <FormField
+                                            control={form.control}
+                                            name={`passengers.${index}.birthDate`}
+                                            render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-xs font-bold uppercase text-muted-foreground">Birth Date</FormLabel>
+                                                <FormControl>
+                                                <Input type="date" {...field} className="h-10 border-muted" />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                            )}
+                                        />
+                                    </div>
+                                    <div className="sm:col-span-2 space-y-2">
+                                        <FormField
+                                            control={form.control}
+                                            name={`passengers.${index}.fareType`}
+                                            render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-xs font-bold uppercase text-muted-foreground">Type</FormLabel>
+                                                <Select onValueChange={field.onChange} value={field.value}>
+                                                    <FormControl>
+                                                        <SelectTrigger className="h-10 border-muted">
+                                                            <SelectValue placeholder="Fare" />
+                                                        </SelectTrigger>
+                                                    </FormControl>
+                                                    <SelectContent>
+                                                        {availableFares.map(fare => (
+                                                            <SelectItem key={fare.id} value={fare.passengerType}>
+                                                                {fare.passengerType} (₱{fare.price.toFixed(0)})
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                                <FormMessage />
+                                            </FormItem>
+                                            )}
+                                        />
+                                    </div>
+                                    <div className="sm:col-span-1">
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => remove(index)}
+                                            className="h-10 w-full text-muted-foreground hover:text-destructive hover:bg-destructive/5 transition-all"
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                </div>
+                            ))}
+                            <Button
+                                type="button"
+                                variant="outline"
+                                className="w-full h-12 border-dashed border-2 text-muted-foreground hover:text-primary hover:border-primary hover:bg-primary/5 transition-all"
+                                onClick={() => append({ id: nanoid(), fullName: "", birthDate: "", fareType: "" })}
+                                disabled={!watchScheduleId}
+                            >
+                                <PlusCircle className="mr-2 h-4 w-4" /> Add Another Traveler
+                            </Button>
+                        </div>
+                      )}
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 bg-muted/30 p-6 rounded-xl border">
                         <FormField
                             control={form.control}
                             name="primaryPhone"
                             render={({ field }) => (
                                 <FormItem>
-                                <FormLabel>Contact Number</FormLabel>
+                                <FormLabel>Emergency Contact Number</FormLabel>
                                 <FormControl>
-                                    <Input placeholder="e.g., 09171234567" {...field} />
+                                    <Input placeholder="e.g., 09171234567" {...field} className="h-11 bg-white" />
                                 </FormControl>
                                 <FormMessage />
                                 </FormItem>
@@ -714,17 +757,18 @@ export default function BookingPage() {
                             name="primaryEmail"
                             render={({ field }) => (
                                 <FormItem>
-                                <FormLabel>Contact Email Address</FormLabel>
+                                <FormLabel>Email for Itinerary</FormLabel>
                                 <FormControl>
-                                    <Input placeholder="you@example.com" {...field} />
+                                    <Input placeholder="you@example.com" {...field} className="h-11 bg-white" />
                                 </FormControl>
                                 <FormMessage />
                                 </FormItem>
                             )}
                         />
                     </div>
-                    <Button type="submit" size="lg" className="w-full" disabled={!form.formState.isValid || totalSeats === 0}>
-                      Submit Booking
+
+                    <Button type="submit" size="lg" className="w-full h-14 text-lg font-bold shadow-lg" disabled={!form.formState.isValid || totalSeats === 0}>
+                      Proceed to Review
                     </Button>
                   </form>
                 </Form>
@@ -733,49 +777,58 @@ export default function BookingPage() {
             
             {step === 'summary' && (
               <>
-                <CardContent className="space-y-6">
-                  <div className="space-y-4">
-                    <h3 className="font-semibold text-lg">Trip Details</h3>
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <p className="text-muted-foreground">Route</p>
-                        <p className="font-medium">{getRouteName(watchRouteId)}</p>
-                      </div>
-                       <div>
-                        <p className="text-muted-foreground">Date &amp; Time</p>
-                        <p className="font-medium">
-                          {format(new Date(watchTravelDate), 'PPP')} at {currentSchedule?.departureTime}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  <Separator />
-                  <div className="space-y-4">
-                    <h3 className="font-semibold text-lg">Passenger &amp; Fare Breakdown</h3>
-                     {bookingSummary.details.map((item, index) => (
-                        <div key={index} className="flex justify-between items-center text-sm pb-2">
-                            <div>
-                                <p className="font-medium">{item.name}</p>
-                                <p className="text-muted-foreground">{item.fareType}</p>
-                            </div>
-                            <span className="font-medium">₱{item.price.toFixed(2)}</span>
+                <CardContent className="pt-8 space-y-8">
+                  <div className="bg-muted/30 p-6 rounded-2xl border-2 space-y-6">
+                    <div className="flex justify-between items-start">
+                        <div className="space-y-1">
+                            <h3 className="font-bold text-xl">{getRouteName(watchRouteId)}</h3>
+                            <p className="text-sm text-muted-foreground flex items-center gap-1">
+                                <MapPin className="h-3 w-3" /> {watchDeparturePort}
+                            </p>
                         </div>
-                    ))}
-                  </div>
-                  <Separator />
-                  <div className="flex justify-between items-center text-xl font-bold">
-                      <span>Total Price</span>
-                      <span>₱{bookingSummary.totalPrice.toFixed(2)}</span>
-                  </div>
-                   <div className="text-sm text-muted-foreground">
-                      Contact: {form.getValues('primaryEmail')} | {form.getValues('primaryPhone')}
+                        <div className="text-right space-y-1">
+                            <Badge className="font-mono text-sm">{format(new Date(watchTravelDate), 'PPP')}</Badge>
+                            <p className="font-bold text-lg">{currentSchedule?.departureTime}</p>
+                        </div>
                     </div>
+                    
+                    <Separator />
+
+                    <div className="space-y-4">
+                        <h4 className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Traveler Breakdown</h4>
+                        {bookingSummary.details.map((item, index) => (
+                            <div key={index} className="flex justify-between items-center text-sm">
+                                <div>
+                                    <p className="font-bold">{item.name}</p>
+                                    <p className="text-muted-foreground text-xs uppercase tracking-tight">{item.fareType}</p>
+                                </div>
+                                <span className="font-bold font-mono">₱{item.price.toFixed(2)}</span>
+                            </div>
+                        ))}
+                    </div>
+
+                    <Separator />
+
+                    <div className="flex justify-between items-center">
+                        <div className="space-y-0.5">
+                            <span className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Grand Total</span>
+                            <p className="text-xs text-muted-foreground">Incl. terminal fees & taxes</p>
+                        </div>
+                        <span className="text-4xl font-black tracking-tighter text-primary">₱{bookingSummary.totalPrice.toFixed(2)}</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 px-2">
+                    <p className="text-sm text-muted-foreground leading-relaxed italic">
+                        By clicking "Reserve Now", you agree to Isla Konek's terms of service. Your seats will be held for 30 minutes pending payment at the terminal or via digital channels.
+                    </p>
+                  </div>
                 </CardContent>
-                <CardFooter className="flex-col sm:flex-row gap-2">
-                    <Button variant="outline" size="lg" className="w-full sm:w-auto" onClick={() => setStep('form')}>
+                <CardFooter className="flex flex-col sm:flex-row gap-3 pt-4">
+                    <Button variant="ghost" size="lg" className="w-full sm:w-auto h-12" onClick={() => setStep('form')}>
                         <ArrowLeft className="mr-2 h-4 w-4" /> Edit Details
                     </Button>
-                    <Button onClick={() => handleFinalReserve(form.getValues())} size="lg" className="w-full sm:w-auto flex-1" disabled={isReserving}>
+                    <Button onClick={() => handleFinalReserve(form.getValues())} size="lg" className="w-full h-12 flex-1 shadow-lg" disabled={isReserving}>
                         {isReserving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         Reserve Now
                     </Button>
@@ -784,18 +837,19 @@ export default function BookingPage() {
             )}
 
             {step === 'confirmation' && confirmedBooking && (
-              <>
-                <CardContent>
-                  <div className="p-4 sm:p-6">
+              <CardContent className="pt-8">
+                <div className="border rounded-2xl p-2 bg-muted/10 shadow-inner">
                     <TripItinerary booking={confirmedBooking} />
-                  </div>
-                </CardContent>
-                <CardFooter className="flex-col sm:flex-row gap-2">
-                  <Button variant="outline" size="lg" className="w-full sm:w-auto" onClick={handleNewBooking}>
-                    <RefreshCw className="mr-2 h-4 w-4" /> Make Another Booking
-                  </Button>
-                </CardFooter>
-              </>
+                </div>
+                <div className="mt-8 flex flex-col sm:flex-row gap-4">
+                    <Button variant="outline" size="lg" className="flex-1 h-12" onClick={handleNewBooking}>
+                        <RefreshCw className="mr-2 h-4 w-4" /> New Booking
+                    </Button>
+                    <Button variant="default" size="lg" className="flex-1 h-12" onClick={() => router.push('/my-bookings')}>
+                        View All Bookings
+                    </Button>
+                </div>
+              </CardContent>
             )}
           </Card>
         </div>
