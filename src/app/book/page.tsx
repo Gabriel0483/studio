@@ -4,7 +4,7 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useFieldArray, useForm } from "react-hook-form"
 import * as z from "zod"
-import { PlusCircle, Trash2, ArrowLeft, RefreshCw, UserPlus, Loader2, Users } from "lucide-react"
+import { PlusCircle, Trash2, ArrowLeft, RefreshCw, UserPlus, Loader2, Users, MapPin } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -46,7 +46,8 @@ const passengerSchema = z.object({
 });
 
 const bookingFormSchema = z.object({
-  routeId: z.string({ required_error: "Please select a route." }),
+  departurePort: z.string({ required_error: "Please select a departure port." }),
+  routeId: z.string({ required_error: "Please select your destination." }),
   travelDate: z.string().refine((val) => val && !isNaN(Date.parse(val)), { message: "A date of travel is required."}),
   scheduleId: z.string({ required_error: "Please select a schedule." }),
   passengers: z.array(passengerSchema).min(1, "At least one passenger is required."),
@@ -110,16 +111,19 @@ export default function BookingPage() {
   const schedulesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'schedules') : null, [firestore]);
   const routesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'routes') : null, [firestore]);
   const faresQuery = useMemoFirebase(() => firestore ? collection(firestore, 'fares') : null, [firestore]);
+  const portsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'ports') : null, [firestore]);
   
   const { data: allSchedules, isLoading: isLoadingSchedules } = useCollection(schedulesQuery);
   const { data: routes, isLoading: isLoadingRoutes } = useCollection(routesQuery);
   const { data: allFares, isLoading: isLoadingFares } = useCollection(faresQuery);
+  const { data: ports, isLoading: isLoadingPorts } = useCollection(portsQuery);
 
   const [availableFares, setAvailableFares] = useState<any[]>([]);
   
   const form = useForm<BookingFormData>({
     resolver: zodResolver(bookingFormSchema),
     defaultValues: {
+      departurePort: "",
       routeId: "",
       travelDate: "",
       scheduleId: "",
@@ -130,7 +134,6 @@ export default function BookingPage() {
   });
 
   useEffect(() => {
-    // This effect runs only on the client, after the component has mounted.
     const today = new Date();
     const fiveDaysFromNow = addDays(today, 4);
     
@@ -157,10 +160,16 @@ export default function BookingPage() {
     name: "passengers",
   });
   
+  const watchDeparturePort = form.watch('departurePort');
   const watchRouteId = form.watch('routeId');
   const watchTravelDate = form.watch('travelDate');
   const watchScheduleId = form.watch('scheduleId');
   const watchPassengers = form.watch('passengers');
+
+  const availableDestinations = useMemo(() => {
+    if (!routes || !watchDeparturePort) return [];
+    return routes.filter(r => r.departure === watchDeparturePort);
+  }, [routes, watchDeparturePort]);
 
   const filteredSchedules = useMemo(() => {
     if (!watchRouteId || !watchTravelDate || !allSchedules) return [];
@@ -176,17 +185,14 @@ export default function BookingPage() {
     const now = new Date();
     const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
 
-    // Get special trips for the selected date
     const specialTrips = allSchedules.filter(s => 
       s.tripType === 'Special' && 
       s.date === formattedTravelDate &&
       (!isToday || s.departureTime > currentTime)
     );
 
-    // Get daily trips
     const dailyTrips = allSchedules.filter(s => s.tripType === 'Daily' && s.routeId === watchRouteId && (!isToday || s.departureTime > currentTime));
 
-    // For daily trips, find if a special instance for today already exists
     const dailyTripInstances = dailyTrips.map(dailyTrip => {
       const existingInstance = specialTrips.find(st => st.sourceScheduleId === dailyTrip.id);
       return existingInstance || { ...dailyTrip, isVirtual: true };
@@ -196,6 +202,12 @@ export default function BookingPage() {
       .sort((a, b) => a.departureTime.localeCompare(b.departureTime));
 
   }, [watchRouteId, watchTravelDate, allSchedules]);
+
+  useEffect(() => {
+    form.setValue('routeId', '');
+    form.resetField('scheduleId');
+    setAvailableFares([]);
+  }, [watchDeparturePort, form]);
 
   useEffect(() => {
     form.resetField('scheduleId');
@@ -271,34 +283,29 @@ export default function BookingPage() {
         if (!selectedScheduleTemplate) throw new Error("Selected schedule template is invalid.");
 
         if (selectedScheduleTemplate.tripType === 'Daily') {
-          // It's a daily trip, we need to find or create a special instance for today
           const spawnedScheduleQuery = query(
             collection(firestore, 'schedules'),
             where('sourceScheduleId', '==', scheduleId),
             where('date', '==', formattedTravelDate)
           );
-          const spawnedSchedules = await getDocs(spawnedScheduleQuery); // Use getDocs, not transaction.get on a query
+          const spawnedSchedules = await getDocs(spawnedScheduleQuery);
 
           if (!spawnedSchedules.empty) {
-            // An instance for today already exists, use it
             const spawnedDoc = spawnedSchedules.docs[0];
             scheduleToBookRef = spawnedDoc.ref;
             scheduleDataForUpdate = spawnedDoc.data();
           } else {
-            // No instance for today, create one
             scheduleToBookRef = doc(collection(firestore, 'schedules'));
             scheduleDataForUpdate = {
               ...selectedScheduleTemplate,
               tripType: 'Special',
               date: formattedTravelDate,
               sourceScheduleId: scheduleId,
-              id: scheduleToBookRef.id // ensure new instance has its own ID
+              id: scheduleToBookRef.id
             };
-            // Set the new doc in the transaction
             transaction.set(scheduleToBookRef, scheduleDataForUpdate);
           }
         } else {
-          // It's already a special trip
           scheduleToBookRef = doc(firestore, 'schedules', scheduleId);
           const scheduleDoc = await transaction.get(scheduleToBookRef);
           if (!scheduleDoc.exists()) throw new Error("Selected schedule does not exist!");
@@ -409,7 +416,7 @@ export default function BookingPage() {
     setConfirmedBooking(null);
   };
 
-  const isLoading = isLoadingSchedules || isLoadingRoutes || isLoadingFares || !isAuthReady || isUserLoading;
+  const isLoading = isLoadingSchedules || isLoadingRoutes || isLoadingFares || isLoadingPorts || !isAuthReady || isUserLoading;
   const currentSchedule = filteredSchedules.find(s => s.id === watchScheduleId);
   const familyMembers = passengerData?.familyMembers || [];
 
@@ -460,7 +467,7 @@ export default function BookingPage() {
                 {step === 'confirmation' && 'Booking Confirmed!'}
               </CardTitle>
               <CardDescription>
-                {step === 'form' && "Fill in the details below to complete your reservation."}
+                {step === 'form' && "Select your departure port and destination to view available trips."}
                 {step === 'summary' && "Please review your trip itinerary before confirming your booking."}
                 {step === 'confirmation' && "Your booking is complete. You can view your itinerary below."}
               </CardDescription>
@@ -473,20 +480,20 @@ export default function BookingPage() {
                     <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                         <FormField
                             control={form.control}
-                            name="routeId"
+                            name="departurePort"
                             render={({ field }) => (
                             <FormItem>
-                                <FormLabel>Route</FormLabel>
+                                <FormLabel>Departure Port</FormLabel>
                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                                 <FormControl>
-                                    <SelectTrigger disabled={isLoadingRoutes}>
-                                      <SelectValue placeholder={isLoadingRoutes ? "Loading routes..." : "Select a route"} />
+                                    <SelectTrigger disabled={isLoadingPorts}>
+                                      <SelectValue placeholder={isLoadingPorts ? "Loading ports..." : "Select from"} />
                                     </SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
-                                    {routes?.map(route => (
-                                        <SelectItem key={route.id} value={route.id}>
-                                            {route.name}
+                                    {ports?.map(port => (
+                                        <SelectItem key={port.id} value={port.name}>
+                                            {port.name}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
@@ -495,6 +502,32 @@ export default function BookingPage() {
                             </FormItem>
                             )}
                         />
+                        <FormField
+                            control={form.control}
+                            name="routeId"
+                            render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Destination</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value} disabled={!watchDeparturePort}>
+                                <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder={!watchDeparturePort ? "Select port first" : "Select destination"} />
+                                    </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    {availableDestinations.map(route => (
+                                        <SelectItem key={route.id} value={route.id}>
+                                            {route.destination}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                                </Select>
+                                <FormMessage />
+                            </FormItem>
+                            )}
+                        />
+                    </div>
+                    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                         <FormField
                             control={form.control}
                             name="travelDate"
@@ -508,34 +541,34 @@ export default function BookingPage() {
                                 </FormItem>
                             )}
                         />
-                    </div>
-                    <FormField
-                        control={form.control}
-                        name="scheduleId"
-                        render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Available Trips</FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value} disabled={!watchRouteId || !watchTravelDate}>
-                            <FormControl>
-                                <SelectTrigger>
-                                <SelectValue placeholder="Select a time" />
-                                </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                                {filteredSchedules.map(schedule => (
-                                    <SelectItem key={schedule.id} value={schedule.id}>
-                                        {schedule.departureTime} - {schedule.arrivalTime} ({schedule.availableSeats > 0 ? `${schedule.availableSeats} seats left` : 'Waitlist available'})
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                            </Select>
-                            {(!filteredSchedules || filteredSchedules.length === 0) && watchRouteId && watchTravelDate && (
-                                <p className="text-sm text-muted-foreground pt-1">No available trips for the selected route and date.</p>
+                        <FormField
+                            control={form.control}
+                            name="scheduleId"
+                            render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Available Trips</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value} disabled={!watchRouteId || !watchTravelDate}>
+                                <FormControl>
+                                    <SelectTrigger>
+                                    <SelectValue placeholder="Select a time" />
+                                    </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    {filteredSchedules.map(schedule => (
+                                        <SelectItem key={schedule.id} value={schedule.id}>
+                                            {schedule.departureTime} - {schedule.arrivalTime} ({schedule.availableSeats > 0 ? `${schedule.availableSeats} seats left` : 'Waitlist available'})
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                                </Select>
+                                {(!filteredSchedules || filteredSchedules.length === 0) && watchRouteId && watchTravelDate && (
+                                    <p className="text-sm text-muted-foreground pt-1">No available trips for the selected route and date.</p>
+                                )}
+                                <FormMessage />
+                            </FormItem>
                             )}
-                            <FormMessage />
-                        </FormItem>
-                        )}
-                    />
+                        />
+                    </div>
                     <div className="space-y-6">
                       <h3 className="font-medium text-lg border-b pb-2">Passenger Details</h3>
                       {fields.length === 0 ? (
@@ -771,5 +804,3 @@ export default function BookingPage() {
     </div>
   )
 }
-
-    

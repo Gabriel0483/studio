@@ -16,7 +16,12 @@ service cloud.firestore {
       );
     }
 
-    // Check if the user is a registered staff member or a platform admin
+    // System-wide administrative access - Priority 1
+    match /{document=**} {
+      allow read, write: if isPlatformAdmin();
+    }
+
+    // Check if the user is a registered staff member
     function isAdmin() {
       return isPlatformAdmin() || (isSignedIn() && exists(/databases/$(database)/documents/staff/$(request.auth.uid)));
     }
@@ -36,11 +41,6 @@ service cloud.firestore {
 
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
-    }
-
-    // System-wide administrative access
-    match /{document=**} {
-      allow read, write: if isPlatformAdmin();
     }
 
     // System configuration is readable by all, but only editable by super admins
@@ -94,17 +94,15 @@ service cloud.firestore {
     }
 
     match /bookings/{id} {
-      // Passenger can read their own. Staff can read based on location.
       allow get: if isOwner(resource.data.passengerId) || isAdmin();
       
-      // LBAC: Desk Booking Agents only see bookings for their port
+      // LBAC: Desk Booking Agents and Station Managers only see bookings for their port
       allow list: if isSuperAdmin() || 
                    (hasRole('Desk Booking Agent') && resource.data.departurePortName == getStaffData().assignedPortName) ||
                    (hasRole('Station Manager') && resource.data.departurePortName == getStaffData().assignedPortName);
       
       allow create: if true;
       
-      // LBAC: Only agents at the correct port can update (e.g., mark as paid)
       allow update: if isSuperAdmin() || 
                      (hasRole('Desk Booking Agent') && resource.data.departurePortName == getStaffData().assignedPortName);
                      
@@ -118,8 +116,6 @@ service cloud.firestore {
     
     match /boarding/{id} {
       allow read: if isAdmin();
-      // Only staff at the correct port (via schedule reference) should really write here, 
-      // but for simplicity in MVP we allow all registered staff.
       allow write: if isAdmin();
     }
   }
