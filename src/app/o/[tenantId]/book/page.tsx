@@ -1,4 +1,3 @@
-
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -37,7 +36,6 @@ import { TripItinerary } from "@/components/trip-itinerary";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { nanoid } from "nanoid"
 import { useRouter, useParams } from "next/navigation"
-import { useTenant } from "@/components/dashboard/tenant-context"
 
 const passengerSchema = z.object({
   id: z.string(),
@@ -89,7 +87,6 @@ const generateBookingReference = () => {
 
 export default function BookingPage() {
   const firestore = useFirestore();
-  const { tenantId } = useTenant();
   const { user, isUserLoading } = useUser();
   const { isAuthReady } = useAuthContext();
   const router = useRouter();
@@ -102,27 +99,27 @@ export default function BookingPage() {
 
   useEffect(() => {
     if (isAuthReady && !isUserLoading && !user) {
-        router.replace(`/login?redirect=/o/${tenantId}/book`);
+        router.replace(`/login?redirect=/book`);
     }
-  }, [isAuthReady, isUserLoading, user, router, tenantId]);
+  }, [isAuthReady, isUserLoading, user, router]);
 
   const passengerDocRef = useMemoFirebase(() => firestore && user ? doc(firestore, 'passengers', user.uid) : null, [firestore, user]);
   const { data: passengerData } = useDoc(passengerDocRef);
 
   const schedulesQuery = useMemoFirebase(() => {
-    if (!firestore || !tenantId) return null;
-    return query(collection(firestore, 'schedules'), where('tenantId', '==', tenantId));
-  }, [firestore, tenantId]);
+    if (!firestore) return null;
+    return collection(firestore, 'schedules');
+  }, [firestore]);
 
   const routesQuery = useMemoFirebase(() => {
-    if (!firestore || !tenantId) return null;
-    return query(collection(firestore, 'routes'), where('tenantId', '==', tenantId));
-  }, [firestore, tenantId]);
+    if (!firestore) return null;
+    return collection(firestore, 'routes');
+  }, [firestore]);
 
   const faresQuery = useMemoFirebase(() => {
-    if (!firestore || !tenantId) return null;
-    return query(collection(firestore, 'fares'), where('tenantId', '==', tenantId));
-  }, [firestore, tenantId]);
+    if (!firestore) return null;
+    return collection(firestore, 'fares');
+  }, [firestore]);
   
   const { data: allSchedules, isLoading: isLoadingSchedules } = useCollection(schedulesQuery);
   const { data: routes, isLoading: isLoadingRoutes } = useCollection(routesQuery);
@@ -257,7 +254,7 @@ export default function BookingPage() {
   };
 
   async function handleFinalReserve(data: BookingFormData) {
-    if (!firestore || !user || !allSchedules || !tenantId) {
+    if (!firestore || !user || !allSchedules) {
       toast({ variant: 'destructive', title: 'Error', description: 'Could not connect. Please try again.' });
       return;
     }
@@ -296,8 +293,7 @@ export default function BookingPage() {
               tripType: 'Special',
               date: formattedTravelDate,
               sourceScheduleId: scheduleId,
-              id: scheduleToBookRef.id,
-              tenantId
+              id: scheduleToBookRef.id
             };
             transaction.set(scheduleToBookRef, scheduleDataForUpdate);
           }
@@ -325,7 +321,6 @@ export default function BookingPage() {
   
         const newBookingData = {
           id: newBookingId,
-          tenantId,
           passengerId: user.uid,
           passengerInfo: data.passengers.map(p => ({
             id: p.id,

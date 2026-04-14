@@ -1,29 +1,25 @@
-
 'use client';
 
 import React from 'react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, where, Timestamp } from 'firebase/firestore';
+import { collection, query, orderBy, Timestamp } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Loader2, Megaphone, AlertTriangle, Info, Ship } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { PublicHeader } from '@/components/public-header';
 import { PublicFooter } from '@/components/public-footer';
-import { useTenant } from '@/components/dashboard/tenant-context';
 
 export default function AdvisoriesPage() {
   const firestore = useFirestore();
-  const { tenantId, tenantName } = useTenant();
 
   const announcementsQuery = useMemoFirebase(() => {
-    if (!firestore || !tenantId) return null;
+    if (!firestore) return null;
     return query(
       collection(firestore, 'announcements'), 
-      where('tenantId', '==', tenantId),
       orderBy('createdAt', 'desc')
     );
-  }, [firestore, tenantId]);
+  }, [firestore]);
 
   const { data: announcements, isLoading } = useCollection(announcementsQuery);
 
@@ -45,7 +41,7 @@ export default function AdvisoriesPage() {
             <div className="mb-12 text-center">
               <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Public Advisories</h1>
               <p className="mt-4 text-lg text-muted-foreground">
-                Official announcements and service updates from {tenantName}.
+                Official announcements and service updates from the fleet.
               </p>
             </div>
 
@@ -65,7 +61,7 @@ export default function AdvisoriesPage() {
                         </div>
                         <Badge variant="outline">{ann.category}</Badge>
                       </div>
-                      <CardDescription>{format(ann.createdAt.toDate(), 'PPP p')}</CardDescription>
+                      <CardDescription>{ann.createdAt ? format(ann.createdAt.toDate(), 'PPP p') : 'N/A'}</CardDescription>
                     </CardHeader>
                     <CardContent>
                       <p className="whitespace-pre-wrap text-muted-foreground">{ann.content}</p>

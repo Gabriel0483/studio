@@ -34,7 +34,6 @@ import { TripItinerary } from "@/components/trip-itinerary";
 import { nanoid } from "nanoid"
 import { useRouter } from "next/navigation"
 import { Switch } from "@/components/ui/switch"
-import { useTenant } from '@/components/dashboard/tenant-context';
 
 const passengerSchema = z.object({
   id: z.string(),
@@ -88,7 +87,6 @@ const generateBookingReference = () => {
 
 export default function DeskBookingPage() {
   const firestore = useFirestore();
-  const { tenantId } = useTenant();
   const router = useRouter();
   
   const [step, setStep] = useState<'form' | 'summary' | 'confirmation'>('form');
@@ -102,19 +100,19 @@ export default function DeskBookingPage() {
   const [isSearching, setIsSearching] = useState(false);
 
   const schedulesQuery = useMemoFirebase(() => {
-    if (!firestore || !tenantId) return null;
-    return query(collection(firestore, 'schedules'), where('tenantId', '==', tenantId));
-  }, [firestore, tenantId]);
+    if (!firestore) return null;
+    return collection(firestore, 'schedules');
+  }, [firestore]);
 
   const routesQuery = useMemoFirebase(() => {
-    if (!firestore || !tenantId) return null;
-    return query(collection(firestore, 'routes'), where('tenantId', '==', tenantId));
-  }, [firestore, tenantId]);
+    if (!firestore) return null;
+    return collection(firestore, 'routes');
+  }, [firestore]);
 
   const faresQuery = useMemoFirebase(() => {
-    if (!firestore || !tenantId) return null;
-    return query(collection(firestore, 'fares'), where('tenantId', '==', tenantId));
-  }, [firestore, tenantId]);
+    if (!firestore) return null;
+    return collection(firestore, 'fares');
+  }, [firestore]);
   
   const { data: allSchedules, isLoading: isLoadingSchedules } = useCollection(schedulesQuery);
   const { data: routes, isLoading: isLoadingRoutes } = useCollection(routesQuery);
@@ -249,7 +247,7 @@ export default function DeskBookingPage() {
   };
 
   async function handleFinalReserve(data: BookingFormData) {
-    if (!firestore || !allSchedules || !tenantId) {
+    if (!firestore || !allSchedules) {
       toast({ variant: 'destructive', title: 'Error', description: 'Could not connect. Please try again.' });
       return;
     }
@@ -288,8 +286,7 @@ export default function DeskBookingPage() {
               tripType: 'Special',
               date: formattedTravelDate,
               sourceScheduleId: scheduleId,
-              id: scheduleToBookRef.id,
-              tenantId
+              id: scheduleToBookRef.id
             };
             transaction.set(scheduleToBookRef, scheduleDataForUpdate);
           }
@@ -321,7 +318,6 @@ export default function DeskBookingPage() {
 
         const newBookingData = {
           id: newBookingId,
-          tenantId,
           passengerId: passengerId,
           passengerInfo: data.passengers.map(p => ({
             id: p.id,

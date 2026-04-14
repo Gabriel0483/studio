@@ -1,9 +1,7 @@
-
 'use client';
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { useTenant } from '@/components/dashboard/tenant-context';
 import { PublicHeader } from '@/components/public-header';
 import { PublicFooter } from '@/components/public-footer';
 import { Button } from '@/components/ui/button';
@@ -11,47 +9,44 @@ import { Ship, Ticket, Clock, Megaphone } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default function OperatorHomePage() {
-  const { tenantName, tenantId, heroTitle, heroDescription, heroImageUrl } = useTenant();
-
   const features = [
     {
       title: 'Online Booking',
       description: 'Reserve your seats in advance and pay conveniently.',
       icon: Ticket,
-      href: `/o/${tenantId}/book`,
+      href: `/book`,
       action: 'Book Now',
     },
     {
       title: 'Live Trip Status',
       description: 'Check real-time updates on departures and arrivals.',
       icon: Clock,
-      href: `/o/${tenantId}/status`,
+      href: `/status`,
       action: 'Check Status',
     },
     {
       title: 'Public Advisories',
       description: 'Stay informed about service disruptions or schedule changes.',
       icon: Megaphone,
-      href: `/o/${tenantId}/advisories`,
+      href: `/advisories`,
       action: 'View Advisories',
     },
   ];
 
-  // Default values if operator hasn't customized
-  const displayTitle = heroTitle || `Welcome to ${tenantName}`;
-  const displayDescription = heroDescription || 'Providing safe, reliable, and comfortable sea travel. Book your next journey with us today.';
-  const displayHeroImage = heroImageUrl || 'https://images.unsplash.com/photo-1688680292475-220aaf8685d0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw5fHxmZXJyeSUyMHNlYXxlbnwwfHx8fDE3NjY3Njk1NTd8MA&ixlib=rb-4.1.0&q=80&w=1080';
+  const displayTitle = 'Welcome to Isla Konek';
+  const displayDescription = 'Providing safe, reliable, and comfortable sea travel. Book your next journey with us today.';
+  const displayHeroImage = 'https://images.unsplash.com/photo-1688680292475-220aaf8685d0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw5fHxmZXJyeSUyMHNlYXxlbnwwfHx8fDE3NjY3Njk1NTd8MA&ixlib=rb-4.1.0&q=80&w=1080';
 
   return (
     <div className="flex min-h-screen flex-col">
       <PublicHeader />
       <main className="flex-1">
-        {/* Hero Section with Custom Branding */}
+        {/* Hero Section */}
         <section className="relative py-24 text-primary-foreground md:py-32 overflow-hidden">
           <div className="absolute inset-0 -z-10">
             <Image
               src={displayHeroImage}
-              alt={tenantName || 'Ferry'}
+              alt="Ferry"
               fill
               className="object-cover"
               data-ai-hint="ferry ship"
@@ -71,10 +66,10 @@ export default function OperatorHomePage() {
               </p>
               <div className="flex flex-col gap-4 sm:flex-row pt-4">
                 <Button asChild size="lg" className="bg-white text-primary hover:bg-white/90">
-                  <Link href={`/o/${tenantId}/book`}>Book a Trip</Link>
+                  <Link href={`/book`}>Book a Trip</Link>
                 </Button>
                 <Button asChild size="lg" variant="outline" className="bg-transparent border-white text-white hover:bg-white/10">
-                  <Link href={`/o/${tenantId}/status`}>Live Schedule</Link>
+                  <Link href={`/status`}>Live Schedule</Link>
                 </Button>
               </div>
             </div>

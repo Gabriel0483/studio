@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useMemo, useState, useEffect } from 'react';
@@ -13,11 +12,9 @@ import { PublicHeader } from '@/components/public-header';
 import { PublicFooter } from '@/components/public-footer';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { useTenant } from '@/components/dashboard/tenant-context';
 
 export default function StatusPage() {
   const firestore = useFirestore();
-  const { tenantId, tenantName } = useTenant();
   const [todayStr, setTodayStr] = useState<string | null>(null);
   const [filterRouteId, setFilterRouteId] = useState('all');
 
@@ -26,14 +23,14 @@ export default function StatusPage() {
   }, []);
 
   const schedulesQuery = useMemoFirebase(() => {
-    if (!firestore || !tenantId) return null;
-    return query(collection(firestore, 'schedules'), where('tenantId', '==', tenantId));
-  }, [firestore, tenantId]);
+    if (!firestore) return null;
+    return collection(firestore, 'schedules');
+  }, [firestore]);
   
   const routesQuery = useMemoFirebase(() => {
-    if (!firestore || !tenantId) return null;
-    return query(collection(firestore, 'routes'), where('tenantId', '==', tenantId));
-  }, [firestore, tenantId]);
+    if (!firestore) return null;
+    return collection(firestore, 'routes');
+  }, [firestore]);
 
   const { data: allSchedules, isLoading: isLoadingSchedules } = useCollection(schedulesQuery);
   const { data: routes, isLoading: isLoadingRoutes } = useCollection(routesQuery);
@@ -90,7 +87,7 @@ export default function StatusPage() {
                     <CardHeader className="text-center">
                     <CardTitle className="text-3xl font-bold tracking-tight">Live Trip Status</CardTitle>
                     <CardDescription>
-                        Real-time updates for {tenantName} trips scheduled for today.
+                        Real-time updates for trips scheduled for today.
                     </CardDescription>
                     </CardHeader>
                     <CardContent>
