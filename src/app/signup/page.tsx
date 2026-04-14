@@ -21,7 +21,7 @@ import { toast } from "@/hooks/use-toast"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { handleSignUp } from "@/firebase/auth"
 import { useAuth } from "@/firebase";
-import { Loader2 } from "lucide-react"
+import { Loader2, UserPlus } from "lucide-react"
 import Link from "next/link";
 import { PublicHeader } from "@/components/public-header";
 import { PublicFooter } from "@/components/public-footer";
@@ -29,6 +29,10 @@ import { PublicFooter } from "@/components/public-footer";
 const signupFormSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address." }),
   password: z.string().min(8, { message: "Password must be at least 8 characters." }),
+  confirmPassword: z.string()
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords do not match",
+  path: ["confirmPassword"],
 });
 
 type SignupFormData = z.infer<typeof signupFormSchema>;
@@ -43,6 +47,7 @@ export default function SignupPage() {
     defaultValues: {
       email: "",
       password: "",
+      confirmPassword: "",
     },
   });
 
@@ -52,7 +57,7 @@ export default function SignupPage() {
       await handleSignUp(auth, data.email, data.password);
       toast({
         title: "Account Created",
-        description: "You have successfully signed up!",
+        description: "Welcome to Isla Konek! You can now start booking your trips.",
       });
       router.push('/my-bookings');
     } catch (error: any) {
@@ -79,17 +84,20 @@ export default function SignupPage() {
   return (
     <div className="flex min-h-screen flex-col">
         <PublicHeader />
-        <main className="flex-1 flex items-center justify-center bg-secondary p-4">
-            <Card className="mx-auto w-full max-w-sm">
+        <main className="flex-1 flex items-center justify-center bg-secondary/50 p-4">
+            <Card className="mx-auto w-full max-w-sm shadow-lg">
                 <CardHeader className="text-center">
+                <div className="mx-auto bg-primary/10 p-3 rounded-full w-fit mb-2">
+                    <UserPlus className="h-6 w-6 text-primary" />
+                </div>
                 <CardTitle className="text-2xl font-bold tracking-tight">Create an Account</CardTitle>
                 <CardDescription>
-                    Enter your email and password to get started.
+                    Join Isla Konek to manage your bookings and profile.
                 </CardDescription>
                 </CardHeader>
                 <CardContent>
                 <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                     <FormField
                         control={form.control}
                         name="email"
@@ -116,15 +124,28 @@ export default function SignupPage() {
                         </FormItem>
                         )}
                     />
-                    <Button type="submit" size="lg" className="w-full" disabled={isLoading}>
+                    <FormField
+                        control={form.control}
+                        name="confirmPassword"
+                        render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Confirm Password</FormLabel>
+                            <FormControl>
+                            <Input type="password" placeholder="••••••••" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                        )}
+                    />
+                    <Button type="submit" size="lg" className="w-full font-semibold" disabled={isLoading}>
                         {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         Create Account
                     </Button>
                     </form>
                 </Form>
-                 <p className="mt-4 text-center text-sm text-muted-foreground">
-                    Already have an account? <Link href="/login" className="underline hover:text-primary">Log in</Link>.
-                </p>
+                 <div className="mt-6 text-center text-sm text-muted-foreground border-t pt-4">
+                    Already have an account? <Link href="/login" className="font-semibold text-primary hover:underline">Log in</Link>
+                </div>
                 </CardContent>
             </Card>
         </main>

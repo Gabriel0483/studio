@@ -21,7 +21,7 @@ import { toast } from "@/hooks/use-toast"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useAuth, useUser, useAuthContext } from "@/firebase"
 import { signInWithEmailAndPassword } from "firebase/auth"
-import { Loader2 } from "lucide-react"
+import { Loader2, LogIn } from "lucide-react"
 import Link from "next/link";
 import { PublicHeader } from "@/components/public-header";
 import { PublicFooter } from "@/components/public-footer";
@@ -63,7 +63,7 @@ function PublicLoginContent() {
       await signInWithEmailAndPassword(auth, data.email, data.password);
       toast({
         title: "Login Successful",
-        description: "Welcome back!",
+        description: "Welcome back to Isla Konek.",
       });
       router.push(redirectUrl);
     } catch (error: any) {
@@ -89,9 +89,9 @@ function PublicLoginContent() {
 
   if (!isAuthReady || isUserLoading || user) {
     return (
-        <div className="flex h-screen w-full items-center justify-center bg-background">
+        <div className="flex h-screen w-full flex-col items-center justify-center bg-background">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="ml-3 text-muted-foreground">Loading...</p>
+            <p className="mt-2 text-sm text-muted-foreground font-medium">Loading session...</p>
         </div>
     );
   }
@@ -99,12 +99,15 @@ function PublicLoginContent() {
   return (
     <div className="flex min-h-screen flex-col">
         <PublicHeader />
-        <main className="flex-1 flex items-center justify-center bg-secondary p-4">
-            <Card className="mx-auto w-full max-w-sm">
+        <main className="flex-1 flex items-center justify-center bg-secondary/50 p-4">
+            <Card className="mx-auto w-full max-w-sm shadow-lg">
                 <CardHeader className="text-center">
-                <CardTitle className="text-2xl font-bold tracking-tight">Welcome Back</CardTitle>
+                <div className="mx-auto bg-primary/10 p-3 rounded-full w-fit mb-2">
+                    <LogIn className="h-6 w-6 text-primary" />
+                </div>
+                <CardTitle className="text-2xl font-bold tracking-tight">Passenger Login</CardTitle>
                 <CardDescription>
-                    Sign in to your account to view your bookings.
+                    Sign in to manage your travels and profile.
                 </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -132,7 +135,7 @@ function PublicLoginContent() {
                                 <FormLabel>Password</FormLabel>
                                 <Link
                                     href="/forgot-password"
-                                    className="text-sm text-primary hover:underline"
+                                    className="text-xs text-primary hover:underline"
                                 >
                                     Forgot password?
                                 </Link>
@@ -144,15 +147,15 @@ function PublicLoginContent() {
                         </FormItem>
                         )}
                     />
-                    <Button type="submit" size="lg" className="w-full" disabled={isLoading}>
+                    <Button type="submit" size="lg" className="w-full font-semibold" disabled={isLoading}>
                         {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         Sign In
                     </Button>
                     </form>
                 </Form>
-                 <p className="mt-4 text-center text-sm text-muted-foreground">
-                    Don't have an account? <Link href="/signup" className="underline hover:text-primary">Sign up</Link>.
-                </p>
+                 <div className="mt-6 text-center text-sm text-muted-foreground border-t pt-4">
+                    Don't have an account? <Link href="/signup" className="font-semibold text-primary hover:underline">Sign up</Link>
+                </div>
                 </CardContent>
             </Card>
         </main>
