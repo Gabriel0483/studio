@@ -37,6 +37,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { nanoid } from "nanoid"
 import { useRouter } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
+import { cn } from "@/lib/utils"
 
 const passengerSchema = z.object({
   id: z.string(),
