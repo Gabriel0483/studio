@@ -594,7 +594,7 @@ export default function BookingPage() {
                       <div className="flex items-center justify-between border-b pb-4">
                         <div className="flex items-center gap-2 text-primary font-bold uppercase tracking-widest text-xs">
                             <Users className="h-4 w-4" />
-                            Passenger Manifest
+                            Passenger Details
                         </div>
                         <div className="flex gap-2">
                             <Button
