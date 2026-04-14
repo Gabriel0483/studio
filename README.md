@@ -1,48 +1,27 @@
 
 # Isla Konek: Maritime Command & Booking System
 
-Isla Konek is a dedicated, single-tenant maritime management platform designed to digitalize shipping and ferry operations. It provides a comprehensive ecosystem for operators to manage their fleets and for passengers to book and track their sea journeys.
+Isla Konek is a dedicated maritime management platform designed to digitalize shipping and ferry operations.
 
 ## 🚀 Getting to Production
 
-While you are building in **Firebase Studio**, your production deployment relies on **GitHub**. Follow these steps to take your app live:
+To fix the "No buildpack groups passed detection" error, ensure your repository follows this structure exactly:
 
-1.  **Create a GitHub Repository**: Create a new repository on your GitHub account.
-2.  **Push your Code**: Push the files from this environment to your new GitHub repository.
-3.  **Connect to Firebase App Hosting**:
+1.  **Root Directory**: All files (like `package.json`, `apphosting.yaml`, `next.config.ts`) must be in the **root** of your GitHub repository. **Do not put them in a subfolder.**
+2.  **Lock File**: You **MUST** include a `package-lock.json` file in your repository.
+    *   On your local machine, run `npm install` inside your project folder.
+    *   Commit the generated `package-lock.json` to GitHub.
+3.  **App Hosting Setup**:
     *   Go to the [Firebase Console](https://console.firebase.google.com/).
-    *   Navigate to **App Hosting** in the sidebar and connect your repository.
-4.  **Set Environment Variables**:
-    *   In the Firebase Console, go to your App Hosting backend settings.
-    *   Add any required variables (like `GEMINI_API_KEY`) under the "Environment Variables" tab.
-
-## 🔑 Environment Variables
-
-The app uses a `.env` file for local development. See `.env.example` for the required structure.
-- **Firebase Config**: Found in `src/firebase/config.ts`.
-- **Secrets**: Store sensitive keys like AI API tokens in `.env` (excluded from GitHub).
+    *   Navigate to **App Hosting** and connect your repository.
+4.  **Secrets**: Add `GEMINI_API_KEY` in the App Hosting settings if you use AI features.
 
 ## Key Features
-
-### 1. Traveler Experience
-- **Secure Online Booking**: Port-to-destination search with real-time availability.
-- **Passenger Profiles**: Save details and family members for faster booking.
-- **Live Trip Status**: Real-time dashboard for today's departures and arrivals.
-- **Public Advisories**: Urgent service updates and weather alerts.
-
-### 2. Command Center (Admin Dashboard)
-- **Fleet & Route Management**: Control ships, ports, and transit networks.
-- **Smart Scheduling**: Manage recurring daily templates and special voyage instances.
-- **Real-time Manifest**: Digital boarding workflow for ground staff with printable manifests.
-- **Desk Booking Agent Portal**: Streamlined interface for high-volume port-side sales.
-- **RBAC & LBAC**: Role-Based and Location-Based Access Control.
-- **Reports**: Financial reconciliation and sales analysis.
+- **Traveler Experience**: Online booking, passenger profiles, live trip status.
+- **Command Center**: Fleet/Route management, smart scheduling, real-time manifest.
+- **Security**: RBAC & LBAC implemented via Firestore Security Rules.
 
 ## Technical Stack
-- **Framework**: Next.js 15 (App Router)
-- **Database/Auth**: Firebase (Firestore & Authentication)
-- **AI**: Genkit (Gemini)
-- **Styling**: Tailwind CSS + ShadCN UI
-
-## License
-This project is licensed under the MIT License.
+- **Framework**: Next.js 15 (Standalone Output)
+- **Database/Auth**: Firebase
+- **Runtime**: Node.js 20
