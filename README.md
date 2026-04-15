@@ -3,18 +3,36 @@
 
 Isla Konek is a dedicated maritime management platform designed to digitalize shipping and ferry operations.
 
-## 🚀 Getting to Production
+## 🚀 Getting to Production (Deployment Fixes)
 
-To fix the "No buildpack groups passed detection" error, ensure your repository follows this structure exactly:
+If you see the error **"No buildpack groups passed detection"**, it means the build system cannot find your project configuration. Ensure your GitHub repository follows this exact structure:
 
-1.  **Root Directory**: All files (like `package.json`, `apphosting.yaml`, `next.config.ts`) must be in the **root** of your GitHub repository. **Do not put them in a subfolder.**
-2.  **Lock File**: You **MUST** include a `package-lock.json` file in your repository.
-    *   On your local machine, run `npm install` inside your project folder.
-    *   Commit the generated `package-lock.json` to GitHub.
-3.  **App Hosting Setup**:
-    *   Go to the [Firebase Console](https://console.firebase.google.com/).
-    *   Navigate to **App Hosting** and connect your repository.
-4.  **Secrets**: Add `GEMINI_API_KEY` in the App Hosting settings if you use AI features.
+### 1. Correct Repository Structure
+Your repository should look like this (no subfolders for the main project):
+```text
+/ (Repository Root)
+├── .next/
+├── src/
+├── public/
+├── apphosting.yaml      <-- Must be here
+├── next.config.ts       <-- Must be here
+├── package.json         <-- Must be here
+├── package-lock.json    <-- REQUIRED (Run 'npm install' locally)
+└── tsconfig.json
+```
+
+### 2. Required Step: Generate a Lock File
+Firebase App Hosting **requires** a lock file to install dependencies. 
+1. Open your terminal on your local computer.
+2. Navigate to your project folder.
+3. Run: `npm install`
+4. This creates `package-lock.json`.
+5. **Commit and push** this file to GitHub.
+
+### 3. App Hosting Setup
+*   Go to the [Firebase Console](https://console.firebase.google.com/).
+*   Navigate to **App Hosting** and connect your repository.
+*   If you use AI features, add `GEMINI_API_KEY` in the App Hosting environment settings.
 
 ## Key Features
 - **Traveler Experience**: Online booking, passenger profiles, live trip status.
