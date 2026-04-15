@@ -3,15 +3,23 @@
 
 Isla Konek is a dedicated maritime management platform designed to digitalize shipping and ferry operations.
 
-## 🚀 Getting to Production (Deployment Fixes)
+## 🚀 Deployment Fixes
 
-If you see the error **"No buildpack groups passed detection"**, it means the build system cannot find your project configuration. Ensure your GitHub repository follows this exact structure:
+### 1. Fixing "Invalid root directory" Error
+If you see the error **"Invalid root directory specified. No buildable app found rooted at '/workspace/studio/.idx'"**, follow these steps:
 
-### 1. Correct Repository Structure
-Your repository should look like this (no subfolders for the main project):
+1.  Go to the [Firebase Console](https://console.firebase.google.com/).
+2.  Navigate to **App Hosting**.
+3.  Select your backend/app.
+4.  Go to the **Settings** tab (or **Deployment** tab).
+5.  Find the **Root Directory** setting.
+6.  Change the value from `.idx` to `/` (or leave it blank) so it points to the main project folder containing `package.json`.
+7.  Save the settings and trigger a new rollout.
+
+### 2. Correct Repository Structure
+Ensure your GitHub repository follows this exact structure at the top level:
 ```text
 / (Repository Root)
-├── .next/
 ├── src/
 ├── public/
 ├── apphosting.yaml      <-- Must be here
@@ -21,18 +29,13 @@ Your repository should look like this (no subfolders for the main project):
 └── tsconfig.json
 ```
 
-### 2. Required Step: Generate a Lock File
+### 3. Required Step: Generate a Lock File
 Firebase App Hosting **requires** a lock file to install dependencies. 
 1. Open your terminal on your local computer.
 2. Navigate to your project folder.
 3. Run: `npm install`
 4. This creates `package-lock.json`.
 5. **Commit and push** this file to GitHub.
-
-### 3. App Hosting Setup
-*   Go to the [Firebase Console](https://console.firebase.google.com/).
-*   Navigate to **App Hosting** and connect your repository.
-*   If you use AI features, add `GEMINI_API_KEY` in the App Hosting environment settings.
 
 ## Key Features
 - **Traveler Experience**: Online booking, passenger profiles, live trip status.
