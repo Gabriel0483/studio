@@ -8,7 +8,7 @@ If you see "Invalid root directory" or "No buildpack groups passed detection" in
 1.  **Firebase Console**: Go to [App Hosting](https://console.firebase.google.com/).
 2.  **App Settings**: Click your backend -> **Settings** tab.
 3.  **Root Directory**: Change the value from `.idx` to **`/`** (just a forward slash).
-4.  **Save & Redeploy**: Save changes and click "Release" to start a new build.
+4.  **Save & Redeploy**: Save changes and click "Release" or "Start Rollout" to start a new build.
 
 ## 🚀 Deployment Workflow (Studio -> GitHub -> Live)
 
@@ -18,7 +18,7 @@ To make this app accessible to the public, you **must** use GitHub.
 2.  **Push your Code**: Push all files from this workspace to the **root** of your GitHub repo.
 3.  **Generate Lock File**: Run `npm install` on your local machine to create `package-lock.json` and push it to GitHub.
 4.  **Connect to App Hosting**: 
-    *   Go to the [Firebase Console](https://console.firebase.google.com/).
+    *   Go to the [Firebase Console](http://console.firebase.google.com/).
     *   Select **App Hosting** > **Get Started**.
     *   Connect your GitHub account and select your repository.
 
