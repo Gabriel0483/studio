@@ -10,10 +10,9 @@ Once your build is successful, your application is **publicly accessible** at th
 3.  **Is it secure?**: Yes. The **Command Center (/dashboard)** and all sensitive passenger data are protected by Firebase Authentication and specialized Security Rules. Only users with "Staff" roles can manage the fleet.
 
 ## 🛡️ Security & Secrets
-You may see warnings from GitHub about "Secrets Detected" regarding your `firebaseConfig`. 
 - **Firebase API Keys are Public**: Unlike traditional server-side secrets, Firebase web API keys are designed to be included in client-side code. They identify your project to Google.
 - **Rules are the Guard**: Your data is secured by **Firestore Security Rules** and **Firebase Authentication**, not by keeping the API key secret. 
-- **Private Keys**: NEVER commit Service Account JSON keys or private Admin SDK keys to GitHub. These are NOT used in this project's client code.
+- **Private Keys**: NEVER commit Service Account JSON keys or private Admin SDK keys to GitHub.
 
 ## 🚀 Deployment Troubleshooting (Action Required)
 
@@ -31,6 +30,28 @@ This is the most common reason for build failures.
 The build system requires a `package-lock.json` to install dependencies. 
 - Ensure you have run `npm install` locally.
 - Ensure `package-lock.json` is committed to the root of your GitHub repository.
+
+## 🔑 Transfer of Ownership
+
+To transfer this application to a new owner, follow these steps:
+
+### 1. Firebase Project Ownership
+1.  Log in to the [Firebase Console](https://console.firebase.google.com/).
+2.  Select the **Isla Konek** project.
+3.  Go to **Project Settings** (gear icon) > **Users and Permissions**.
+4.  Click **Add Member**, enter the new owner's email, and select the **Owner** role.
+
+### 2. GitHub Repository Transfer
+1.  Navigate to your repository on GitHub.
+2.  Go to **Settings** > **General**.
+3.  Scroll down to the **Danger Zone** and click **Transfer**.
+4.  Follow the prompts to move the repo to the new owner's account.
+
+### 3. Application Admin Overrides
+The database has high-level overrides for specific email addresses. To update these:
+1.  Open `firestore.rules` in this repository.
+2.  Update the `isPlatformAdmin()` function to include the new owner's email address.
+3.  Push the change to GitHub.
 
 ## Key Features
 - **Traveler Experience**: Self-service booking with "Passenger Details" auto-fill, family management, and live trip status.
