@@ -1,4 +1,3 @@
-
 # Isla Konek: Maritime Command & Booking System
 
 Isla Konek is a dedicated maritime management platform designed to digitalize shipping and ferry operations.
@@ -18,6 +17,7 @@ If the build fails with: *"Invalid root directory specified. No buildable app fo
 This happens if the build system can't identify your project. Ensure:
 *   `package.json`, `apphosting.yaml`, and `next.config.ts` are in the **root** of your GitHub repository.
 *   You have committed a `package-lock.json` file. (Run `npm install` locally to generate it).
+*   Your project uses Node.js 20 (already configured in `package.json`).
 
 ### 3. Production Environment Variables
 If you use AI features, add your `GEMINI_API_KEY` in the Firebase Console under **App Hosting** > **Settings** > **Environment variables**.
