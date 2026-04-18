@@ -2,6 +2,13 @@
 
 Isla Konek is a dedicated maritime management platform designed to digitalize shipping and ferry operations.
 
+## 🔗 Live Application
+Once your build is successful, you can find your public URL in the [Firebase Console](https://console.firebase.google.com/):
+1. Navigate to **App Hosting**.
+2. Select your app.
+3. The **Domain** or **URL** will be listed under the "Dashboard" or "Domains" tab.
+4. **Default Hosting URL**: `https://studio-8432386314-93bd2.web.app` (Note: App Hosting URLs may differ; check the console for the specific Cloud Run or App Hosting endpoint).
+
 ## 🚀 Deployment Troubleshooting
 
 If you encounter errors during deployment, follow these steps:
