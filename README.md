@@ -9,6 +9,12 @@ Once your build is successful, your application is **publicly accessible** at th
 2.  **Who can see it?**: Anyone with the link can view the public portal (Home, Booking, Status).
 3.  **Is it secure?**: Yes. The **Command Center (/dashboard)** and all sensitive passenger data are protected by Firebase Authentication and specialized Security Rules. Only users with "Staff" roles can manage the fleet.
 
+## 🛡️ Security & Secrets
+You may see warnings from GitHub about "Secrets Detected" regarding your `firebaseConfig`. 
+- **Firebase API Keys are Public**: Unlike traditional server-side secrets, Firebase web API keys are designed to be included in client-side code. They identify your project to Google.
+- **Rules are the Guard**: Your data is secured by **Firestore Security Rules** and **Firebase Authentication**, not by keeping the API key secret. 
+- **Private Keys**: NEVER commit Service Account JSON keys or private Admin SDK keys to GitHub. These are NOT used in this project's client code.
+
 ## 🚀 Deployment Troubleshooting (Action Required)
 
 If your build status shows an error, follow these critical steps:
