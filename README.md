@@ -2,39 +2,36 @@
 
 Isla Konek is a dedicated maritime management platform designed to digitalize shipping and ferry operations.
 
-## 🔗 Live Application
-Once your build is successful, you can find your public URL in the [Firebase Console](https://console.firebase.google.com/):
-1. Navigate to **App Hosting**.
-2. Select your app.
-3. The **Domain** or **URL** will be listed under the "Dashboard" or "Domains" tab.
-4. **Default Hosting URL**: `https://studio-8432386314-93bd2.web.app` (Note: App Hosting URLs may differ; check the console for the specific Cloud Run or App Hosting endpoint).
+## 🔗 Live Application & Public Access
+Once your build is successful, your application is **publicly accessible** at the URL provided in the Firebase Console.
 
-## 🚀 Deployment Troubleshooting
+1.  **Where to find the URL**: Go to **App Hosting** > Select your app. The domain will be under the "Dashboard" tab.
+2.  **Who can see it?**: Anyone with the link can view the public portal (Home, Booking, Status).
+3.  **Is it secure?**: Yes. The **Command Center (/dashboard)** and all sensitive passenger data are protected by Firebase Authentication and specialized Security Rules. Only users with "Staff" roles can manage the fleet.
 
-If you encounter errors during deployment, follow these steps:
+## 🚀 Deployment Troubleshooting (Action Required)
+
+If your build status shows an error, follow these critical steps:
 
 ### 1. Fix "Invalid Root Directory" Error
-If the build fails with: *"Invalid root directory specified. No buildable app found rooted at '/workspace/studio/.idx'"*:
-1. Go to the [Firebase Console](https://console.firebase.google.com/).
-2. Navigate to **App Hosting** > [Your App] > **Settings**.
-3. In the **Deployment** section, find the **Root directory** setting.
-4. Ensure it is set to **`/`** (the absolute root of your repository). **Do not point it to the .idx folder.**
+This is the most common reason for build failures.
+1.  Go to the [Firebase Console](https://console.firebase.google.com/).
+2.  Navigate to **App Hosting** > [Your App] > **Settings**.
+3.  In the **Deployment** section, find the **Root directory** setting.
+4.  **Crucial**: Set this to **`/`** (a single forward slash). 
+5.  **Save** and trigger a new rollout. This allows the system to find your `package.json`.
 
-### 2. Fix "No buildpack groups passed detection"
-This happens if the build system can't identify your project. Ensure:
-*   `package.json`, `apphosting.yaml`, and `next.config.ts` are in the **root** of your GitHub repository.
-*   You have committed a `package-lock.json` file. (Run `npm install` locally to generate it).
-*   Your project uses Node.js 20 (already configured in `package.json`).
-
-### 3. Production Environment Variables
-If you use AI features, add your `GEMINI_API_KEY` in the Firebase Console under **App Hosting** > **Settings** > **Environment variables**.
+### 2. Lock File Requirement
+The build system requires a `package-lock.json` to install dependencies. 
+- Ensure you have run `npm install` locally.
+- Ensure `package-lock.json` is committed to the root of your GitHub repository.
 
 ## Key Features
-- **Traveler Experience**: Online booking, passenger profiles, live trip status.
-- **Command Center**: Fleet/Route management, smart scheduling, real-time manifest.
-- **Security**: RBAC & LBAC implemented via Firestore Security Rules.
+- **Traveler Experience**: Self-service booking with "Passenger Details" auto-fill, family management, and live trip status.
+- **Command Center**: Fleet/Route management, smart scheduling, and real-time boarding manifests.
+- **Security**: Granular RBAC (Role-Based Access Control) enforced at the database level.
 
 ## Technical Stack
 - **Framework**: Next.js 15 (Standalone Output)
-- **Database/Auth**: Firebase
+- **Database/Auth**: Firebase (Firestore & Auth)
 - **Runtime**: Node.js 20
