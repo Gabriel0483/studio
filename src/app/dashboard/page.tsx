@@ -36,6 +36,10 @@ export default function DashboardPage() {
     
     const isPlatformAdmin = ['rielmagpantay@gmail.com', 'mariel.dumaoal@gmail.com'].includes(user.email || '');
     const roles = staffData?.roles || [];
+    
+    // Safety check: If not platform admin and no staff document found yet, wait or return null
+    if (!staffData && !isPlatformAdmin) return null;
+
     const isFullAccess = roles.some(r => ['Super Admin', 'Operations Manager', 'Finance/Accounting'].includes(r)) || isPlatformAdmin;
     
     const baseCol = collection(firestore, 'bookings');
@@ -47,7 +51,7 @@ export default function DashboardPage() {
       return query(baseCol, where('departurePortName', '==', staffData.assignedPortName));
     }
 
-    return null;
+    return null; // NO Access for other roles (e.g., Passengers, unassigned Crew)
   }, [firestore, user, staffData, isLoadingStaff]);
 
   const { data: bookings, isLoading: isLoadingBookings } = useCollection(bookingsQuery);

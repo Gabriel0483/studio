@@ -100,18 +100,17 @@ service cloud.firestore {
       // READ permissions
       allow get: if isAdmin() || (isSignedIn() && resource.data.passengerId == request.auth.uid);
       
-      // Rule for passengers to list their own bookings
-      allow list: if isSignedIn() && request.query.limit <= 100 && request.query.offset >= 0; 
-      
-      // Rule for staff to list the manifest
-      allow list: if isAdmin();
+      // Specifically allow list if either admin or matching the owner filter
+      allow list: if isAdmin() || (isSignedIn() && resource.data.passengerId == request.auth.uid);
       
       // WRITE permissions
       allow create: if isSignedIn();
       
       allow update: if isSuperAdmin() || 
+                     (isSignedIn() && resource.data.passengerId == request.auth.uid) ||
                      (hasRole('Desk Booking Agent') && resource.data.departurePortName == getStaffData().assignedPortName) ||
-                     (hasRole('Station Manager') && resource.data.departurePortName == getStaffData().assignedPortName);
+                     (hasRole('Station Manager') && resource.data.departurePortName == getStaffData().assignedPortName) ||
+                     (hasRole('Crew')); // Allow crew to update status to 'Completed'
                      
       allow delete: if isSuperAdmin();
     }

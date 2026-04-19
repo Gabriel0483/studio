@@ -97,7 +97,7 @@ export default function BookingsPage() {
     const isPlatformAdmin = (user.email === 'rielmagpantay@gmail.com' || user.email === 'mariel.dumaoal@gmail.com');
     const roles = staffData?.roles || [];
     
-    // Safety check: If not platform admin and no staff document, do not fire query
+    // Safety check: If not platform admin and no staff document found yet, wait or return null
     if (!staffData && !isPlatformAdmin) return null;
 
     const isDeskAgent = roles.includes('Desk Booking Agent');
@@ -191,7 +191,8 @@ export default function BookingsPage() {
       
       let dateMatch = true;
       if (filterDate && isValid(filterDate)) {
-        dateMatch = booking.travelDate && format(booking.travelDate.toDate(), 'yyyy-MM-dd') === format(filterDate, 'yyyy-MM-dd');
+        const travelDate = booking.travelDate instanceof Timestamp ? booking.travelDate.toDate() : new Date(booking.travelDate);
+        dateMatch = isValid(travelDate) && format(travelDate, 'yyyy-MM-dd') === format(filterDate, 'yyyy-MM-dd');
       }
 
       const routeMatch = filterRoute === 'all' || booking.routeName === selectedRoute?.name;
