@@ -4,23 +4,23 @@
 Isla Konek is a dedicated maritime management platform designed to digitalize shipping and ferry operations.
 
 ## 🚀 CRITICAL: Deployment Checklist
-If you are seeing "No buildpack groups passed detection" or "Invalid root directory" in your logs:
+If you are seeing "Site Not Found" or "No buildpack groups passed detection":
 
-1.  **Generate Lock File**: On your local computer, run `npm install` in this folder.
-2.  **Commit Lock File**: Push the newly created `package-lock.json` to your GitHub repo.
-3.  **Firebase Console**: Go to **App Hosting** -> Your Backend -> **Settings** tab.
-4.  **Root Directory**: Ensure this is set to **`/`** (not `.idx`).
-5.  **Restart Build**: Go to the Dashboard and click **"Start Rollout"**.
+1.  **Generate Lock File (REQUIRED)**: On your local computer, run `npm install` in this folder. You **MUST** commit and push the newly created `package-lock.json` to your GitHub repo. The build system cannot start without it.
+2.  **Firebase Console**: Go to **App Hosting** -> Your Backend -> **Settings** tab.
+3.  **Root Directory**: Ensure this is set to **`/`** (not `.idx`).
+4.  **Find Your URL**: Your site is hosted on **App Hosting**, not standard Firebase Hosting. Go to the App Hosting Dashboard in the Firebase Console to find your live URL (it will end in `.run.app` or a custom domain).
+
+## 📂 Project Structure
+- `/src`: Application source code (Next.js App Router).
+- `/dataconnect`: PostgreSQL schema and GraphQL operations.
+- `apphosting.yaml`: Production environment configuration.
+- `firebase.json`: Firebase CLI configuration.
 
 ## 🛡️ Security & Secrets
 - **Firebase API Keys are Public**: These identify your project. They are safe to be in GitHub.
 - **Rules are the Guard**: Your data is secured by **Firestore Security Rules**.
 - **Private Keys**: Use the Firebase Console (App Hosting > Settings > Environment Variables) to manage secrets like `GEMINI_API_KEY`.
-
-## 📂 Backend Systems
-- **Firestore**: Currently used for real-time fleet operations and booking state.
-- **Data Connect (GraphQL)**: Schema initialized in `/dataconnect` for future relational data scaling with PostgreSQL.
-- **Firebase CLI**: A `firebase.json` file has been added to support standard Firebase CLI operations.
 
 ## Key Features
 - **Traveler Experience**: Self-service booking, profile management, and live trip status.
