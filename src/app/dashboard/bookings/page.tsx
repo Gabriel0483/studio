@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
@@ -36,6 +35,7 @@ import {
   runTransaction,
   updateDoc,
   query,
+  where,
 } from 'firebase/firestore';
 import { BookCopy, Pencil, Search, Trash2, XCircle, CreditCard, Loader2, FilterX, Filter, MapPin } from 'lucide-react';
 import { format } from 'date-fns';
@@ -87,10 +87,33 @@ export default function BookingsPage() {
   const [isPaidDialogOpen, setIsPaidDialogOpen] = useState(false);
   const [bookingToProcess, setBookingToProcess] = useState<Booking | null>(null);
 
+  const staffDocRef = useMemoFirebase(() => firestore && user ? doc(firestore, 'staff', user.uid) : null, [firestore, user]);
+  const { data: staffData, isLoading: isLoadingStaffData } = useDoc(staffDocRef);
+
   const bookingsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return collection(firestore, 'bookings');
-  }, [firestore]);
+    if (!firestore || isLoadingStaffData) return null;
+
+    const isDeskAgent = staffData?.roles?.includes('Desk Booking Agent');
+    const isStationManager = staffData?.roles?.includes('Station Manager');
+    const isManagerOrAdmin = staffData?.roles?.some((r: string) => 
+      ['Super Admin', 'Operations Manager'].includes(r)
+    ) || (user?.email === 'rielmagpantay@gmail.com' || user?.email === 'mariel.dumaoal@gmail.com');
+
+    const baseCol = collection(firestore, 'bookings');
+
+    // Firestore Security Rules require a filtered query for restricted roles
+    if ((isDeskAgent || isStationManager) && !isManagerOrAdmin) {
+      if (staffData?.assignedPortName) {
+        return query(baseCol, where('departurePortName', '==', staffData.assignedPortName));
+      } else {
+        // If they are a desk agent but have no assigned port, they shouldn't see anything 
+        // We use a dummy filter to satisfy the "Missing or insufficient permissions" constraint
+        return query(baseCol, where('departurePortName', '==', '__RESTRICTED_ACCESS__'));
+      }
+    }
+
+    return baseCol;
+  }, [firestore, staffData, isLoadingStaffData, user]);
 
   const routesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -102,12 +125,9 @@ export default function BookingsPage() {
     return collection(firestore, 'schedules');
   }, [firestore]);
 
-  const staffDocRef = useMemoFirebase(() => firestore && user ? doc(firestore, 'staff', user.uid) : null, [firestore, user]);
-
   const { data: bookings, isLoading: isLoadingBookings } = useCollection<Booking>(bookingsQuery, { idField: 'firestoreId' });
   const { data: routes, isLoading: isLoadingRoutes } = useCollection(routesQuery);
   const { data: schedules, isLoading: isLoadingSchedules } = useCollection(schedulesQuery);
-  const { data: staffData, isLoading: isLoadingStaffData } = useDoc(staffDocRef);
 
   const availableSchedules = useMemo(() => {
     if (!schedules || !filterDate) return [];
@@ -142,7 +162,11 @@ export default function BookingsPage() {
   const filteredBookings = useMemo(() => {
     if (!bookings) return [];
     
-    const sortedBookings = [...bookings].sort((a, b) => b.bookingDate.toMillis() - a.bookingDate.toMillis());
+    const sortedBookings = [...bookings].sort((a, b) => {
+        const dateA = a.bookingDate instanceof Timestamp ? a.bookingDate.toMillis() : 0;
+        const dateB = b.bookingDate instanceof Timestamp ? b.bookingDate.toMillis() : 0;
+        return dateB - dateA;
+    });
     
     const selectedRoute = routes?.find(r => r.id === filterRoute);
 
@@ -156,30 +180,13 @@ export default function BookingsPage() {
         booking.routeName.toLowerCase().includes(searchTerm);
 
       const statusMatch = filterStatus === 'all' || booking.status === filterStatus;
-      const dateMatch = !filterDate || format(booking.travelDate.toDate(), 'yyyy-MM-dd') === format(filterDate, 'yyyy-MM-dd');
+      const dateMatch = !filterDate || (booking.travelDate && format(booking.travelDate.toDate(), 'yyyy-MM-dd') === format(filterDate, 'yyyy-MM-dd'));
       const routeMatch = filterRoute === 'all' || booking.routeName === selectedRoute?.name;
       const scheduleMatch = filterSchedule === 'all' || booking.scheduleId === filterSchedule;
 
-      // LBAC Implementation: Filter by location for Desk Agents and Station Managers
-      const isDeskAgent = staffData?.roles?.includes('Desk Booking Agent');
-      const isStationManager = staffData?.roles?.includes('Station Manager');
-      const isManagerOrAdmin = staffData?.roles?.some((r: string) => ['Super Admin', 'Operations Manager'].includes(r));
-
-      let locationMatch = true;
-      // Note: rielmagpantay@gmail.com override is handled by security rules, 
-      // but for UI experience we also want to filter if they aren't global admins.
-      if ((isDeskAgent || isStationManager) && !isManagerOrAdmin) {
-        if (staffData.assignedPortName) {
-          locationMatch = booking.departurePortName === staffData.assignedPortName;
-        } else {
-          // If they have a location-bound role but no location assigned, they see nothing
-          locationMatch = false;
-        }
-      }
-
-      return searchMatch && statusMatch && dateMatch && routeMatch && scheduleMatch && locationMatch;
+      return searchMatch && statusMatch && dateMatch && routeMatch && scheduleMatch;
     });
-  }, [bookings, search, filterStatus, filterDate, filterRoute, filterSchedule, routes, staffData]);
+  }, [bookings, search, filterStatus, filterDate, filterRoute, filterSchedule, routes]);
   
   const clearFilters = () => {
     setSearch('');
