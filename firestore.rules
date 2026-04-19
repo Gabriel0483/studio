@@ -98,9 +98,12 @@ service cloud.firestore {
     match /bookings/{id} {
       allow get: if isAdmin() || (isSignedIn() && resource.data.passengerId == request.auth.uid);
       
-      // Rules are not filters. Query must include passengerId filter for non-staff.
-      allow list: if isSignedIn() && (
-                   (resource.data.passengerId == request.auth.uid) ||
+      // Split list rules to help Firestore's static query analysis
+      // Rule for passengers to list their own bookings
+      allow list: if isSignedIn() && resource.data.passengerId == request.auth.uid;
+      
+      // Rule for staff to list the manifest
+      allow list: if isAdmin() && (
                    isSuperAdmin() || 
                    hasRole('Finance/Accounting') ||
                    (hasRole('Desk Booking Agent') && resource.data.departurePortName == getStaffData().assignedPortName) ||

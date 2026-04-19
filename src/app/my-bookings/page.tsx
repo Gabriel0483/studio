@@ -20,9 +20,12 @@ export default function MyBookingsPage() {
   const router = useRouter();
 
   const bookingsQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return query(collection(firestore, 'bookings'), where('passengerId', '==', user.uid));
-  }, [firestore, user]);
+    if (!firestore || !user?.uid) return null;
+    return query(
+      collection(firestore, 'bookings'), 
+      where('passengerId', '==', user.uid)
+    );
+  }, [firestore, user?.uid]);
 
   const schedulesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'schedules') : null, [firestore]);
 
@@ -46,8 +49,8 @@ export default function MyBookingsPage() {
         shipName: schedule?.shipName || 'TBA',
       };
     }).sort((a, b) => {
-        const dateA = a.bookingDate ? a.bookingDate.toMillis() : 0;
-        const dateB = b.bookingDate ? b.bookingDate.toMillis() : 0;
+        const dateA = a.bookingDate instanceof Timestamp ? a.bookingDate.toMillis() : 0;
+        const dateB = b.bookingDate instanceof Timestamp ? b.bookingDate.toMillis() : 0;
         return dateB - dateA;
     });
   }, [bookings, schedules]);
@@ -64,7 +67,6 @@ export default function MyBookingsPage() {
   }
 
   if (!user) {
-    // This will be caught by the useEffect, but as a fallback.
     return null;
   }
 
