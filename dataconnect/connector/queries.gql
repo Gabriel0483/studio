@@ -1,70 +1,44 @@
 
-# Queries for Isla Konek Maritime System
+# Standard Data Fetching Operations
 
-# Get all active announcements
-query ListAnnouncements @auth(level: PUBLIC) {
-  announcements(orderBy: [{createdAt: DESC}]) {
+# Get all routes for public selection
+query ListRoutes @auth(level: PUBLIC) {
+  routes {
     id
-    title
-    content
-    category
-    createdAt
+    name
+    departure
+    destination
   }
 }
 
-# Get available schedules for a specific route and date
-query GetSchedules($routeId: UUID!, $date: Date!) @auth(level: PUBLIC) {
+# Find available trips for a route
+query GetAvailableSchedules($routeId: String!, $date: Date) @auth(level: PUBLIC) {
   schedules(where: {
-    route: {id: {eq: $routeId}},
-    date: {eq: $date}
+    routeId: { eq: $routeId },
+    date: { eq: $date }
   }) {
     id
     departureTime
     availableSeats
-    status
     ship {
       name
+      vesselType
     }
   }
 }
 
-# Get passenger profile
-query GetPassengerProfile($id: String!) @auth(level: USER_ID) {
-  passenger(id: $id) {
-    firstName
-    lastName
-    email
-    phone
-  }
-}
-
-# Get staff data for dashboard
-query GetStaffData($id: String!) @auth(level: USER_ID) {
-  staff(id: $id) {
-    name
-    roles
-    assignedPort {
-      name
-    }
-    assignedShip {
-      name
-    }
-  }
-}
-
-# List all bookings for a passenger
-query ListMyBookings($passengerId: String!) @auth(level: USER_ID) {
-  bookings(where: {passenger: {id: {eq: $passengerId}}}, orderBy: [{createdAt: DESC}]) {
+# View current traveler bookings
+query GetMyBookings($passengerId: String!) @auth(level: USER) {
+  bookings(where: { passengerId: { eq: $passengerId } }) {
     id
     travelDate
     totalPrice
     status
-    paymentStatus
     schedule {
-      departureTime
       route {
         name
       }
+      departureTime
     }
   }
 }

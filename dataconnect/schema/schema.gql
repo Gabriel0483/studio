@@ -1,88 +1,66 @@
 
-# Isla Konek Data Connect Schema
-# Defines the relational structure for maritime operations
+# Isla Konek Relational Schema
+# Defines the structure for maritime operations, routes, and bookings.
 
-type Announcement @table {
-  id: UUID! @default(expr: "uuid_generate_v4()")
-  title: String!
-  content: String!
-  category: String! # Enum values: General Information, Weather Update, Route Change, Fare Change, Service Disruption
-  createdAt: Timestamp! @default(expr: "request.time")
-}
-
+# Ports of operation
 type Port @table {
-  id: UUID! @default(expr: "uuid_generate_v4()")
-  name: String! @unique
+  id: String! @primaryKey
+  name: String!
   location: String!
 }
 
-type Passenger @table {
-  id: String! @primaryKey # Maps to Firebase Auth UID
-  firstName: String!
-  lastName: String!
-  email: String! @unique
-  phone: String
-}
-
+# Vessels in the fleet
 type Ship @table {
-  id: UUID! @default(expr: "uuid_generate_v4()")
-  name: String! @unique
+  id: String! @primaryKey
+  name: String!
   capacity: Int!
-  status: String! @default(value: "In Service")
-  vesselType: String! @default(value: "Ferry")
+  status: String! # In Service, Under Maintenance, etc.
+  vesselType: String! # Ferry, High-Speed Craft, etc.
 }
 
-type Staff @table {
-  id: String! @primaryKey # Maps to Firebase Auth UID
-  email: String! @unique
-  name: String!
-  roles: [String!]!
-  assignedPort: Port
-  assignedShip: Ship
-}
-
+# Navigation routes between ports
 type Route @table {
-  id: UUID! @default(expr: "uuid_generate_v4()")
+  id: String! @primaryKey
   name: String!
-  departurePort: Port!
-  destinationPort: Port!
-  distance: Float
+  departure: String!
+  destination: String!
 }
 
+# Pricing for specific routes
 type Fare @table {
-  id: UUID! @default(expr: "uuid_generate_v4()")
+  id: String! @primaryKey
   route: Route!
   price: Float!
-  passengerType: String! # e.g., Adult, Child, Senior
+  passengerType: String! # Adult, Child, Senior, etc.
 }
 
+# Trip instances or recurring templates
 type Schedule @table {
-  id: UUID! @default(expr: "uuid_generate_v4()")
-  tripType: String! @default(value: "Daily") # Daily, Special
+  id: String! @primaryKey
+  tripType: String! # Daily, Special
   ship: Ship
   route: Route!
-  date: Date
+  date: Date # Null for recurring daily templates
   departureTime: String!
-  arrivalTime: String
   availableSeats: Int!
-  status: String @default(value: "On Time")
 }
 
+# Passenger travel records
 type Booking @table {
-  id: String! @primaryKey # 6-character alphanumeric reference
-  passenger: Passenger!
+  id: String! @primaryKey
+  passengerId: String!
   schedule: Schedule!
   travelDate: Date!
   totalPrice: Float!
-  status: String! @default(value: "Reserved")
-  paymentStatus: String! @default(value: "Unpaid")
-  createdAt: Timestamp! @default(expr: "request.time")
+  status: String! # Reserved, Confirmed, Completed, Cancelled
+  departurePortName: String
 }
 
-type SystemConfig @table @single {
-  companyName: String
-  logoUrl: String
-  heroTitle: String
-  heroDescription: String
-  heroImageUrl: String
+# Public service announcements
+type Announcement @table {
+  id: String! @primaryKey
+  title: String!
+  content: String!
+  category: String! # Weather Update, Route Change, etc.
+  createdAt: Timestamp! @default(expr: "request.time")
 }
