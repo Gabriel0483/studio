@@ -1,4 +1,4 @@
-
+npm i next@latest
 # Isla Konek: Maritime Command & Booking System
 
 Isla Konek is a dedicated maritime management platform designed to digitalize shipping and ferry operations.

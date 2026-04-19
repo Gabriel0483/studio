@@ -29,10 +29,10 @@ import { PublicFooter } from "@/components/public-footer"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc, useAuthContext, errorEmitter, FirestorePermissionError } from "@/firebase"
 import { collection, doc, serverTimestamp, runTransaction, Timestamp, where, query, getDocs, addDoc, getDoc, updateDoc } from "firebase/firestore"
-import React, { useMemo, useState, useEffect } from "react"
+import React, { useMemo, useState, useEffect, Suspense } from "react"
 import { Separator } from "@/components/ui/separator"
 import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
-import { format, addDays } from "date-fns"
+import { format, addDays, isValid } from "date-fns"
 import { TripItinerary } from "@/components/trip-itinerary";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { nanoid } from "nanoid"
@@ -89,7 +89,7 @@ const generateBookingReference = () => {
   return result;
 };
 
-export default function BookingPage() {
+function BookingContent() {
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
   const { isAuthReady } = useAuthContext();
@@ -177,6 +177,8 @@ export default function BookingPage() {
     if (!watchRouteId || !watchTravelDate || !allSchedules) return [];
 
     const selectedDate = new Date(watchTravelDate);
+    if (!isValid(selectedDate)) return [];
+    
     selectedDate.setHours(0, 0, 0, 0);
     const formattedTravelDate = format(selectedDate, 'yyyy-MM-dd');
 
@@ -275,6 +277,11 @@ export default function BookingPage() {
     const { scheduleId } = data;
     const summary = calculateBookingSummary(data);
     const travelDateObj = new Date(data.travelDate);
+    if (!isValid(travelDateObj)) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Invalid travel date.' });
+        setIsReserving(false);
+        return;
+    }
     const formattedTravelDate = format(travelDateObj, 'yyyy-MM-dd');
   
     try {
@@ -433,27 +440,15 @@ export default function BookingPage() {
 
   if (isLoading) {
     return (
-        <div className="flex min-h-screen flex-col">
-          <PublicHeader />
-          <main className="flex-1 bg-secondary/30">
-            <div className="container mx-auto px-4 py-24 md:px-6 md:py-32">
-                <div className="flex h-64 w-full flex-col items-center justify-center">
-                    <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                    <p className="mt-4 text-muted-foreground animate-pulse">Preparing your booking dashboard...</p>
-                </div>
-            </div>
-          </main>
-          <PublicFooter />
+        <div className="flex h-64 w-full flex-col items-center justify-center">
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            <p className="mt-4 text-muted-foreground animate-pulse">Preparing your booking dashboard...</p>
         </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-secondary/20">
-      <PublicHeader />
-      <main className="flex-1">
-        <div className="container mx-auto px-4 py-12 md:py-24">
-          
+    <div className="max-w-7xl mx-auto">
           {/* Progress Steps */}
           <div className="max-w-3xl mx-auto mb-12">
             <div className="flex items-center justify-between relative">
@@ -795,7 +790,11 @@ export default function BookingPage() {
                             </p>
                         </div>
                         <div className="text-right space-y-1">
-                            <Badge className="font-mono text-sm">{format(new Date(watchTravelDate), 'PPP')}</Badge>
+                            <Badge className="font-mono text-sm">
+                                {watchTravelDate && isValid(new Date(watchTravelDate)) 
+                                    ? format(new Date(watchTravelDate), 'PPP') 
+                                    : '...'}
+                            </Badge>
                             <p className="font-bold text-lg">{currentSchedule?.departureTime}</p>
                         </div>
                     </div>
@@ -860,6 +859,24 @@ export default function BookingPage() {
               </CardContent>
             )}
           </Card>
+    </div>
+  )
+}
+
+export default function BookingPage() {
+  return (
+    <div className="flex min-h-screen flex-col bg-secondary/20">
+      <PublicHeader />
+      <main className="flex-1">
+        <div className="container mx-auto px-4 py-12 md:py-24">
+            <Suspense fallback={
+                <div className="flex h-64 w-full flex-col items-center justify-center">
+                    <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                    <p className="mt-4 text-muted-foreground">Preparing your booking dashboard...</p>
+                </div>
+            }>
+                <BookingContent />
+            </Suspense>
         </div>
       </main>
       <PublicFooter />

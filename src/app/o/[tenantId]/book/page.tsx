@@ -1,3 +1,4 @@
+
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -28,10 +29,10 @@ import { PublicFooter } from "@/components/public-footer"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc, useAuthContext } from "@/firebase"
 import { collection, doc, serverTimestamp, runTransaction, Timestamp, where, query, getDocs, addDoc, getDoc, updateDoc } from "firebase/firestore"
-import React, { useMemo, useState, useEffect } from "react"
+import React, { useMemo, useState, useEffect, Suspense } from "react"
 import { Separator } from "@/components/ui/separator"
 import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
-import { format, addDays } from "date-fns"
+import { format, addDays, isValid } from "date-fns"
 import { TripItinerary } from "@/components/trip-itinerary";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { nanoid } from "nanoid"
@@ -85,7 +86,7 @@ const generateBookingReference = () => {
   return result;
 };
 
-export default function BookingPage() {
+function BookingContent() {
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
   const { isAuthReady } = useAuthContext();
@@ -106,20 +107,9 @@ export default function BookingPage() {
   const passengerDocRef = useMemoFirebase(() => firestore && user ? doc(firestore, 'passengers', user.uid) : null, [firestore, user]);
   const { data: passengerData } = useDoc(passengerDocRef);
 
-  const schedulesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return collection(firestore, 'schedules');
-  }, [firestore]);
-
-  const routesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return collection(firestore, 'routes');
-  }, [firestore]);
-
-  const faresQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return collection(firestore, 'fares');
-  }, [firestore]);
+  const schedulesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'schedules') : null, [firestore]);
+  const routesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'routes') : null, [firestore]);
+  const faresQuery = useMemoFirebase(() => firestore ? collection(firestore, 'fares') : null, [firestore]);
   
   const { data: allSchedules, isLoading: isLoadingSchedules } = useCollection(schedulesQuery);
   const { data: routes, isLoading: isLoadingRoutes } = useCollection(routesQuery);
@@ -148,7 +138,7 @@ export default function BookingPage() {
     if (!form.getValues('travelDate')) {
         form.setValue('travelDate', minDate);
     }
-  }, []);
+  }, [form]);
 
   useEffect(() => {
     if (user && passengerData) {
@@ -173,6 +163,8 @@ export default function BookingPage() {
     if (!watchRouteId || !watchTravelDate || !allSchedules) return [];
 
     const selectedDate = new Date(watchTravelDate);
+    if (!isValid(selectedDate)) return [];
+    
     selectedDate.setHours(0, 0, 0, 0);
     const formattedTravelDate = format(selectedDate, 'yyyy-MM-dd');
 
@@ -264,6 +256,11 @@ export default function BookingPage() {
     const { scheduleId } = data;
     const summary = calculateBookingSummary(data);
     const travelDateObj = new Date(data.travelDate);
+    if (!isValid(travelDateObj)) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Invalid travel date.' });
+        setIsReserving(false);
+        return;
+    }
     const formattedTravelDate = format(travelDateObj, 'yyyy-MM-dd');
   
     try {
@@ -413,248 +410,257 @@ export default function BookingPage() {
 
   if (isLoading) {
     return (
-        <div className="flex min-h-screen flex-col">
-          <PublicHeader />
-          <main className="flex-1">
-            <div className="container mx-auto px-4 py-24 md:px-6 md:py-32">
-                <div className="flex h-64 w-full items-center justify-center">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    <p className="ml-3 text-muted-foreground">Loading your session...</p>
-                </div>
-            </div>
-          </main>
-          <PublicFooter />
+        <div className="flex h-64 w-full items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="ml-3 text-muted-foreground">Loading your session...</p>
         </div>
     );
   }
 
   return (
+    <Card className="mx-auto max-w-3xl">
+      <CardHeader>
+        <CardTitle className="text-3xl font-bold tracking-tight">
+          {step === 'form' && 'Book Your Seat Online'}
+          {step === 'summary' && 'Your Trip Itinerary'}
+          {step === 'confirmation' && 'Booking Confirmed!'}
+        </CardTitle>
+        <CardDescription>
+          {step === 'form' && "Fill in the details below to complete your reservation."}
+          {step === 'summary' && "Please review your trip itinerary before confirming your booking."}
+          {step === 'confirmation' && "Your booking is complete. You can view your itinerary below."}
+        </CardDescription>
+      </CardHeader>
+      
+      {step === 'form' && (
+        <CardContent>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-8">
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                  <FormField
+                      control={form.control}
+                      name="routeId"
+                      render={({ field }) => (
+                      <FormItem>
+                          <FormLabel>Route</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                              <SelectTrigger disabled={isLoadingRoutes}>
+                                <SelectValue placeholder={isLoadingRoutes ? "Loading routes..." : "Select a route"} />
+                              </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                              {routes?.map(route => (
+                                  <SelectItem key={route.id} value={route.id}>
+                                      {route.name}
+                                  </SelectItem>
+                              ))}
+                          </SelectContent>
+                          </Select>
+                          <FormMessage />
+                      </FormItem>
+                      )}
+                  />
+                  <FormField
+                      control={form.control}
+                      name="travelDate"
+                      render={({ field }) => (
+                          <FormItem>
+                          <FormLabel>Date of Travel</FormLabel>
+                          <FormControl>
+                            <Input type="date" {...field} min={dateRange.min} max={dateRange.max} disabled={!watchRouteId || !dateRange.min} />
+                          </FormControl>
+                          <FormMessage />
+                          </FormItem>
+                      )}
+                  />
+              </div>
+              <FormField
+                  control={form.control}
+                  name="scheduleId"
+                  render={({ field }) => (
+                  <FormItem>
+                      <FormLabel>Available Trips</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value} disabled={!watchRouteId || !watchTravelDate}>
+                      <FormControl>
+                          <SelectTrigger>
+                          <SelectValue placeholder="Select a time" />
+                          </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                          {filteredSchedules.map(schedule => (
+                              <SelectItem key={schedule.id} value={schedule.id}>
+                                  {schedule.departureTime} - {schedule.arrivalTime} ({schedule.availableSeats > 0 ? `${schedule.availableSeats} seats left` : 'Waitlist available'})
+                              </SelectItem>
+                          ))}
+                      </SelectContent>
+                      </Select>
+                      <FormMessage />
+                  </FormItem>
+                  )}
+              />
+              <div className="space-y-6">
+                <h3 className="font-medium text-lg border-b pb-2">Passenger Details</h3>
+                {fields.map((field, index) => (
+                  <div key={field.id} className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end p-4 border rounded-lg relative">
+                    <FormField
+                      control={form.control}
+                      name={`passengers.${index}.fullName`}
+                      render={({ field }) => (
+                        <FormItem className="sm:col-span-6">
+                          <FormLabel>Full Name</FormLabel>
+                          <FormControl>
+                            <Input placeholder="John Doe" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name={`passengers.${index}.birthDate`}
+                      render={({ field }) => (
+                        <FormItem className="sm:col-span-3">
+                          <FormLabel>Birth Date</FormLabel>
+                          <FormControl>
+                            <Input type="date" {...field} placeholder="YYYY-MM-DD" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name={`passengers.${index}.fareType`}
+                      render={({ field }) => (
+                        <FormItem className="sm:col-span-2">
+                          <FormLabel>Fare Type</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value} disabled={!watchScheduleId}>
+                              <FormControl>
+                                  <SelectTrigger>
+                                      <SelectValue placeholder="Fare" />
+                                  </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                  {availableFares.map(fare => (
+                                      <SelectItem key={fare.id} value={fare.passengerType}>
+                                          {fare.passengerType} (₱{fare.price.toFixed(2)})
+                                      </SelectItem>
+                                  ))}
+                              </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <div className="sm:col-span-1">
+                      <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          onClick={() => remove(index)}
+                          className="w-full"
+                      >
+                          <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+                <div className="flex gap-2 flex-wrap">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => append({ id: nanoid(), fullName: "", birthDate: "", fareType: "" })}
+                    disabled={!watchScheduleId}
+                  >
+                    <PlusCircle className="mr-2 h-4 w-4" /> Add Passenger
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      const userName = (passengerData?.firstName && passengerData?.lastName) ? `${passengerData.firstName} ${passengerData.lastName}`.trim() : user?.displayName || '';
+                      append({ id: nanoid(), fullName: userName, birthDate: passengerData?.birthDate || '', fareType: "" });
+                    }}
+                    disabled={!watchScheduleId}
+                  >
+                    <UserPlus className="mr-2 h-4 w-4" /> Add Myself
+                  </Button>
+                  {familyMembers.length > 0 && (
+                      <Popover>
+                          <PopoverTrigger asChild>
+                              <Button type="button" variant="secondary" size="sm" disabled={!watchScheduleId}>
+                                  <Users className="mr-2 h-4 w-4" /> Add Family
+                              </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-80">
+                              <div className="grid gap-2">
+                                  {familyMembers.map((member: any) => (
+                                      <Button key={member.id} variant="ghost" className="justify-start text-left" onClick={() => append({ id: member.id, fullName: member.fullName, birthDate: member.birthDate, fareType: '' })}>
+                                          {member.fullName}
+                                      </Button>
+                                  ))}
+                              </div>
+                          </PopoverContent>
+                      </Popover>
+                  )}
+                </div>
+              </div>
+              <Button type="submit" size="lg" className="w-full" disabled={totalSeats === 0}>
+                Confirm Trip Details
+              </Button>
+            </form>
+          </Form>
+        </CardContent>
+      )}
+      
+      {step === 'summary' && (
+        <>
+          <CardContent className="space-y-6">
+            <div className="flex justify-between items-center text-xl font-bold">
+                <span>Total Price</span>
+                <span>₱{bookingSummary.totalPrice.toFixed(2)}</span>
+            </div>
+            <div className="text-sm text-muted-foreground">
+                <p>Route: {getRouteName(watchRouteId)}</p>
+                <p>Date: {watchTravelDate && isValid(new Date(watchTravelDate)) ? format(new Date(watchTravelDate), 'PPP') : '...'}</p>
+            </div>
+          </CardContent>
+          <CardFooter className="gap-2">
+              <Button variant="outline" onClick={() => setStep('form')}>Edit</Button>
+              <Button onClick={() => handleFinalReserve(form.getValues())} className="flex-1" disabled={isReserving}>
+                  {isReserving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Confirm Reservation'}
+              </Button>
+          </CardFooter>
+        </>
+      )}
+
+      {step === 'confirmation' && confirmedBooking && (
+        <CardContent>
+          <TripItinerary booking={confirmedBooking} />
+          <Button variant="outline" className="w-full mt-6" onClick={handleNewBooking}>New Booking</Button>
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
+export default function BookingPage() {
+  return (
     <div className="flex min-h-screen flex-col">
       <PublicHeader />
       <main className="flex-1">
         <div className="container mx-auto px-4 py-24 md:px-6 md:py-32">
-          <Card className="mx-auto max-w-3xl">
-            <CardHeader>
-              <CardTitle className="text-3xl font-bold tracking-tight">
-                {step === 'form' && 'Book Your Seat Online'}
-                {step === 'summary' && 'Your Trip Itinerary'}
-                {step === 'confirmation' && 'Booking Confirmed!'}
-              </CardTitle>
-              <CardDescription>
-                {step === 'form' && "Fill in the details below to complete your reservation."}
-                {step === 'summary' && "Please review your trip itinerary before confirming your booking."}
-                {step === 'confirmation' && "Your booking is complete. You can view your itinerary below."}
-              </CardDescription>
-            </CardHeader>
-            
-            {step === 'form' && (
-              <CardContent>
-                <Form {...form}>
-                  <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-8">
-                    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                        <FormField
-                            control={form.control}
-                            name="routeId"
-                            render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Route</FormLabel>
-                                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl>
-                                    <SelectTrigger disabled={isLoadingRoutes}>
-                                      <SelectValue placeholder={isLoadingRoutes ? "Loading routes..." : "Select a route"} />
-                                    </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                    {routes?.map(route => (
-                                        <SelectItem key={route.id} value={route.id}>
-                                            {route.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                                </Select>
-                                <FormMessage />
-                            </FormItem>
-                            )}
-                        />
-                        <FormField
-                            control={form.control}
-                            name="travelDate"
-                            render={({ field }) => (
-                                <FormItem>
-                                <FormLabel>Date of Travel</FormLabel>
-                                <FormControl>
-                                  <Input type="date" {...field} min={dateRange.min} max={dateRange.max} disabled={!watchRouteId || !dateRange.min} />
-                                </FormControl>
-                                <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                    </div>
-                    <FormField
-                        control={form.control}
-                        name="scheduleId"
-                        render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Available Trips</FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value} disabled={!watchRouteId || !watchTravelDate}>
-                            <FormControl>
-                                <SelectTrigger>
-                                <SelectValue placeholder="Select a time" />
-                                </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                                {filteredSchedules.map(schedule => (
-                                    <SelectItem key={schedule.id} value={schedule.id}>
-                                        {schedule.departureTime} - {schedule.arrivalTime} ({schedule.availableSeats > 0 ? `${schedule.availableSeats} seats left` : 'Waitlist available'})
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                            </Select>
-                            <FormMessage />
-                        </FormItem>
-                        )}
-                    />
-                    <div className="space-y-6">
-                      <h3 className="font-medium text-lg border-b pb-2">Passenger Details</h3>
-                      {fields.map((field, index) => (
-                        <div key={field.id} className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end p-4 border rounded-lg relative">
-                          <FormField
-                            control={form.control}
-                            name={`passengers.${index}.fullName`}
-                            render={({ field }) => (
-                              <FormItem className="sm:col-span-6">
-                                <FormLabel>Full Name</FormLabel>
-                                <FormControl>
-                                  <Input placeholder="John Doe" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={form.control}
-                            name={`passengers.${index}.birthDate`}
-                            render={({ field }) => (
-                              <FormItem className="sm:col-span-3">
-                                <FormLabel>Birth Date</FormLabel>
-                                <FormControl>
-                                  <Input type="date" {...field} placeholder="YYYY-MM-DD" />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={form.control}
-                            name={`passengers.${index}.fareType`}
-                            render={({ field }) => (
-                              <FormItem className="sm:col-span-2">
-                                <FormLabel>Fare Type</FormLabel>
-                                <Select onValueChange={field.onChange} value={field.value} disabled={!watchScheduleId}>
-                                    <FormControl>
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Fare" />
-                                        </SelectTrigger>
-                                    </FormControl>
-                                    <SelectContent>
-                                        {availableFares.map(fare => (
-                                            <SelectItem key={fare.id} value={fare.passengerType}>
-                                                {fare.passengerType} (₱{fare.price.toFixed(2)})
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <div className="sm:col-span-1">
-                            <Button
-                                type="button"
-                                variant="destructive"
-                                size="icon"
-                                onClick={() => remove(index)}
-                                className="w-full"
-                            >
-                                <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                      <div className="flex gap-2 flex-wrap">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => append({ id: nanoid(), fullName: "", birthDate: "", fareType: "" })}
-                          disabled={!watchScheduleId}
-                        >
-                          <PlusCircle className="mr-2 h-4 w-4" /> Add Passenger
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => {
-                            const userName = (passengerData?.firstName && passengerData?.lastName) ? `${passengerData.firstName} ${passengerData.lastName}`.trim() : user?.displayName || '';
-                            append({ id: nanoid(), fullName: userName, birthDate: passengerData?.birthDate || '', fareType: "" });
-                          }}
-                          disabled={!watchScheduleId}
-                        >
-                          <UserPlus className="mr-2 h-4 w-4" /> Add Myself
-                        </Button>
-                        {familyMembers.length > 0 && (
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                    <Button type="button" variant="secondary" size="sm" disabled={!watchScheduleId}>
-                                        <Users className="mr-2 h-4 w-4" /> Add Family
-                                    </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-80">
-                                    <div className="grid gap-2">
-                                        {familyMembers.map((member: any) => (
-                                            <Button key={member.id} variant="ghost" className="justify-start text-left" onClick={() => append({ id: member.id, fullName: member.fullName, birthDate: member.birthDate, fareType: '' })}>
-                                                {member.fullName}
-                                            </Button>
-                                        ))}
-                                    </div>
-                                </PopoverContent>
-                            </Popover>
-                        )}
-                      </div>
-                    </div>
-                    <Button type="submit" size="lg" className="w-full" disabled={totalSeats === 0}>
-                      Confirm Trip Details
-                    </Button>
-                  </form>
-                </Form>
-              </CardContent>
-            )}
-            
-            {step === 'summary' && (
-              <>
-                <CardContent className="space-y-6">
-                  <div className="flex justify-between items-center text-xl font-bold">
-                      <span>Total Price</span>
-                      <span>₱{bookingSummary.totalPrice.toFixed(2)}</span>
-                  </div>
-                </CardContent>
-                <CardFooter className="gap-2">
-                    <Button variant="outline" onClick={() => setStep('form')}>Edit</Button>
-                    <Button onClick={() => handleFinalReserve(form.getValues())} className="flex-1" disabled={isReserving}>
-                        {isReserving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Confirm Reservation'}
-                    </Button>
-                </CardFooter>
-              </>
-            )}
-
-            {step === 'confirmation' && confirmedBooking && (
-              <CardContent>
-                <TripItinerary booking={confirmedBooking} />
-                <Button variant="outline" className="w-full mt-6" onClick={handleNewBooking}>New Booking</Button>
-              </CardContent>
-            )}
-          </Card>
+            <Suspense fallback={
+                <div className="flex h-64 w-full flex-col items-center justify-center">
+                    <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                    <p className="mt-4 text-muted-foreground">Loading...</p>
+                </div>
+            }>
+                <BookingContent />
+            </Suspense>
         </div>
       </main>
       <PublicFooter />
