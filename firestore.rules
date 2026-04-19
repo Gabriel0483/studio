@@ -98,8 +98,9 @@ service cloud.firestore {
     match /bookings/{id} {
       allow get: if isOwner(resource.data.passengerId) || isAdmin();
       
-      // LBAC: Desk Booking Agents and Station Managers only see bookings for their port
-      allow list: if isSuperAdmin() || 
+      // Allow passengers to list their own bookings AND staff to see their assigned port bookings
+      allow list: if isOwner(resource.data.passengerId) ||
+                   isSuperAdmin() || 
                    (hasRole('Desk Booking Agent') && resource.data.departurePortName == getStaffData().assignedPortName) ||
                    (hasRole('Station Manager') && resource.data.departurePortName == getStaffData().assignedPortName);
       
