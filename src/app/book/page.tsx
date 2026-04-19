@@ -289,7 +289,7 @@ function BookingContent() {
     const formattedTravelDate = format(travelDateObj, 'yyyy-MM-dd');
   
     try {
-      // PRE-TRANSACTION: Resolve the exact schedule document reference
+      // 1. Resolve the target schedule ID before the transaction (illegal to query in transaction)
       let targetScheduleId = scheduleId;
       const selectedScheduleTemplate = allSchedules.find(s => s.id === scheduleId);
       
@@ -305,7 +305,7 @@ function BookingContent() {
         if (!spawnedSchedules.empty) {
           targetScheduleId = spawnedSchedules.docs[0].id;
         } else {
-          // IMPORTANT: generate a fresh ID if we need to create one
+          // Generate a fresh ID for the daily-to-special conversion if instance doesn't exist
           targetScheduleId = doc(collection(firestore, 'schedules')).id;
         }
       }
@@ -316,6 +316,7 @@ function BookingContent() {
         
         let finalScheduleData;
 
+        // Atomic "Get or Create" for the schedule instance
         if (!scheduleSnap.exists()) {
           finalScheduleData = {
             ...selectedScheduleTemplate,
@@ -324,7 +325,10 @@ function BookingContent() {
             sourceScheduleId: scheduleId,
             id: targetScheduleId,
             availableSeats: selectedScheduleTemplate.availableSeats || 0,
+            boardingStatus: 'Awaiting',
+            status: 'On Time'
           };
+          transaction.set(scheduleRef, finalScheduleData);
         } else {
           finalScheduleData = scheduleSnap.data();
         }
@@ -334,16 +338,9 @@ function BookingContent() {
 
         if (currentAvailableSeats >= totalSeats) {
           const newAvailableSeats = currentAvailableSeats - totalSeats;
-          if (!scheduleSnap.exists()) {
-            transaction.set(scheduleRef, { ...finalScheduleData, availableSeats: newAvailableSeats });
-          } else {
-            transaction.update(scheduleRef, { availableSeats: newAvailableSeats });
-          }
+          transaction.update(scheduleRef, { availableSeats: newAvailableSeats });
         } else {
           status = 'Waitlisted';
-          if (!scheduleSnap.exists()) {
-             transaction.set(scheduleRef, finalScheduleData);
-          }
         }
   
         const newBookingRef = doc(collection(firestore, 'bookings'));
@@ -387,6 +384,7 @@ function BookingContent() {
         return { status, bookingId: newBookingId, finalScheduleId: targetScheduleId };
       });
   
+      // Update passenger profile non-blocking
       const passengerRef = doc(firestore, 'passengers', user.uid);
       const mainPassengerName = data.passengers[0].fullName.split(' ');
       const passengerDataToSave = {
@@ -426,16 +424,13 @@ function BookingContent() {
   
     } catch (e: any) {
       console.error("Booking transaction failed:", e);
-      
-      const isPermissionError = e.code === 'permission-denied' || e.message?.toLowerCase().includes('permission');
-      
-      if (isPermissionError) {
-        const permissionError = new FirestorePermissionError({
+      // Emit genuine firestore error if available
+      if (e.code === 'permission-denied') {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: e.message?.includes('schedules') ? 'schedules' : 'bookings',
           operation: 'write',
           requestResourceData: data,
-        });
-        errorEmitter.emit('permission-error', permissionError);
+        }));
       } else {
           toast({
             variant: "destructive",

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -20,7 +21,7 @@ import { toast } from "@/hooks/use-toast"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { handleSignUp } from "@/firebase/auth"
 import { useAuth, useUser, useAuthContext } from "@/firebase";
-import { Loader2, UserPlus } from "lucide-react"
+import { Loader2, UserPlus, Mail } from "lucide-react"
 import Link from "next/link";
 import { PublicHeader } from "@/components/public-header";
 import { PublicFooter } from "@/components/public-footer";
@@ -42,13 +43,14 @@ function SignupContent() {
   const { user, isUserLoading } = useUser();
   const { isAuthReady } = useAuthContext();
   const [isLoading, setIsLoading] = useState(false);
+  const [isEmailSent, setIsEmailSent] = useState(false);
 
-  // Redirect if already logged in
+  // Redirect if already logged in (and verified/not blocked)
   useEffect(() => {
-    if (isAuthReady && !isUserLoading && user) {
+    if (isAuthReady && !isUserLoading && user && !isEmailSent) {
         router.replace('/welcome');
     }
-  }, [isAuthReady, isUserLoading, user, router]);
+  }, [isAuthReady, isUserLoading, user, router, isEmailSent]);
 
   const form = useForm<SignupFormData>({
     resolver: zodResolver(signupFormSchema),
@@ -63,11 +65,15 @@ function SignupContent() {
     setIsLoading(true);
     try {
       await handleSignUp(auth, data.email, data.password);
+      setIsEmailSent(true);
       toast({
-        title: "Account Created",
-        description: "Welcome to Isla Konek! You can now start booking your trips.",
+        title: "Account Created!",
+        description: "We've sent a verification link to your email address.",
       });
-      router.push('/welcome');
+      // Allow a brief moment for state update then navigate
+      setTimeout(() => {
+          router.push('/welcome');
+      }, 3000);
     } catch (error: any) {
       console.error("Signup error:", error);
       let description = "An unexpected error occurred. Please try again.";
@@ -76,8 +82,6 @@ function SignupContent() {
           description = "This email is already registered. Please try logging in.";
         } else if (error.code === 'auth/invalid-email') {
             description = "The email address is invalid.";
-        } else if (error.code === 'auth/operation-not-allowed') {
-            description = "Email/password accounts are not enabled. Please contact support.";
         } else if (error.code === 'auth/weak-password') {
             description = "The password is too weak.";
         } else {
@@ -95,7 +99,6 @@ function SignupContent() {
     }
   }
 
-  // Show loading while checking auth state
   if (!isAuthReady || isUserLoading) {
     return (
         <div className="flex h-screen w-full flex-col items-center justify-center bg-background">
@@ -105,9 +108,31 @@ function SignupContent() {
     );
   }
 
-  // If user is already authenticated and we haven't redirected yet, don't show the form
-  if (user) {
-      return null;
+  if (isEmailSent) {
+      return (
+        <div className="flex min-h-screen flex-col">
+            <PublicHeader />
+            <main className="flex-1 flex items-center justify-center bg-secondary/50 p-4">
+                <Card className="mx-auto w-full max-w-sm shadow-lg text-center">
+                    <CardHeader>
+                        <div className="mx-auto bg-primary/10 p-3 rounded-full w-fit mb-2">
+                            <Mail className="h-6 w-6 text-primary" />
+                        </div>
+                        <CardTitle>Verify Your Email</CardTitle>
+                        <CardDescription>
+                            We've sent a verification link to your inbox. Please click the link to confirm your account and enable all features.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <Button asChild variant="outline" className="w-full">
+                            <Link href="/welcome">Continue to Welcome Page</Link>
+                        </Button>
+                    </CardContent>
+                </Card>
+            </main>
+            <PublicFooter />
+        </div>
+      );
   }
 
   return (

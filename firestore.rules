@@ -4,11 +4,12 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // --- Base Authentication Helper ---
     function isSignedIn() {
       return request.auth != null;
     }
 
-    // Global administrative override for the system owners
+    // --- Administrative Overrides ---
     function isPlatformAdmin() {
       return isSignedIn() && (
         request.auth.token.email == 'rielmagpantay@gmail.com' || 
@@ -16,27 +17,28 @@ service cloud.firestore {
       );
     }
 
-    // Check if the user is a registered staff member safely
+    // --- Staff Verification Helpers ---
+    // These functions use defensive logic to ensure lookup failures don't block rule execution
     function isStaff() {
       return isPlatformAdmin() || (isSignedIn() && exists(/databases/$(database)/documents/staff/$(request.auth.uid)));
     }
     
-    // Check for a specific role safely without crashing for non-staff users
     function hasRole(role) {
       return isPlatformAdmin() || (isStaff() && role in get(/databases/$(database)/documents/staff/$(request.auth.uid)).data.roles);
     }
     
-    // System-wide administrative access
+    // --- Global Write Access for Platform Admins ---
     match /{document=**} {
       allow read, write: if isPlatformAdmin();
     }
 
-    // System configuration
+    // --- System Configuration ---
     match /config/settings {
       allow read: if true;
       allow write: if hasRole('Super Admin') || hasRole('Operations Manager');
     }
 
+    // --- Staff Management ---
     match /staff/{staffId} {
       allow get: if request.auth.uid == staffId || isStaff();
       allow list: if isStaff();
@@ -44,6 +46,7 @@ service cloud.firestore {
       allow update, delete: if hasRole('Super Admin');
     }
 
+    // --- Passenger Profiles ---
     match /passengers/{passengerId} {
       allow get: if request.auth.uid == passengerId || isStaff();
       allow list: if isStaff();
@@ -51,6 +54,7 @@ service cloud.firestore {
       allow update: if request.auth.uid == passengerId || isStaff();
     }
     
+    // --- Public Content ---
     match /announcements/{id} {
       allow read: if true;
       allow write: if isStaff();
@@ -61,6 +65,7 @@ service cloud.firestore {
       allow write: if isStaff();
     }
 
+    // --- Operational Fleet & Routes ---
     match /ships/{id} {
       allow read: if isStaff();
       allow write: if hasRole('Super Admin') || hasRole('Operations Manager');
@@ -76,35 +81,51 @@ service cloud.firestore {
       allow write: if hasRole('Super Admin') || hasRole('Operations Manager');
     }
 
+    // --- Trip Schedules (Critical for Booking) ---
     match /schedules/{id} {
       allow read: if true;
-      // Allow any signed-in user to create/update as part of booking seat decrementing
+      // Allow any signed-in user to create/update derived instances during seat reservations
       allow create, update: if isSignedIn();
       allow delete: if isStaff();
     }
 
+    // --- Passenger Bookings ---
     match /bookings/{id} {
-      // Individual get: Owner or Staff
-      allow get: if isSignedIn() && (resource.data.passengerId == request.auth.uid || isStaff());
+      // Individual get: Owner, Staff, or Finance
+      allow get: if isSignedIn() && (
+        resource == null || // Allow check for existence during creation
+        resource.data.passengerId == request.auth.uid || 
+        isStaff()
+      );
       
-      // List: Owner must use filter, or Staff sees all
+      // List: Filtered by owner (for "My Bookings") OR broad fetch for authorized staff
       allow list: if isSignedIn() && (
         (request.query.limit <= 500 && resource.data.passengerId == request.auth.uid) || 
         isStaff() ||
         hasRole('Finance/Accounting')
       );
       
+      // Create: Any authenticated user can book for themselves
       allow create: if isSignedIn();
-      allow update: if isSignedIn() && (resource.data.passengerId == request.auth.uid || isStaff());
+      
+      // Update: Owner (e.g. self-cancellation) or Staff (e.g. check-in, manifest updates)
+      allow update: if isSignedIn() && (
+        resource.data.passengerId == request.auth.uid || 
+        isStaff()
+      );
+      
       allow delete: if hasRole('Super Admin');
     }
 
+    // --- Internal Operations Records ---
     match /maintenanceRecords/{id} {
       allow read, write: if isStaff();
     }
     
     match /boarding/{id} {
-      allow read, write: if isStaff() || hasRole('Crew');
+      allow read: if isStaff();
+      // Allow boarding updates by staff or crew
+      allow write: if isStaff() || hasRole('Crew');
     }
   }
 }

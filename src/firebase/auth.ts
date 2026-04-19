@@ -1,15 +1,20 @@
 
 'use client';
-import { getAuth, signOut, createUserWithEmailAndPassword, Auth, sendPasswordResetEmail } from "firebase/auth";
+import { getAuth, signOut, createUserWithEmailAndPassword, Auth, sendPasswordResetEmail, sendEmailVerification } from "firebase/auth";
 
-// It's better to pass the auth instance to the functions
-// to make them more testable and less reliant on a global getAuth() call.
-
+/**
+ * Handles the user sign-up process, including sending a verification email.
+ */
 export const handleSignUp = async (auth: Auth, email: string, password: string): Promise<void> => {
-    await createUserWithEmailAndPassword(auth, email, password);
-    console.log("User signed up successfully.");
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    // Send email verification immediately after account creation
+    await sendEmailVerification(userCredential.user);
+    console.log("User signed up successfully. Verification email sent.");
 };
 
+/**
+ * Handles the user sign-out process.
+ */
 export const handleSignOut = async (auth: Auth) => {
     try {
         await signOut(auth);
@@ -19,6 +24,9 @@ export const handleSignOut = async (auth: Auth) => {
     }
 };
 
+/**
+ * Handles the password reset process.
+ */
 export const handlePasswordReset = async (auth: Auth, email: string): Promise<void> => {
     await sendPasswordResetEmail(auth, email);
     console.log("Password reset email sent.");
