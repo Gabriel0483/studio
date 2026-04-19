@@ -1,11 +1,12 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, PieChart, Pie, Cell } from "recharts";
 import { ChartContainer, ChartTooltipContent } from "@/components/ui/chart";
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, Timestamp } from 'firebase/firestore';
+import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc } from '@/firebase';
+import { collection, Timestamp, query, where, doc } from 'firebase/firestore';
 import { format, getMonth, getYear } from 'date-fns';
 import { DollarSign, Users, Clock, ClipboardCheck, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -20,13 +21,36 @@ const chartColors = [
 
 export default function DashboardPage() {
   const firestore = useFirestore();
+  const { user } = useUser();
   const [date, setDate] = useState<Date>();
 
   useEffect(() => {
     setDate(new Date());
   }, []);
 
-  const { data: bookings, isLoading: isLoadingBookings } = useCollection(useMemoFirebase(() => firestore ? collection(firestore, 'bookings') : null, [firestore]));
+  const staffDocRef = useMemoFirebase(() => (firestore && user ? doc(firestore, 'staff', user.uid) : null), [firestore, user]);
+  const { data: staffData, isLoading: isLoadingStaff } = useDoc(staffDocRef);
+
+  const bookingsQuery = useMemoFirebase(() => {
+    if (!firestore || !user || isLoadingStaff) return null;
+    
+    const isPlatformAdmin = ['rielmagpantay@gmail.com', 'mariel.dumaoal@gmail.com'].includes(user.email || '');
+    const roles = staffData?.roles || [];
+    const isFullAccess = roles.some(r => ['Super Admin', 'Operations Manager', 'Finance/Accounting'].includes(r)) || isPlatformAdmin;
+    
+    const baseCol = collection(firestore, 'bookings');
+    
+    if (isFullAccess) return baseCol;
+    
+    // Restricted roles must use filtered queries to satisfy security rules
+    if (staffData?.assignedPortName) {
+      return query(baseCol, where('departurePortName', '==', staffData.assignedPortName));
+    }
+
+    return null;
+  }, [firestore, user, staffData, isLoadingStaff]);
+
+  const { data: bookings, isLoading: isLoadingBookings } = useCollection(bookingsQuery);
   const { data: allSchedules, isLoading: isLoadingSchedules } = useCollection(useMemoFirebase(() => firestore ? collection(firestore, 'schedules') : null, [firestore]));
   const { data: boardingRecords, isLoading: isLoadingBoarding } = useCollection(useMemoFirebase(() => firestore ? collection(firestore, 'boarding') : null, [firestore]));
   
@@ -108,7 +132,7 @@ export default function DashboardPage() {
     return { revenueData: monthlyRevenue, bookingsByRouteData };
   }, [bookings]);
 
-  const isLoading = isLoadingBookings || isLoadingSchedules || isLoadingBoarding || !date;
+  const isLoading = isLoadingBookings || isLoadingSchedules || isLoadingBoarding || !date || isLoadingStaff;
 
   return (
     <div className="space-y-6">
@@ -133,7 +157,7 @@ export default function DashboardPage() {
       {isLoading ? (
         <div className="flex h-[256px] items-center justify-center rounded-lg border border-dashed">
             <Loader2 className="mr-2 h-6 w-6 animate-spin" />
-            <span>Loading data...</span>
+            <span>Loading overview data...</span>
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

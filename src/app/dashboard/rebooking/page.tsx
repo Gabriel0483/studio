@@ -1,10 +1,11 @@
+
 'use client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2, Search, AlertCircle, FileQuestion } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { useFirestore } from "@/firebase";
+import { useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase";
 import { collection, doc, query, where, getDocs, updateDoc, Timestamp, runTransaction } from "firebase/firestore";
 import React, { useState, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -17,6 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 export default function RebookingPage() {
   const firestore = useFirestore();
+  const { user } = useUser();
   const { toast } = useToast();
   const router = useRouter();
 
@@ -29,6 +31,9 @@ export default function RebookingPage() {
   const [cancellationFee, setCancellationFee] = useState(0);
   const [cancellationReason, setCancellationReason] = useState('');
 
+  const staffDocRef = useMemoFirebase(() => (firestore && user ? doc(firestore, 'staff', user.uid) : null), [firestore, user]);
+  const { data: staffData } = useDoc(staffDocRef);
+
   const finalRefundAmount = useMemo(() => {
     if (!searchedBooking) return 0;
     return searchedBooking.totalPrice - cancellationFee;
@@ -36,11 +41,11 @@ export default function RebookingPage() {
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!firestore || !searchQuery) {
+    if (!firestore || !searchQuery || !user) {
       toast({
         variant: "destructive",
-        title: "Missing Search Term",
-        description: "Please enter a booking reference or passenger name.",
+        title: "Search Blocked",
+        description: "Please enter a search term and ensure you are logged in.",
       });
       return;
     }
@@ -50,29 +55,44 @@ export default function RebookingPage() {
     setSearchPerformed(true);
 
     try {
+      const isPlatformAdmin = ['rielmagpantay@gmail.com', 'mariel.dumaoal@gmail.com'].includes(user.email || '');
+      const roles = staffData?.roles || [];
+      const isFullAccess = roles.some(r => ['Super Admin', 'Operations Manager', 'Finance/Accounting'].includes(r)) || isPlatformAdmin;
+
       const bookingsRef = collection(firestore, "bookings");
-      const bookingsSnapshot = await getDocs(bookingsRef);
-      const allBookings = bookingsSnapshot.docs.map(doc => ({...doc.data(), firestoreId: doc.id}) as any);
+      let q;
+
+      // Use a more targeted query to satisfy security rules
+      if (isFullAccess) {
+        // Try ID exact match first as it's common
+        q = query(bookingsRef, where('id', '==', searchQuery.toUpperCase()));
+      } else if (staffData?.assignedPortName) {
+        q = query(bookingsRef, where('departurePortName', '==', staffData.assignedPortName));
+      } else {
+        throw new Error("You do not have permission to search bookings.");
+      }
+
+      const querySnapshot = await getDocs(q);
+      const allBookings = querySnapshot.docs.map(doc => ({...doc.data(), firestoreId: doc.id}) as any);
 
       const searchTerm = searchQuery.toLowerCase();
       
-      // Find a booking that matches either the booking reference (ID) or a passenger's full name.
-      const foundBooking = allBookings.find(booking => {
-        const idMatch = booking.id.toLowerCase().includes(searchTerm);
+      // Fine-grained filter in memory from the permitted subset
+      const foundBooking = allBookings.find((booking: any) => {
+        const idMatch = booking.id.toLowerCase() === searchTerm || booking.id.toLowerCase().includes(searchTerm);
         const passengerMatch = (booking.passengerInfo || []).some((p: any) => p.fullName.toLowerCase().includes(searchTerm));
         return idMatch || passengerMatch;
       });
 
       setSearchedBooking(foundBooking || null);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error searching for booking: ", error);
       toast({
         variant: "destructive",
-        title: "Error",
-        description: "Failed to search for booking. Please try again.",
+        title: "Search Failed",
+        description: error.message || "Failed to search for booking.",
       });
-      setSearchedBooking(null);
     } finally {
       setIsLoading(false);
     }
@@ -119,7 +139,7 @@ export default function RebookingPage() {
 
         toast({
             title: "Refund Processed",
-            description: `Refund for booking #${searchedBooking.id} has been processed and status is now Refunded.`,
+            description: `Refund for booking #${searchedBooking.id} has been processed.`,
         });
 
     } catch (error) {
@@ -188,7 +208,7 @@ export default function RebookingPage() {
                  <div className="w-full text-center py-8">
                     <FileQuestion className="mx-auto h-12 w-12 text-muted-foreground" />
                     <h3 className="mt-4 text-lg font-semibold">No Booking Found</h3>
-                    <p className="mt-1 text-sm text-muted-foreground">We couldn't find a booking matching your search criteria.</p>
+                    <p className="mt-1 text-sm text-muted-foreground">We couldn't find a booking matching your search criteria or port assignment.</p>
                 </div>
             </CardFooter>
         )}

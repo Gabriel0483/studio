@@ -92,14 +92,14 @@ export default function BookingsPage() {
   const { data: staffData, isLoading: isLoadingStaffData } = useDoc(staffDocRef);
 
   const bookingsQuery = useMemoFirebase(() => {
-    if (!firestore || isLoadingStaffData) return null;
+    if (!firestore || isLoadingStaffData || !user) return null;
 
-    const isPlatformAdmin = (user?.email === 'rielmagpantay@gmail.com' || user?.email === 'mariel.dumaoal@gmail.com');
+    const isPlatformAdmin = (user.email === 'rielmagpantay@gmail.com' || user.email === 'mariel.dumaoal@gmail.com');
+    const roles = staffData?.roles || [];
     
-    // Safety check: If not platform admin and no staff document, do not fire an unfiltered query
+    // Safety check: If not platform admin and no staff document, do not fire query
     if (!staffData && !isPlatformAdmin) return null;
 
-    const roles = staffData?.roles || [];
     const isDeskAgent = roles.includes('Desk Booking Agent');
     const isStationManager = roles.includes('Station Manager');
     const isFullAccessRole = roles.some((r: string) => 
@@ -108,17 +108,19 @@ export default function BookingsPage() {
 
     const baseCol = collection(firestore, 'bookings');
 
-    // Firestore Security Rules require a filtered query for restricted roles
-    if ((isDeskAgent || isStationManager) && !isFullAccessRole) {
+    if (isFullAccessRole) return baseCol;
+
+    // Restricted roles must use a filtered query to satisfy Firestore security rules
+    if (isDeskAgent || isStationManager) {
       if (staffData?.assignedPortName) {
         return query(baseCol, where('departurePortName', '==', staffData.assignedPortName));
       } else {
-        // Restricted access query parameter
-        return query(baseCol, where('departurePortName', '==', '__RESTRICTED_ACCESS__'));
+        // Fail-safe to avoid broad fetch
+        return query(baseCol, where('departurePortName', '==', '__NO_ASSIGNED_PORT__'));
       }
     }
 
-    return baseCol;
+    return null; // NO Access for other roles
   }, [firestore, staffData, isLoadingStaffData, user]);
 
   const routesQuery = useMemoFirebase(() => {
@@ -548,7 +550,7 @@ export default function BookingsPage() {
                         <TableCell colSpan={9} className="h-24 text-center">
                         <div className="flex flex-col items-center gap-2">
                             <BookCopy className="h-8 w-8 text-muted-foreground" />
-                            <p className="text-muted-foreground">No bookings found in the system.</p>
+                            <p className="text-muted-foreground">No access to these bookings or none found.</p>
                         </div>
                         </TableCell>
                     </TableRow>

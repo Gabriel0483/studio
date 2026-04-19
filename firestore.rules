@@ -96,13 +96,11 @@ service cloud.firestore {
     }
 
     match /bookings/{id} {
-      allow get: if isOwner(resource.data.passengerId) || isAdmin();
+      allow get: if isAdmin() || (isSignedIn() && resource.data.passengerId == request.auth.uid);
       
-      // Allow passengers to list their own bookings
-      // Allow managers/finance to list all
-      // Allow port staff to list their port-specific bookings
+      // Rules are not filters. Query must include passengerId filter for non-staff.
       allow list: if isSignedIn() && (
-                   request.auth.uid == resource.data.passengerId ||
+                   (resource.data.passengerId == request.auth.uid) ||
                    isSuperAdmin() || 
                    hasRole('Finance/Accounting') ||
                    (hasRole('Desk Booking Agent') && resource.data.departurePortName == getStaffData().assignedPortName) ||
