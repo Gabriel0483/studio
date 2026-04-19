@@ -1,0 +1,6 @@
+
+connectorId: "maritime-connector"
+generate:
+  javascriptSdk:
+    outputDir: "../../src/generated/dataconnect"
+    package: "@islakonek/dataconnect"

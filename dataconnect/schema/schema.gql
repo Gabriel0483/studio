@@ -1,0 +1,88 @@
+
+# Isla Konek Data Connect Schema
+# Defines the relational structure for maritime operations
+
+type Announcement @table {
+  id: UUID! @default(expr: "uuid_generate_v4()")
+  title: String!
+  content: String!
+  category: String! # Enum values: General Information, Weather Update, Route Change, Fare Change, Service Disruption
+  createdAt: Timestamp! @default(expr: "request.time")
+}
+
+type Port @table {
+  id: UUID! @default(expr: "uuid_generate_v4()")
+  name: String! @unique
+  location: String!
+}
+
+type Passenger @table {
+  id: String! @primaryKey # Maps to Firebase Auth UID
+  firstName: String!
+  lastName: String!
+  email: String! @unique
+  phone: String
+}
+
+type Ship @table {
+  id: UUID! @default(expr: "uuid_generate_v4()")
+  name: String! @unique
+  capacity: Int!
+  status: String! @default(value: "In Service")
+  vesselType: String! @default(value: "Ferry")
+}
+
+type Staff @table {
+  id: String! @primaryKey # Maps to Firebase Auth UID
+  email: String! @unique
+  name: String!
+  roles: [String!]!
+  assignedPort: Port
+  assignedShip: Ship
+}
+
+type Route @table {
+  id: UUID! @default(expr: "uuid_generate_v4()")
+  name: String!
+  departurePort: Port!
+  destinationPort: Port!
+  distance: Float
+}
+
+type Fare @table {
+  id: UUID! @default(expr: "uuid_generate_v4()")
+  route: Route!
+  price: Float!
+  passengerType: String! # e.g., Adult, Child, Senior
+}
+
+type Schedule @table {
+  id: UUID! @default(expr: "uuid_generate_v4()")
+  tripType: String! @default(value: "Daily") # Daily, Special
+  ship: Ship
+  route: Route!
+  date: Date
+  departureTime: String!
+  arrivalTime: String
+  availableSeats: Int!
+  status: String @default(value: "On Time")
+}
+
+type Booking @table {
+  id: String! @primaryKey # 6-character alphanumeric reference
+  passenger: Passenger!
+  schedule: Schedule!
+  travelDate: Date!
+  totalPrice: Float!
+  status: String! @default(value: "Reserved")
+  paymentStatus: String! @default(value: "Unpaid")
+  createdAt: Timestamp! @default(expr: "request.time")
+}
+
+type SystemConfig @table @single {
+  companyName: String
+  logoUrl: String
+  heroTitle: String
+  heroDescription: String
+  heroImageUrl: String
+}

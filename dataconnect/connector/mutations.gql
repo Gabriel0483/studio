@@ -1,0 +1,40 @@
+
+# Mutations for Isla Konek Maritime System
+
+# Create a new booking
+mutation CreateBooking(
+  $id: String!,
+  $passengerId: String!,
+  $scheduleId: UUID!,
+  $travelDate: Date!,
+  $totalPrice: Float!
+) @auth(level: USER_ID) {
+  booking_insert(data: {
+    id: $id,
+    passengerId: $passengerId,
+    scheduleId: $scheduleId,
+    travelDate: $travelDate,
+    totalPrice: $totalPrice,
+    status: "Reserved",
+    paymentStatus: "Unpaid"
+  })
+}
+
+# Update ship status (Admin only)
+mutation UpdateShipStatus($id: UUID!, $status: String!) @auth(level: USER_ID) {
+  ship_update(id: $id, data: {status: $status})
+}
+
+# Create announcement (Admin only)
+mutation PostAnnouncement($title: String!, $content: String!, $category: String!) @auth(level: USER_ID) {
+  announcement_insert(data: {
+    title: $title,
+    content: $content,
+    category: $category
+  })
+}
+
+# Update system configuration
+mutation UpdateSettings($data: SystemConfig_UpdateData!) @auth(level: USER_ID) {
+  systemConfig_upsert(data: $data)
+}
