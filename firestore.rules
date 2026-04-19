@@ -22,7 +22,7 @@ service cloud.firestore {
     }
 
     // Check if the user is a registered staff member
-    function isAdmin() {
+    function isStaff() {
       return isPlatformAdmin() || (isSignedIn() && exists(/databases/$(database)/documents/staff/$(request.auth.uid)));
     }
     
@@ -31,98 +31,78 @@ service cloud.firestore {
     }
     
     function hasRole(role) {
-      // Use isAdmin() as a guard to ensure get() only executes for valid staff
-      return isPlatformAdmin() || (isAdmin() && getStaffData().roles.hasAny([role]));
+      return isPlatformAdmin() || (isStaff() && getStaffData().roles.hasAny([role]));
     }
     
-    // Check for specific management roles
-    function isSuperAdmin() {
-      return isPlatformAdmin() || (isAdmin() && getStaffData().roles.hasAny(['Super Admin', 'Operations Manager']));
-    }
-
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    // System configuration is readable by all, but only editable by super admins
+    // System configuration
     match /config/settings {
       allow read: if true;
-      allow write: if isSuperAdmin();
+      allow write: if hasRole('Super Admin') || hasRole('Operations Manager');
     }
 
     match /staff/{staffId} {
-      allow get: if isOwner(staffId) || isAdmin();
-      allow list: if isSuperAdmin();
+      allow get: if request.auth.uid == staffId || isStaff();
+      allow list: if hasRole('Super Admin');
       allow create: if isSignedIn();
-      allow update, delete: if isSuperAdmin();
+      allow update, delete: if hasRole('Super Admin');
     }
 
     match /passengers/{passengerId} {
-      allow get: if isOwner(passengerId) || isAdmin();
-      allow list: if isAdmin();
+      allow get: if request.auth.uid == passengerId || isStaff();
+      allow list: if isStaff();
       allow create: if true;
-      allow update: if isOwner(passengerId) || isAdmin();
+      allow update: if request.auth.uid == passengerId || isStaff();
     }
     
     match /announcements/{id} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isStaff();
     }
     
     match /ports/{id} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isStaff();
     }
 
     match /ships/{id} {
-      allow read: if isAdmin();
-      allow write: if isSuperAdmin();
+      allow read: if isStaff();
+      allow write: if hasRole('Super Admin') || hasRole('Operations Manager');
     }
 
     match /routes/{id} {
       allow read: if true;
-      allow write: if isSuperAdmin();
+      allow write: if hasRole('Super Admin') || hasRole('Operations Manager');
     }
 
     match /fares/{id} {
       allow read: if true;
-      allow write: if isSuperAdmin();
+      allow write: if hasRole('Super Admin') || hasRole('Operations Manager');
     }
 
     match /schedules/{id} {
       allow read: if true;
-      // Allow passengers to book (updates availableSeats) or spawn daily instances
+      // Allow any signed-in user to book (updates availableSeats) or spawn daily instances
       allow create, update: if isSignedIn();
-      allow delete: if isAdmin();
+      allow delete: if isStaff();
     }
 
     match /bookings/{id} {
       // READ permissions
-      allow get: if isAdmin() || (isSignedIn() && resource.data.passengerId == request.auth.uid);
-      
-      // Specifically allow list if either admin or matching the owner filter
-      allow list: if isAdmin() || (isSignedIn() && resource.data.passengerId == request.auth.uid);
+      allow get: if isStaff() || (isSignedIn() && resource.data.passengerId == request.auth.uid);
+      allow list: if isStaff() || (isSignedIn() && resource.data.passengerId == request.auth.uid);
       
       // WRITE permissions
       allow create: if isSignedIn();
-      
-      allow update: if isSuperAdmin() || 
-                     (isSignedIn() && resource.data.passengerId == request.auth.uid) ||
-                     (hasRole('Desk Booking Agent') && resource.data.departurePortName == getStaffData().assignedPortName) ||
-                     (hasRole('Station Manager') && resource.data.departurePortName == getStaffData().assignedPortName) ||
-                     (hasRole('Crew')); // Allow crew to update status to 'Completed'
-                     
-      allow delete: if isSuperAdmin();
+      allow update: if isStaff() || (isSignedIn() && resource.data.passengerId == request.auth.uid);
+      allow delete: if hasRole('Super Admin');
     }
 
     match /maintenanceRecords/{id} {
-      allow read: if isAdmin();
-      allow write: if isSuperAdmin();
+      allow read, write: if isStaff();
     }
     
     match /boarding/{id} {
-      allow read: if isAdmin();
-      allow write: if isAdmin();
+      allow read, write: if isStaff();
     }
   }
 }

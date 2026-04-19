@@ -285,7 +285,6 @@ function BookingContent() {
     const formattedTravelDate = format(travelDateObj, 'yyyy-MM-dd');
   
     try {
-      // 1. Instance lookup outside transaction
       let targetScheduleId = scheduleId;
       const selectedScheduleTemplate = allSchedules.find(s => s.id === scheduleId);
       
@@ -305,7 +304,6 @@ function BookingContent() {
         }
       }
 
-      // 2. Perform the atomic update and booking creation
       const { status: bookingStatus, bookingId, finalScheduleId } = await runTransaction(firestore, async (transaction) => {
         const scheduleRef = doc(firestore, 'schedules', targetScheduleId);
         const scheduleSnap = await transaction.get(scheduleRef);
@@ -414,9 +412,9 @@ function BookingContent() {
     } catch (e: any) {
       console.error("Booking transaction failed:", e);
       
-      if (e.code === 'permission-denied') {
+      if (e.code === 'permission-denied' || e.message?.toLowerCase().includes('permission')) {
         const permissionError = new FirestorePermissionError({
-          path: 'bookings', // Most likely failure point for permissions
+          path: 'bookings',
           operation: 'create',
           requestResourceData: data,
         });
