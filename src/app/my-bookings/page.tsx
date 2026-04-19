@@ -1,10 +1,10 @@
 
 'use client';
 
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect, Suspense } from 'react';
 import { useCollection, useFirestore, useMemoFirebase, useUser, useAuthContext } from '@/firebase';
 import { collection, query, where, Timestamp } from 'firebase/firestore';
-import { format } from 'date-fns';
+import { format, isValid } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Loader2, BookCopy, Ship, Users as UsersIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -13,11 +13,17 @@ import { PublicFooter } from '@/components/public-footer';
 import { useRouter } from 'next/navigation';
 import { Separator } from '@/components/ui/separator';
 
-export default function MyBookingsPage() {
+function MyBookingsContent() {
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
   const { isAuthReady } = useAuthContext();
   const router = useRouter();
+
+  useEffect(() => {
+    if (isAuthReady && !isUserLoading && !user) {
+      router.replace('/login');
+    }
+  }, [isAuthReady, isUserLoading, user, router]);
 
   const bookingsQuery = useMemoFirebase(() => {
     if (!firestore || !user?.uid) return null;
@@ -31,12 +37,6 @@ export default function MyBookingsPage() {
 
   const { data: bookings, isLoading: isLoadingBookings } = useCollection(bookingsQuery, { idField: 'firestoreId' });
   const { data: schedules, isLoading: isLoadingSchedules } = useCollection(schedulesQuery);
-
-  useEffect(() => {
-    if (isAuthReady && !user) {
-      router.replace('/login');
-    }
-  }, [isAuthReady, user, router]);
 
   const enrichedBookings = useMemo(() => {
     if (!bookings || !schedules) return [];
@@ -59,16 +59,14 @@ export default function MyBookingsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
-        <p className="ml-2 text-muted-foreground">Loading your bookings...</p>
+      <div className="flex h-64 w-full flex-col items-center justify-center">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <p className="mt-4 text-muted-foreground">Loading your trip history...</p>
       </div>
     );
   }
 
-  if (!user) {
-    return null;
-  }
+  if (!user) return null;
 
   const getStatusVariant = (status: string) => {
     switch (status) {
@@ -87,101 +85,114 @@ export default function MyBookingsPage() {
 
   const formatDate = (timestamp: Timestamp | undefined, dateFormat = 'PPP') => {
     if (!timestamp) return 'N/A';
-    return format(timestamp.toDate(), dateFormat);
+    const dateObj = timestamp.toDate();
+    return isValid(dateObj) ? format(dateObj, dateFormat) : 'Invalid Date';
   };
   
    const formatTime = (timeString: string | undefined) => {
     if (!timeString) return "N/A";
     try {
         const date = new Date(`1970-01-01T${timeString}`);
-        return format(date, 'p');
+        return isValid(date) ? format(date, 'p') : "Invalid Time";
     } catch {
         return "Invalid Time";
     }
   };
 
   return (
+    <div className="mx-auto max-w-4xl">
+      <div className="mb-12 text-center">
+        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">My Bookings</h1>
+        <p className="mt-4 text-lg text-muted-foreground">
+          View your past and upcoming trips.
+        </p>
+      </div>
+
+      {enrichedBookings && enrichedBookings.length > 0 ? (
+        <div className="space-y-6">
+          {enrichedBookings.map((booking) => (
+            <Card key={booking.firestoreId} className="overflow-hidden">
+              <CardHeader>
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                  <div>
+                      <CardTitle className="text-xl tracking-tight">{booking.routeName}</CardTitle>
+                      <CardDescription>Travel Date: {formatDate(booking.travelDate)}</CardDescription>
+                  </div>
+                  <Badge variant={getStatusVariant(booking.status)} className="w-fit">{booking.status}</Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-6 text-sm sm:grid-cols-3">
+                  <div>
+                    <p className="font-semibold text-muted-foreground">Booking Ref</p>
+                    <p className="font-mono">{booking.id}</p>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-muted-foreground">Departure</p>
+                    <p>{formatTime(booking.departureTime)}</p>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-muted-foreground">Arrival (Est.)</p>
+                    <p>{formatTime(booking.arrivalTime)}</p>
+                  </div>
+                   <div>
+                    <p className="font-semibold text-muted-foreground">Passengers</p>
+                    <p>{booking.numberOfSeats}</p>
+                  </div>
+                   <div>
+                    <p className="font-semibold text-muted-foreground">Ship</p>
+                    <p className="flex items-center gap-2"><Ship className="h-4 w-4" /> {booking.shipName}</p>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-muted-foreground">Payment</p>
+                    <Badge variant={booking.paymentStatus === 'Paid' ? 'default' : 'secondary'} className="mt-1">
+                      {booking.paymentStatus}
+                    </Badge>
+                  </div>
+                </div>
+                 <Separator />
+                 <div>
+                      <p className="font-semibold text-muted-foreground flex items-center gap-2 mb-2"><UsersIcon className="h-4 w-4" /> Passengers</p>
+                      <ul className="list-disc list-inside text-sm space-y-1">
+                          {booking.passengerInfo?.map((p: any, i: number) => (
+                              <li key={i}>{p.fullName} <span className="text-muted-foreground">({p.fareType})</span></li>
+                          ))}
+                      </ul>
+                  </div>
+              </CardContent>
+              <CardFooter className="bg-muted/50 px-6 py-3">
+                   <div className="flex w-full items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Total Price</span>
+                      <span className="font-bold text-lg">₱{booking.totalPrice.toFixed(2)}</span>
+                  </div>
+              </CardFooter>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <div className="flex h-64 w-full flex-col items-center justify-center rounded-lg border border-dashed">
+          <BookCopy className="h-16 w-16 text-muted-foreground" />
+          <h3 className="mt-4 text-lg font-semibold">No Bookings Found</h3>
+          <p className="text-sm text-muted-foreground">You haven't made any bookings yet.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function MyBookingsPage() {
+  return (
     <div className="flex min-h-screen flex-col">
       <PublicHeader />
-      <main className="flex-1 bg-secondary">
-        <div className="container mx-auto px-4 py-24 md:px-6 md:py-32">
-          <div className="mx-auto max-w-4xl">
-            <div className="mb-12 text-center">
-              <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">My Bookings</h1>
-              <p className="mt-4 text-lg text-muted-foreground">
-                View your past and upcoming trips.
-              </p>
+      <main className="flex-1 bg-secondary py-12 md:py-24">
+        <div className="container mx-auto px-4 md:px-6">
+          <Suspense fallback={
+            <div className="flex h-64 w-full items-center justify-center">
+              <Loader2 className="h-12 w-12 animate-spin text-primary" />
             </div>
-
-            {enrichedBookings && enrichedBookings.length > 0 ? (
-              <div className="space-y-6">
-                {enrichedBookings.map((booking) => (
-                  <Card key={booking.firestoreId} className="overflow-hidden">
-                    <CardHeader>
-                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
-                        <div>
-                            <CardTitle className="text-xl tracking-tight">{booking.routeName}</CardTitle>
-                            <CardDescription>Travel Date: {formatDate(booking.travelDate)}</CardDescription>
-                        </div>
-                        <Badge variant={getStatusVariant(booking.status)} className="w-fit">{booking.status}</Badge>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-6 text-sm sm:grid-cols-3">
-                        <div>
-                          <p className="font-semibold text-muted-foreground">Booking Ref</p>
-                          <p className="font-mono">{booking.id}</p>
-                        </div>
-                        <div>
-                          <p className="font-semibold text-muted-foreground">Departure</p>
-                          <p>{formatTime(booking.departureTime)}</p>
-                        </div>
-                        <div>
-                          <p className="font-semibold text-muted-foreground">Arrival (Est.)</p>
-                          <p>{formatTime(booking.arrivalTime)}</p>
-                        </div>
-                         <div>
-                          <p className="font-semibold text-muted-foreground">Passengers</p>
-                          <p>{booking.numberOfSeats}</p>
-                        </div>
-                         <div>
-                          <p className="font-semibold text-muted-foreground">Ship</p>
-                          <p className="flex items-center gap-2"><Ship className="h-4 w-4" /> {booking.shipName}</p>
-                        </div>
-                        <div>
-                          <p className="font-semibold text-muted-foreground">Payment</p>
-                          <Badge variant={booking.paymentStatus === 'Paid' ? 'default' : 'secondary'} className="mt-1">
-                            {booking.paymentStatus}
-                          </Badge>
-                        </div>
-                      </div>
-                       <Separator />
-                       <div>
-                            <p className="font-semibold text-muted-foreground flex items-center gap-2 mb-2"><UsersIcon className="h-4 w-4" /> Passengers</p>
-                            <ul className="list-disc list-inside text-sm space-y-1">
-                                {booking.passengerInfo?.map((p: any, i: number) => (
-                                    <li key={i}>{p.fullName} <span className="text-muted-foreground">({p.fareType})</span></li>
-                                ))}
-                            </ul>
-                        </div>
-                    </CardContent>
-                    <CardFooter className="bg-muted/50 px-6 py-3">
-                         <div className="flex w-full items-center justify-between text-sm">
-                            <span className="text-muted-foreground">Total Price</span>
-                            <span className="font-bold text-lg">₱{booking.totalPrice.toFixed(2)}</span>
-                        </div>
-                    </CardFooter>
-                  </Card>
-                ))}
-              </div>
-            ) : (
-              <div className="flex h-64 w-full flex-col items-center justify-center rounded-lg border border-dashed">
-                <BookCopy className="h-16 w-16 text-muted-foreground" />
-                <h3 className="mt-4 text-lg font-semibold">No Bookings Found</h3>
-                <p className="text-sm text-muted-foreground">You haven't made any bookings yet.</p>
-              </div>
-            )}
-          </div>
+          }>
+            <MyBookingsContent />
+          </Suspense>
         </div>
       </main>
       <PublicFooter />

@@ -28,7 +28,7 @@ import { PublicHeader } from "@/components/public-header"
 import { PublicFooter } from "@/components/public-footer"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc, useAuthContext, errorEmitter, FirestorePermissionError } from "@/firebase"
-import { collection, doc, serverTimestamp, runTransaction, Timestamp, where, query, getDocs, getDoc, updateDoc } from "firebase/firestore"
+import { collection, doc, serverTimestamp, runTransaction, Timestamp, where, query, getDocs, getDoc } from "firebase/firestore"
 import React, { useMemo, useState, useEffect, Suspense } from "react"
 import { Separator } from "@/components/ui/separator"
 import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
@@ -69,15 +69,19 @@ type BookingSummary = {
   totalTickets: number;
 };
 
-type ConfirmedBooking = BookingFormData & {
+type ConfirmedBooking = {
   id: string;
-  bookingDate: Date;
-  status: 'Reserved' | 'Waitlisted' | 'Confirmed';
+  travelDate: string;
   routeName: string;
   departurePortName: string;
   departureTime: string;
   arrivalTime: string;
+  passengers: { fullName: string; fareType: string }[];
   totalPrice: number;
+  status: 'Reserved' | 'Waitlisted' | 'Confirmed';
+  bookingDate: Date;
+  primaryEmail: string;
+  primaryPhone: string;
 };
 
 const generateBookingReference = () => {
@@ -301,7 +305,6 @@ function BookingContent() {
         if (!spawnedSchedules.empty) {
           targetScheduleId = spawnedSchedules.docs[0].id;
         } else {
-          // If we need to spawn it, generate a new ID now to use in the atomic transaction
           targetScheduleId = doc(collection(firestore, 'schedules')).id;
         }
       }
@@ -331,10 +334,8 @@ function BookingContent() {
 
         if (currentAvailableSeats >= totalSeats) {
           const newAvailableSeats = currentAvailableSeats - totalSeats;
-          // Calculate the single final state for the schedule
-          const updatedSchedule = { ...finalScheduleData, availableSeats: newAvailableSeats };
           if (isCreation) {
-            transaction.set(scheduleRef, updatedSchedule);
+            transaction.set(scheduleRef, { ...finalScheduleData, availableSeats: newAvailableSeats });
           } else {
             transaction.update(scheduleRef, { availableSeats: newAvailableSeats });
           }
@@ -406,16 +407,18 @@ function BookingContent() {
       const currentSchedule = currentScheduleDoc.data();
   
       setConfirmedBooking({
-        ...data,
-        scheduleId: finalScheduleId,
         id: bookingId,
-        bookingDate: new Date(),
-        status: bookingStatus,
+        travelDate: data.travelDate,
         routeName: getRouteName(watchRouteId),
-        departurePortName: data.departurePort || currentSchedule?.departurePortName,
-        departureTime: currentSchedule?.departureTime,
-        arrivalTime: currentSchedule?.arrivalTime,
+        departurePortName: data.departurePort || currentSchedule?.departurePortName || '',
+        departureTime: currentSchedule?.departureTime || '',
+        arrivalTime: currentSchedule?.arrivalTime || '',
+        passengers: data.passengers.map(p => ({ fullName: p.fullName, fareType: p.fareType })),
         totalPrice: summary.totalPrice,
+        status: bookingStatus,
+        bookingDate: new Date(),
+        primaryEmail: data.primaryEmail,
+        primaryPhone: data.primaryPhone,
       });
   
       setStep('confirmation');
@@ -424,10 +427,12 @@ function BookingContent() {
     } catch (e: any) {
       console.error("Booking transaction failed:", e);
       
-      if (e.code === 'permission-denied' || e.message?.toLowerCase().includes('permission')) {
+      const isPermissionError = e.code === 'permission-denied' || e.message?.toLowerCase().includes('permission');
+      
+      if (isPermissionError) {
         const permissionError = new FirestorePermissionError({
-          path: 'bookings',
-          operation: 'create',
+          path: e.message?.includes('schedules') ? 'schedules' : 'bookings',
+          operation: 'write',
           requestResourceData: data,
         });
         errorEmitter.emit('permission-error', permissionError);

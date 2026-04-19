@@ -26,7 +26,7 @@ service cloud.firestore {
     }
     
     function hasRole(role) {
-      return isPlatformAdmin() || (isStaff() && getStaffData().roles.hasAny([role]));
+      return isPlatformAdmin() || (isStaff() && role in getStaffData().roles);
     }
     
     // System-wide administrative access
@@ -50,7 +50,7 @@ service cloud.firestore {
     match /passengers/{passengerId} {
       allow get: if request.auth.uid == passengerId || isStaff();
       allow list: if isStaff();
-      allow create: if true;
+      allow create: if isSignedIn();
       allow update: if request.auth.uid == passengerId || isStaff();
     }
     
@@ -81,16 +81,22 @@ service cloud.firestore {
 
     match /schedules/{id} {
       allow read: if true;
-      // Allow any signed-in user to reserve seats (update) or spawn a daily instance (create)
+      // Allow any signed-in user to create/update as part of booking seat decrementing
       allow create, update: if isSignedIn();
       allow delete: if isStaff();
     }
 
     match /bookings/{id} {
-      // READ permissions: Users can see their own bookings; Staff can see all within scope
-      allow get, list: if isSignedIn() && (resource.data.passengerId == request.auth.uid || isStaff());
+      // Individual get: Owner or Staff
+      allow get: if isSignedIn() && (resource.data.passengerId == request.auth.uid || isStaff());
       
-      // WRITE permissions: Any user can create a booking; Owners/Staff can update
+      // List: Owner must use filter, or Staff sees all
+      allow list: if isSignedIn() && (
+        (request.query.limit <= 500 && resource.data.passengerId == request.auth.uid) || 
+        isStaff() ||
+        hasRole('Finance/Accounting')
+      );
+      
       allow create: if isSignedIn();
       allow update: if isSignedIn() && (resource.data.passengerId == request.auth.uid || isStaff());
       allow delete: if hasRole('Super Admin');
@@ -101,7 +107,8 @@ service cloud.firestore {
     }
     
     match /boarding/{id} {
-      allow read, write: if isStaff();
+      allow read: if isStaff();
+      allow write: if isStaff() || hasRole('Crew');
     }
   }
 }
