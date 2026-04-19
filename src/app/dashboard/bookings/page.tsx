@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
@@ -93,21 +94,26 @@ export default function BookingsPage() {
   const bookingsQuery = useMemoFirebase(() => {
     if (!firestore || isLoadingStaffData) return null;
 
-    const isDeskAgent = staffData?.roles?.includes('Desk Booking Agent');
-    const isStationManager = staffData?.roles?.includes('Station Manager');
-    const isManagerOrAdmin = staffData?.roles?.some((r: string) => 
-      ['Super Admin', 'Operations Manager'].includes(r)
-    ) || (user?.email === 'rielmagpantay@gmail.com' || user?.email === 'mariel.dumaoal@gmail.com');
+    const isPlatformAdmin = (user?.email === 'rielmagpantay@gmail.com' || user?.email === 'mariel.dumaoal@gmail.com');
+    
+    // Safety check: If not platform admin and no staff document, do not fire an unfiltered query
+    if (!staffData && !isPlatformAdmin) return null;
+
+    const roles = staffData?.roles || [];
+    const isDeskAgent = roles.includes('Desk Booking Agent');
+    const isStationManager = roles.includes('Station Manager');
+    const isFullAccessRole = roles.some((r: string) => 
+      ['Super Admin', 'Operations Manager', 'Finance/Accounting'].includes(r)
+    ) || isPlatformAdmin;
 
     const baseCol = collection(firestore, 'bookings');
 
     // Firestore Security Rules require a filtered query for restricted roles
-    if ((isDeskAgent || isStationManager) && !isManagerOrAdmin) {
+    if ((isDeskAgent || isStationManager) && !isFullAccessRole) {
       if (staffData?.assignedPortName) {
         return query(baseCol, where('departurePortName', '==', staffData.assignedPortName));
       } else {
-        // If they are a desk agent but have no assigned port, they shouldn't see anything 
-        // We use a dummy filter to satisfy the "Missing or insufficient permissions" constraint
+        // Restricted access query parameter
         return query(baseCol, where('departurePortName', '==', '__RESTRICTED_ACCESS__'));
       }
     }
