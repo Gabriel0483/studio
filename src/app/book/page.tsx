@@ -305,6 +305,7 @@ function BookingContent() {
         if (!spawnedSchedules.empty) {
           targetScheduleId = spawnedSchedules.docs[0].id;
         } else {
+          // IMPORTANT: generate a fresh ID if we need to create one
           targetScheduleId = doc(collection(firestore, 'schedules')).id;
         }
       }
@@ -314,7 +315,6 @@ function BookingContent() {
         const scheduleSnap = await transaction.get(scheduleRef);
         
         let finalScheduleData;
-        let isCreation = false;
 
         if (!scheduleSnap.exists()) {
           finalScheduleData = {
@@ -323,8 +323,8 @@ function BookingContent() {
             date: formattedTravelDate,
             sourceScheduleId: scheduleId,
             id: targetScheduleId,
+            availableSeats: selectedScheduleTemplate.availableSeats || 0,
           };
-          isCreation = true;
         } else {
           finalScheduleData = scheduleSnap.data();
         }
@@ -334,14 +334,14 @@ function BookingContent() {
 
         if (currentAvailableSeats >= totalSeats) {
           const newAvailableSeats = currentAvailableSeats - totalSeats;
-          if (isCreation) {
+          if (!scheduleSnap.exists()) {
             transaction.set(scheduleRef, { ...finalScheduleData, availableSeats: newAvailableSeats });
           } else {
             transaction.update(scheduleRef, { availableSeats: newAvailableSeats });
           }
         } else {
           status = 'Waitlisted';
-          if (isCreation) {
+          if (!scheduleSnap.exists()) {
              transaction.set(scheduleRef, finalScheduleData);
           }
         }

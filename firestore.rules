@@ -16,17 +16,14 @@ service cloud.firestore {
       );
     }
 
-    // Check if the user is a registered staff member
+    // Check if the user is a registered staff member safely
     function isStaff() {
       return isPlatformAdmin() || (isSignedIn() && exists(/databases/$(database)/documents/staff/$(request.auth.uid)));
     }
     
-    function getStaffData() {
-      return get(/databases/$(database)/documents/staff/$(request.auth.uid)).data;
-    }
-    
+    // Check for a specific role safely without crashing for non-staff users
     function hasRole(role) {
-      return isPlatformAdmin() || (isStaff() && role in getStaffData().roles);
+      return isPlatformAdmin() || (isStaff() && role in get(/databases/$(database)/documents/staff/$(request.auth.uid)).data.roles);
     }
     
     // System-wide administrative access
@@ -107,8 +104,7 @@ service cloud.firestore {
     }
     
     match /boarding/{id} {
-      allow read: if isStaff();
-      allow write: if isStaff() || hasRole('Crew');
+      allow read, write: if isStaff() || hasRole('Crew');
     }
   }
 }
