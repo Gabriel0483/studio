@@ -15,15 +15,18 @@ If you see "Site Not Found" or a "Detection Failed" error during deployment:
 2.  **Root Directory Fix**: 
     - In the Firebase Console, go to **App Hosting -> Settings**. 
     - Ensure **Root Directory** is set to **`/`** (a single forward slash). 
-    - If it is set to `.idx`, the build will fail to find your code.
 
 3.  **Lock File Required**: 
     - The build system **MUST** see a `package-lock.json` file in your GitHub repository. 
     - Run `npm install` on your computer and push the resulting `package-lock.json` file to GitHub.
 
-4.  **Multiple Backends**: 
-    - If you see two backends (e.g., `islakonek` and `Studio`), both are valid. 
-    - Typically, you pick one as your "Production" environment and share its `.hosted.app` URL with your users.
+## 🔐 Authentication & Domain Security
+To avoid "Application Error" or "Unauthorized Domain" errors during Sign Up/Login:
+
+1.  **Authorize Your Domain**:
+    - Go to **Firebase Console > Authentication > Settings > Authorized Domains**.
+    - Add your production domain: `islakonek--studio-8432386314-93bd2.asia-east1.hosted.app` (remove `https://` and `/welcome`).
+2.  **Dynamic Links Note**: This app uses standard Password Auth. It is **not** affected by the Dynamic Links shutdown as it does not use passwordless email links or Cordova.
 
 ## 📂 Project Structure
 - `/src`: Application source code (Next.js App Router).
@@ -33,13 +36,8 @@ If you see "Site Not Found" or a "Detection Failed" error during deployment:
 
 ## 🛡️ Security & Secrets
 - **Firebase API Keys**: These are public identifiers and are safe to be in GitHub.
-- **Data Protection**: Access is secured via `firestore.rules`. Always verify rules are deployed.
+- **Data Protection**: Access is secured via `firestore.rules`.
 - **Private Secrets**: Manage keys like `GEMINI_API_KEY` in the Firebase Console under **App Hosting > Settings > Environment Variables**.
-
-## 🤝 Transfer of Ownership
-1.  **Firebase**: Add the new owner's email as an **Owner** in Project Settings > Users and Permissions.
-2.  **GitHub**: Transfer the repository in the "Danger Zone" of the repository settings.
-3.  **Platform Admin**: Update `isPlatformAdmin()` in `firestore.rules` to include the new owner's email for full system access.
 
 ## Key Features
 - **Traveler Experience**: Self-service booking, profile management, and live trip status.
