@@ -1,3 +1,4 @@
+
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -26,7 +27,7 @@ import { toast } from "@/hooks/use-toast"
 import { PublicHeader } from "@/components/public-header"
 import { PublicFooter } from "@/components/public-footer"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
-import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc, useAuthContext } from "@/firebase"
+import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc, useAuthContext, errorEmitter, FirestorePermissionError } from "@/firebase"
 import { collection, doc, serverTimestamp, runTransaction, Timestamp, where, query, getDocs, addDoc, getDoc, updateDoc } from "firebase/firestore"
 import React, { useMemo, useState, useEffect } from "react"
 import { Separator } from "@/components/ui/separator"
@@ -402,7 +403,13 @@ export default function BookingPage() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
   
     } catch (e: any) {
-      console.error(e);
+      const permissionError = new FirestorePermissionError({
+        path: 'schedules',
+        operation: 'write',
+        requestResourceData: { availableSeats: 'updated' },
+      });
+      errorEmitter.emit('permission-error', permissionError);
+      
       toast({
         variant: "destructive",
         title: "Uh oh! Something went wrong.",

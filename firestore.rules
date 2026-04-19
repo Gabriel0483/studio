@@ -90,7 +90,9 @@ service cloud.firestore {
 
     match /schedules/{id} {
       allow read: if true;
-      allow write: if isAdmin();
+      // Allow passengers to book (updates availableSeats) or spawn daily instances
+      allow create, update: if isSignedIn();
+      allow delete: if isAdmin();
     }
 
     match /bookings/{id} {
