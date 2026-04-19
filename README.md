@@ -9,7 +9,7 @@ If you see "Site Not Found" or a "Detection Failed" error during deployment:
 1.  **Finding your Live URL**: 
     - Go to the **Firebase Console -> App Hosting**.
     - Select your backend (e.g., `islakonek`).
-    - The live URL (ending in **`.hosted.app`**) is listed on the **Dashboard** under the **Domains** section.
+    - The live **URL** (ending in **`.hosted.app`**) is listed on the **Dashboard** under the **Domains** section.
     - Note: The old `.web.app` URL from standard Firebase Hosting will not work for this Next.js project.
 
 2.  **Root Directory Fix**: 
