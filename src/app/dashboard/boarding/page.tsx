@@ -4,7 +4,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection } from 'firebase/firestore';
-import { format } from 'date-fns';
+import { format, isValid } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowRight, CalendarClock, Loader2 } from 'lucide-react';
@@ -39,7 +39,7 @@ export default function BoardingPage() {
   const { data: routes, isLoading: isLoadingRoutes } = useCollection(routesQuery);
 
   const selectedDateSchedules = useMemo(() => {
-    if (!allSchedules || !date) return [];
+    if (!allSchedules || !date || !isValid(date)) return [];
     
     const selectedDateStr = format(date, 'yyyy-MM-dd');
     
@@ -88,12 +88,12 @@ export default function BoardingPage() {
   };
 
   const handleManageTrip = (scheduleId: string) => {
-    if (!date) return;
+    if (!date || !isValid(date)) return;
     const dateParam = format(date, 'yyyy-MM-dd');
     router.push(`/dashboard/boarding/${scheduleId}?date=${dateParam}`);
   };
 
-  const isLoading = isLoadingSchedules || isLoadingRoutes || !date;
+  const isLoading = isLoadingSchedules || isLoadingRoutes || !date || !isValid(date);
 
   return (
     <div className="space-y-6">
@@ -110,7 +110,7 @@ export default function BoardingPage() {
                 <Input
                     id="trip-date"
                     type="date"
-                    value={date ? format(date, 'yyyy-MM-dd') : ''}
+                    value={date && isValid(date) ? format(date, 'yyyy-MM-dd') : ''}
                     onChange={(e) => {
                         if (e.target.value) {
                             const [year, month, day] = e.target.value.split('-').map(Number);
@@ -142,7 +142,7 @@ export default function BoardingPage() {
       {isLoading ? (
         <div className="flex h-full min-h-[400px] w-full items-center justify-center">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            <p className="ml-2">Loading trips for {date ? format(date, 'PPP') : 'today'}...</p>
+            <p className="ml-2">Loading trips for {date && isValid(date) ? format(date, 'PPP') : 'today'}...</p>
         </div>
       ) : selectedDateSchedules.length > 0 ? (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -178,7 +178,7 @@ export default function BoardingPage() {
             <CalendarClock className="h-16 w-16 text-muted-foreground" />
             <h3 className="mt-4 text-lg font-semibold">No Trips Scheduled</h3>
             <p className="text-sm text-muted-foreground">
-                There are no trips scheduled for {date ? format(date, 'PPP') : ''}
+                There are no trips scheduled for {date && isValid(date) ? format(date, 'PPP') : ''}
                 {filterRouteId !== 'all' && routes ? ` on the ${routes.find(r => r.id === filterRouteId)?.name} route` : ''}.
             </p>
         </div>
@@ -186,5 +186,3 @@ export default function BoardingPage() {
     </div>
   );
 }
-
-    

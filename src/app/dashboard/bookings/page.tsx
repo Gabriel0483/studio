@@ -39,7 +39,7 @@ import {
   where,
 } from 'firebase/firestore';
 import { BookCopy, Pencil, Search, Trash2, XCircle, CreditCard, Loader2, FilterX, Filter, MapPin } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, isValid } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -138,7 +138,7 @@ export default function BookingsPage() {
   const { data: schedules, isLoading: isLoadingSchedules } = useCollection(schedulesQuery);
 
   const availableSchedules = useMemo(() => {
-    if (!schedules || !filterDate) return [];
+    if (!schedules || !filterDate || !isValid(filterDate)) return [];
     
     const selectedDateStr = format(filterDate, 'yyyy-MM-dd');
 
@@ -188,7 +188,12 @@ export default function BookingsPage() {
         booking.routeName.toLowerCase().includes(searchTerm);
 
       const statusMatch = filterStatus === 'all' || booking.status === filterStatus;
-      const dateMatch = !filterDate || (booking.travelDate && format(booking.travelDate.toDate(), 'yyyy-MM-dd') === format(filterDate, 'yyyy-MM-dd'));
+      
+      let dateMatch = true;
+      if (filterDate && isValid(filterDate)) {
+        dateMatch = booking.travelDate && format(booking.travelDate.toDate(), 'yyyy-MM-dd') === format(filterDate, 'yyyy-MM-dd');
+      }
+
       const routeMatch = filterRoute === 'all' || booking.routeName === selectedRoute?.name;
       const scheduleMatch = filterSchedule === 'all' || booking.scheduleId === filterSchedule;
 
@@ -206,7 +211,8 @@ export default function BookingsPage() {
 
   const formatDate = (timestamp: Timestamp | undefined, dateFormat = 'PPP p') => {
     if (!timestamp) return 'N/A';
-    return format(timestamp.toDate(), dateFormat);
+    const dateObj = timestamp.toDate();
+    return isValid(dateObj) ? format(dateObj, dateFormat) : 'Invalid Date';
   };
 
   const handleEdit = (bookingId: string) => {
@@ -385,7 +391,7 @@ export default function BookingsPage() {
                             <Input
                                 id="filter-date"
                                 type="date"
-                                value={filterDate ? format(filterDate, 'yyyy-MM-dd') : ''}
+                                value={filterDate && isValid(filterDate) ? format(filterDate, 'yyyy-MM-dd') : ''}
                                 onChange={(e) => {
                                     if (e.target.value) {
                                         const [year, month, day] = e.target.value.split('-').map(Number);

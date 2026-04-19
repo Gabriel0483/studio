@@ -7,7 +7,7 @@ import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, PieChart, Pi
 import { ChartContainer, ChartTooltipContent } from "@/components/ui/chart";
 import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc } from '@/firebase';
 import { collection, Timestamp, query, where, doc } from 'firebase/firestore';
-import { format, getMonth, getYear } from 'date-fns';
+import { format, getMonth, getYear, isValid } from 'date-fns';
 import { DollarSign, Users, Clock, ClipboardCheck, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 
@@ -59,7 +59,7 @@ export default function DashboardPage() {
         totalRevenue: 0, totalPassengers: 0, waitlisted: 0, boarded: 0, paidPassengers: 0,
     };
 
-    if (!bookings || !allSchedules || !boardingRecords || !date) {
+    if (!bookings || !allSchedules || !boardingRecords || !date || !isValid(date)) {
       return defaultStats;
     }
 
@@ -67,7 +67,7 @@ export default function DashboardPage() {
 
     const relevantBookings = bookings.filter(b => {
       const travelDate = b.travelDate instanceof Timestamp ? b.travelDate.toDate() : new Date(b.travelDate);
-      return format(travelDate, 'yyyy-MM-dd') === selectedDateStr;
+      return isValid(travelDate) && format(travelDate, 'yyyy-MM-dd') === selectedDateStr;
     });
     
     const paidReservedBookings = relevantBookings.filter(b => b.paymentStatus === 'Paid' && (b.status === 'Reserved' || b.status === 'Confirmed'));
@@ -107,7 +107,7 @@ export default function DashboardPage() {
     bookings.forEach(booking => {
       if (booking.paymentStatus === 'Paid') {
         const bookingDate = booking.bookingDate instanceof Timestamp ? booking.bookingDate.toDate() : new Date(booking.bookingDate);
-        if (getYear(bookingDate) === currentYear) {
+        if (isValid(bookingDate) && getYear(bookingDate) === currentYear) {
           const month = getMonth(bookingDate);
           monthlyRevenue[month].total += booking.totalPrice;
         }
@@ -143,7 +143,7 @@ export default function DashboardPage() {
         </div>
         <Input
           type="date"
-          value={date ? format(date, 'yyyy-MM-dd') : ''}
+          value={date && isValid(date) ? format(date, 'yyyy-MM-dd') : ''}
           onChange={(e) => {
             if (e.target.value) {
               const [year, month, day] = e.target.value.split('-').map(Number);
