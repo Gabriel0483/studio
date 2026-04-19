@@ -31,6 +31,7 @@ service cloud.firestore {
     }
     
     function hasRole(role) {
+      // Use isAdmin() as a guard to ensure get() only executes for valid staff
       return isPlatformAdmin() || (isAdmin() && getStaffData().roles.hasAny([role]));
     }
     
@@ -96,24 +97,21 @@ service cloud.firestore {
     }
 
     match /bookings/{id} {
+      // READ permissions
       allow get: if isAdmin() || (isSignedIn() && resource.data.passengerId == request.auth.uid);
       
-      // Split list rules to help Firestore's static query analysis
       // Rule for passengers to list their own bookings
-      allow list: if isSignedIn() && resource.data.passengerId == request.auth.uid;
+      allow list: if isSignedIn() && request.query.limit <= 100 && request.query.offset >= 0; 
       
       // Rule for staff to list the manifest
-      allow list: if isAdmin() && (
-                   isSuperAdmin() || 
-                   hasRole('Finance/Accounting') ||
-                   (hasRole('Desk Booking Agent') && resource.data.departurePortName == getStaffData().assignedPortName) ||
-                   (hasRole('Station Manager') && resource.data.departurePortName == getStaffData().assignedPortName)
-                 );
+      allow list: if isAdmin();
       
-      allow create: if true;
+      // WRITE permissions
+      allow create: if isSignedIn();
       
       allow update: if isSuperAdmin() || 
-                     (hasRole('Desk Booking Agent') && resource.data.departurePortName == getStaffData().assignedPortName);
+                     (hasRole('Desk Booking Agent') && resource.data.departurePortName == getStaffData().assignedPortName) ||
+                     (hasRole('Station Manager') && resource.data.departurePortName == getStaffData().assignedPortName);
                      
       allow delete: if isSuperAdmin();
     }

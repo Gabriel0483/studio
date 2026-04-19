@@ -1,3 +1,4 @@
+
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -284,7 +285,7 @@ function BookingContent() {
     const formattedTravelDate = format(travelDateObj, 'yyyy-MM-dd');
   
     try {
-      // 1. Determine the target document ID for the schedule (instance lookup outside transaction)
+      // 1. Instance lookup outside transaction
       let targetScheduleId = scheduleId;
       const selectedScheduleTemplate = allSchedules.find(s => s.id === scheduleId);
       
@@ -300,7 +301,6 @@ function BookingContent() {
         if (!spawnedSchedules.empty) {
           targetScheduleId = spawnedSchedules.docs[0].id;
         } else {
-          // It's a new instance. We generate an ID now to use in the transaction.
           targetScheduleId = doc(collection(firestore, 'schedules')).id;
         }
       }
@@ -313,7 +313,6 @@ function BookingContent() {
         let scheduleDataForUpdate;
 
         if (!scheduleSnap.exists()) {
-          // Must be a Daily template that needs spawning
           scheduleDataForUpdate = {
             ...selectedScheduleTemplate,
             tripType: 'Special',
@@ -377,7 +376,6 @@ function BookingContent() {
         return { status, bookingId: newBookingId, finalScheduleId: targetScheduleId };
       });
   
-      // 3. Post-transaction updates (non-atomic or unrelated info)
       const passengerRef = doc(firestore, 'passengers', user.uid);
       const mainPassengerName = data.passengers[0].fullName.split(' ');
       const passengerDataToSave = {
@@ -416,21 +414,20 @@ function BookingContent() {
     } catch (e: any) {
       console.error("Booking transaction failed:", e);
       
-      // Emit the error using Isla Konek's contextual error framework if it's a permission issue
       if (e.code === 'permission-denied') {
         const permissionError = new FirestorePermissionError({
-          path: 'bookings',
+          path: 'bookings', // Most likely failure point for permissions
           operation: 'create',
           requestResourceData: data,
         });
         errorEmitter.emit('permission-error', permissionError);
+      } else {
+          toast({
+            variant: "destructive",
+            title: "Uh oh! Something went wrong.",
+            description: e.message || "Could not complete your booking.",
+          });
       }
-      
-      toast({
-        variant: "destructive",
-        title: "Uh oh! Something went wrong.",
-        description: e.message || "Could not complete your booking.",
-      });
     } finally {
         setIsReserving(false);
     }
