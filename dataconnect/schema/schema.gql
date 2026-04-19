@@ -1,66 +1,54 @@
+# Isla Konek Data Connect Schema
+# Defines the relational structure for the maritime management system.
 
-# Isla Konek Relational Schema
-# Defines the structure for maritime operations, routes, and bookings.
-
-# Ports of operation
 type Port @table {
   id: String! @primaryKey
   name: String!
   location: String!
 }
 
-# Vessels in the fleet
 type Ship @table {
   id: String! @primaryKey
   name: String!
   capacity: Int!
-  status: String! # In Service, Under Maintenance, etc.
-  vesselType: String! # Ferry, High-Speed Craft, etc.
+  status: String!
+  vesselType: String!
 }
 
-# Navigation routes between ports
 type Route @table {
   id: String! @primaryKey
   name: String!
-  departure: String!
-  destination: String!
+  departurePort: Port!
+  destinationPort: Port!
+  distance: Float!
 }
 
-# Pricing for specific routes
-type Fare @table {
-  id: String! @primaryKey
-  route: Route!
-  price: Float!
-  passengerType: String! # Adult, Child, Senior, etc.
-}
-
-# Trip instances or recurring templates
 type Schedule @table {
   id: String! @primaryKey
-  tripType: String! # Daily, Special
-  ship: Ship
   route: Route!
-  date: Date # Null for recurring daily templates
+  ship: Ship
   departureTime: String!
+  arrivalTime: String!
+  tripType: String! # 'Daily' or 'Special'
+  date: String # Required for Special trips
   availableSeats: Int!
+  status: String @default(value: "On Time")
 }
 
-# Passenger travel records
+type Passenger @table {
+  id: String! @primaryKey
+  firstName: String!
+  lastName: String!
+  email: String! @unique
+  phone: String
+}
+
 type Booking @table {
   id: String! @primaryKey
-  passengerId: String!
+  passenger: Passenger!
   schedule: Schedule!
   travelDate: Date!
   totalPrice: Float!
-  status: String! # Reserved, Confirmed, Completed, Cancelled
-  departurePortName: String
-}
-
-# Public service announcements
-type Announcement @table {
-  id: String! @primaryKey
-  title: String!
-  content: String!
-  category: String! # Weather Update, Route Change, etc.
-  createdAt: Timestamp! @default(expr: "request.time")
+  status: String!
+  paymentStatus: String @default(value: "Unpaid")
 }

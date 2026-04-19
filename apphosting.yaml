@@ -12,3 +12,4 @@ runConfig:
   maxInstances: 1
   minInstances: 0
   concurrency: 80
+  start command: "npm start"
