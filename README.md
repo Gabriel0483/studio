@@ -20,6 +20,7 @@ If you are seeing "No buildpack groups passed detection" or "Invalid root direct
 ## 📂 Backend Systems
 - **Firestore**: Currently used for real-time fleet operations and booking state.
 - **Data Connect (GraphQL)**: Schema initialized in `/dataconnect` for future relational data scaling with PostgreSQL.
+- **Firebase CLI**: A `firebase.json` file has been added to support standard Firebase CLI operations.
 
 ## Key Features
 - **Traveler Experience**: Self-service booking, profile management, and live trip status.
