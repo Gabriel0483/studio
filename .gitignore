@@ -23,6 +23,6 @@ firebase-debug.log*
 firestore-debug.log*
 ui-debug.log*
 
-# OS
+# System
 .DS_Store
 Thumbs.db
