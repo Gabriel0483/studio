@@ -1,4 +1,3 @@
-
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -47,7 +46,7 @@ function SignupContent() {
   // Redirect if already logged in
   useEffect(() => {
     if (isAuthReady && !isUserLoading && user) {
-        router.replace('/my-bookings');
+        router.replace('/welcome');
     }
   }, [isAuthReady, isUserLoading, user, router]);
 
@@ -68,7 +67,7 @@ function SignupContent() {
         title: "Account Created",
         description: "Welcome to Isla Konek! You can now start booking your trips.",
       });
-      router.push('/my-bookings');
+      router.push('/welcome');
     } catch (error: any) {
       console.error("Signup error:", error);
       let description = "An unexpected error occurred. Please try again.";

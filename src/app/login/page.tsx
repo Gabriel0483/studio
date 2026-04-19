@@ -1,4 +1,3 @@
-
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -39,7 +38,7 @@ function PublicLoginContent() {
   const { isAuthReady } = useAuthContext();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectUrl = searchParams.get('redirect') || '/my-bookings';
+  const redirectUrl = searchParams.get('redirect') || '/welcome';
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
