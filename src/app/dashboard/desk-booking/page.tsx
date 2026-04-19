@@ -260,50 +260,51 @@ export default function DeskBookingPage() {
     const formattedTravelDate = format(travelDateObj, 'yyyy-MM-dd');
   
     try {
-      const { status: bookingStatus, bookingId, finalScheduleId } = await runTransaction(firestore, async (transaction) => {
-        let scheduleToBookRef: any;
-        let scheduleDataForUpdate: any;
+      // 1. Instance lookup outside transaction
+      let targetScheduleId = scheduleId;
+      const selectedScheduleTemplate = allSchedules.find(s => s.id === scheduleId);
+      if (!selectedScheduleTemplate) throw new Error("Selected schedule template is invalid.");
 
-        const selectedScheduleTemplate = allSchedules.find(s => s.id === scheduleId);
-        if (!selectedScheduleTemplate) throw new Error("Selected schedule template is invalid.");
-
-        if (selectedScheduleTemplate.tripType === 'Daily') {
-          const spawnedScheduleQuery = query(
-            collection(firestore, 'schedules'),
-            where('sourceScheduleId', '==', scheduleId),
-            where('date', '==', formattedTravelDate)
-          );
-          const spawnedSchedules = await getDocs(spawnedScheduleQuery);
-
-          if (!spawnedSchedules.empty) {
-            const spawnedDoc = spawnedSchedules.docs[0];
-            scheduleToBookRef = spawnedDoc.ref;
-            scheduleDataForUpdate = spawnedDoc.data();
-          } else {
-            scheduleToBookRef = doc(collection(firestore, 'schedules'));
-            scheduleDataForUpdate = {
-              ...selectedScheduleTemplate,
-              tripType: 'Special',
-              date: formattedTravelDate,
-              sourceScheduleId: scheduleId,
-              id: scheduleToBookRef.id
-            };
-            transaction.set(scheduleToBookRef, scheduleDataForUpdate);
-          }
+      if (selectedScheduleTemplate.tripType === 'Daily') {
+        const spawnedScheduleQuery = query(
+          collection(firestore, 'schedules'),
+          where('sourceScheduleId', '==', scheduleId),
+          where('date', '==', formattedTravelDate)
+        );
+        const spawnedSchedules = await getDocs(spawnedScheduleQuery);
+        if (!spawnedSchedules.empty) {
+          targetScheduleId = spawnedSchedules.docs[0].id;
         } else {
-          scheduleToBookRef = doc(firestore, 'schedules', scheduleId);
-          const scheduleDoc = await transaction.get(scheduleToBookRef);
-          if (!scheduleDoc.exists()) throw new Error("Selected schedule does not exist!");
-          scheduleDataForUpdate = scheduleDoc.data();
+          targetScheduleId = doc(collection(firestore, 'schedules')).id;
+        }
+      }
+
+      // 2. Atomic transaction
+      const { status: bookingStatus, bookingId, finalScheduleId } = await runTransaction(firestore, async (transaction) => {
+        const scheduleRef = doc(firestore, 'schedules', targetScheduleId);
+        const scheduleSnap = await transaction.get(scheduleRef);
+        
+        let scheduleData;
+        if (!scheduleSnap.exists()) {
+          scheduleData = {
+            ...selectedScheduleTemplate,
+            tripType: 'Special',
+            date: formattedTravelDate,
+            sourceScheduleId: scheduleId,
+            id: targetScheduleId
+          };
+          transaction.set(scheduleRef, scheduleData);
+        } else {
+          scheduleData = scheduleSnap.data();
         }
 
-        const currentAvailableSeats = scheduleDataForUpdate.availableSeats || 0;
+        const currentAvailableSeats = scheduleData.availableSeats || 0;
         let status: 'Reserved' | 'Waitlisted' | 'Confirmed';
         let paymentStatus: 'Paid' | 'Unpaid' = data.isPaid ? 'Paid' : 'Unpaid';
 
         if (currentAvailableSeats >= totalSeats) {
           const newAvailableSeats = currentAvailableSeats - totalSeats;
-          transaction.update(scheduleToBookRef, { availableSeats: newAvailableSeats });
+          transaction.update(scheduleRef, { availableSeats: newAvailableSeats });
           status = data.isPaid ? 'Confirmed' : 'Reserved';
         } else {
           status = 'Waitlisted';
@@ -313,8 +314,7 @@ export default function DeskBookingPage() {
         const newBookingRef = doc(collection(firestore, 'bookings'));
         const newBookingId = generateBookingReference();
         const passengerId = foundPassenger ? foundPassenger.id : nanoid();
-  
-        const route = routes?.find(r => r.id === scheduleDataForUpdate.routeId);
+        const route = routes?.find(r => r.id === scheduleData.routeId);
 
         const newBookingData = {
           id: newBookingId,
@@ -327,7 +327,7 @@ export default function DeskBookingPage() {
           })),
           passengerEmail: data.primaryEmail,
           passengerPhone: data.primaryPhone,
-          scheduleId: scheduleToBookRef.id,
+          scheduleId: targetScheduleId,
           fareDetails: summary.details.map(d => {
             const fareInfo = availableFares.find(f => f.passengerType === d.fareType);
             return {
@@ -341,8 +341,8 @@ export default function DeskBookingPage() {
           travelDate: Timestamp.fromDate(travelDateObj),
           numberOfSeats: totalSeats,
           totalPrice: summary.totalPrice,
-          routeName: getRouteName(scheduleDataForUpdate.routeId),
-          departurePortName: scheduleDataForUpdate.departurePortName || route?.departure || '',
+          routeName: getRouteName(scheduleData.routeId),
+          departurePortName: scheduleData.departurePortName || route?.departure || '',
           status: status,
           paymentStatus: paymentStatus,
           refundStatus: 'Not Applicable',
@@ -350,7 +350,7 @@ export default function DeskBookingPage() {
         };
   
         transaction.set(newBookingRef, newBookingData);
-        return { status, bookingId: newBookingId, finalScheduleId: scheduleToBookRef.id };
+        return { status, bookingId: newBookingId, finalScheduleId: targetScheduleId };
       });
   
       toast({
@@ -377,7 +377,7 @@ export default function DeskBookingPage() {
       setStep('confirmation');
   
     } catch (e: any) {
-      console.error(e);
+      console.error("Desk booking failed:", e);
       toast({
         variant: "destructive",
         title: "Uh oh! Something went wrong.",

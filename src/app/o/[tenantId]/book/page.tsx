@@ -1,4 +1,3 @@
-
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -264,41 +263,42 @@ function BookingContent() {
     const formattedTravelDate = format(travelDateObj, 'yyyy-MM-dd');
   
     try {
-      const { status: bookingStatus, bookingId, finalScheduleId } = await runTransaction(firestore, async (transaction) => {
-        let scheduleToBookRef: any;
-        let scheduleDataForUpdate: any;
+      // 1. Determine the target document ID for the schedule (lookup outside transaction)
+      let targetScheduleId = scheduleId;
+      const selectedScheduleTemplate = allSchedules.find(s => s.id === scheduleId);
+      if (!selectedScheduleTemplate) throw new Error("Selected schedule template is invalid.");
 
-        const selectedScheduleTemplate = allSchedules.find(s => s.id === scheduleId);
-        if (!selectedScheduleTemplate) throw new Error("Selected schedule template is invalid.");
-
-        if (selectedScheduleTemplate.tripType === 'Daily') {
-          const spawnedScheduleQuery = query(
-            collection(firestore, 'schedules'),
-            where('sourceScheduleId', '==', scheduleId),
-            where('date', '==', formattedTravelDate)
-          );
-          const spawnedSchedules = await getDocs(spawnedScheduleQuery);
-
-          if (!spawnedSchedules.empty) {
-            const spawnedDoc = spawnedSchedules.docs[0];
-            scheduleToBookRef = spawnedDoc.ref;
-            scheduleDataForUpdate = spawnedDoc.data();
-          } else {
-            scheduleToBookRef = doc(collection(firestore, 'schedules'));
-            scheduleDataForUpdate = {
-              ...selectedScheduleTemplate,
-              tripType: 'Special',
-              date: formattedTravelDate,
-              sourceScheduleId: scheduleId,
-              id: scheduleToBookRef.id
-            };
-            transaction.set(scheduleToBookRef, scheduleDataForUpdate);
-          }
+      if (selectedScheduleTemplate.tripType === 'Daily') {
+        const spawnedScheduleQuery = query(
+          collection(firestore, 'schedules'),
+          where('sourceScheduleId', '==', scheduleId),
+          where('date', '==', formattedTravelDate)
+        );
+        const spawnedSchedules = await getDocs(spawnedScheduleQuery);
+        if (!spawnedSchedules.empty) {
+          targetScheduleId = spawnedSchedules.docs[0].id;
         } else {
-          scheduleToBookRef = doc(firestore, 'schedules', scheduleId);
-          const scheduleDoc = await transaction.get(scheduleToBookRef);
-          if (!scheduleDoc.exists()) throw new Error("Selected schedule does not exist!");
-          scheduleDataForUpdate = scheduleDoc.data();
+          targetScheduleId = doc(collection(firestore, 'schedules')).id;
+        }
+      }
+
+      // 2. Perform atomic read/writes
+      const { status: bookingStatus, bookingId, finalScheduleId } = await runTransaction(firestore, async (transaction) => {
+        const scheduleRef = doc(firestore, 'schedules', targetScheduleId);
+        const scheduleSnap = await transaction.get(scheduleRef);
+        
+        let scheduleDataForUpdate;
+        if (!scheduleSnap.exists()) {
+          scheduleDataForUpdate = {
+            ...selectedScheduleTemplate,
+            tripType: 'Special',
+            date: formattedTravelDate,
+            sourceScheduleId: scheduleId,
+            id: targetScheduleId,
+          };
+          transaction.set(scheduleRef, scheduleDataForUpdate);
+        } else {
+          scheduleDataForUpdate = scheduleSnap.data();
         }
 
         const currentAvailableSeats = scheduleDataForUpdate.availableSeats || 0;
@@ -306,14 +306,13 @@ function BookingContent() {
 
         if (currentAvailableSeats >= totalSeats) {
           const newAvailableSeats = currentAvailableSeats - totalSeats;
-          transaction.update(scheduleToBookRef, { availableSeats: newAvailableSeats });
+          transaction.update(scheduleRef, { availableSeats: newAvailableSeats });
         } else {
           status = 'Waitlisted';
         }
   
         const newBookingRef = doc(collection(firestore, 'bookings'));
         const newBookingId = generateBookingReference();
-
         const route = routes?.find(r => r.id === scheduleDataForUpdate.routeId);
   
         const newBookingData = {
@@ -327,7 +326,7 @@ function BookingContent() {
           })),
           passengerEmail: data.primaryEmail,
           passengerPhone: data.primaryPhone,
-          scheduleId: scheduleToBookRef.id,
+          scheduleId: targetScheduleId,
           fareDetails: summary.details.map(d => {
             const fareInfo = availableFares.find(f => f.passengerType === d.fareType);
             return {
@@ -350,7 +349,7 @@ function BookingContent() {
         };
   
         transaction.set(newBookingRef, newBookingData);
-        return { status, bookingId: newBookingId, finalScheduleId: scheduleToBookRef.id };
+        return { status, bookingId: newBookingId, finalScheduleId: targetScheduleId };
       });
   
       const passengerRef = doc(firestore, 'passengers', user.uid);
@@ -388,7 +387,7 @@ function BookingContent() {
       setStep('confirmation');
   
     } catch (e: any) {
-      console.error(e);
+      console.error("Booking transaction failed:", e);
       toast({
         variant: "destructive",
         title: "Uh oh! Something went wrong.",
