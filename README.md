@@ -6,10 +6,24 @@ Isla Konek is a dedicated maritime management platform designed to digitalize sh
 ## 🚀 Deployment & Build Fixes
 If you see "Site Not Found" or a "Detection Failed" error in Step 3:
 
-1.  **The Correct URL**: For Next.js apps, Firebase App Hosting uses a unique URL ending in **`.run.app`**. You can find this in the **Firebase Console -> App Hosting** dashboard. The old `.web.app` URL will not work for this project type.
-2.  **Root Directory**: In the Firebase Console, go to **App Hosting -> Settings**. Ensure **Root Directory** is set to **`/`** (a single forward slash). If it says `.idx`, the build will fail.
-3.  **Lock File Required**: The build system **MUST** see a `package-lock.json` file. Run `npm install` on your computer and push the resulting file to GitHub.
-4.  **Multiple Backends**: If you see two backends (e.g., `islakonek` and `Studio`), both are valid. Typically, you pick one as your "Production" environment and share its `.run.app` URL with your users.
+1.  **Finding your Live URL**: 
+    - Go to the **Firebase Console -> App Hosting**.
+    - Select your backend (e.g., `islakonek`).
+    - The live URL (ending in **`.run.app`**) is listed on the **Dashboard** under the **Domains** section.
+    - Note: The old `.web.app` URL will not work for this project type.
+
+2.  **Root Directory Fix**: 
+    - In the Firebase Console, go to **App Hosting -> Settings**. 
+    - Ensure **Root Directory** is set to **`/`** (a single forward slash). 
+    - If it says `.idx`, the build will fail.
+
+3.  **Lock File Required**: 
+    - The build system **MUST** see a `package-lock.json` file. 
+    - Run `npm install` on your computer and push the resulting file to GitHub.
+
+4.  **Multiple Backends**: 
+    - If you see two backends (e.g., `islakonek` and `Studio`), both are valid. 
+    - Typically, you pick one as your "Production" environment and share its `.run.app` URL with your users.
 
 ## 📂 Project Structure
 - `/src`: Application source code (Next.js App Router).
