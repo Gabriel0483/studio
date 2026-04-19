@@ -16,11 +16,6 @@ service cloud.firestore {
       );
     }
 
-    // System-wide administrative access - Priority 1
-    match /{document=**} {
-      allow read, write: if isPlatformAdmin();
-    }
-
     // Check if the user is a registered staff member
     function isStaff() {
       return isPlatformAdmin() || (isSignedIn() && exists(/databases/$(database)/documents/staff/$(request.auth.uid)));
@@ -34,6 +29,11 @@ service cloud.firestore {
       return isPlatformAdmin() || (isStaff() && getStaffData().roles.hasAny([role]));
     }
     
+    // System-wide administrative access
+    match /{document=**} {
+      allow read, write: if isPlatformAdmin();
+    }
+
     // System configuration
     match /config/settings {
       allow read: if true;
@@ -42,7 +42,7 @@ service cloud.firestore {
 
     match /staff/{staffId} {
       allow get: if request.auth.uid == staffId || isStaff();
-      allow list: if hasRole('Super Admin');
+      allow list: if isStaff();
       allow create: if isSignedIn();
       allow update, delete: if hasRole('Super Admin');
     }
@@ -81,19 +81,18 @@ service cloud.firestore {
 
     match /schedules/{id} {
       allow read: if true;
-      // Allow any signed-in user to book (updates availableSeats) or spawn daily instances
+      // Allow any signed-in user to reserve seats (update) or spawn a daily instance (create)
       allow create, update: if isSignedIn();
       allow delete: if isStaff();
     }
 
     match /bookings/{id} {
-      // READ permissions
-      allow get: if isStaff() || (isSignedIn() && resource.data.passengerId == request.auth.uid);
-      allow list: if isStaff() || (isSignedIn() && resource.data.passengerId == request.auth.uid);
+      // READ permissions: Users can see their own bookings; Staff can see all within scope
+      allow get, list: if isSignedIn() && (resource.data.passengerId == request.auth.uid || isStaff());
       
-      // WRITE permissions
+      // WRITE permissions: Any user can create a booking; Owners/Staff can update
       allow create: if isSignedIn();
-      allow update: if isStaff() || (isSignedIn() && resource.data.passengerId == request.auth.uid);
+      allow update: if isSignedIn() && (resource.data.passengerId == request.auth.uid || isStaff());
       allow delete: if hasRole('Super Admin');
     }
 

@@ -285,6 +285,7 @@ function BookingContent() {
     const formattedTravelDate = format(travelDateObj, 'yyyy-MM-dd');
   
     try {
+      // PRE-TRANSACTION: Resolve the exact schedule document reference
       let targetScheduleId = scheduleId;
       const selectedScheduleTemplate = allSchedules.find(s => s.id === scheduleId);
       
@@ -300,6 +301,7 @@ function BookingContent() {
         if (!spawnedSchedules.empty) {
           targetScheduleId = spawnedSchedules.docs[0].id;
         } else {
+          // If we need to spawn it, generate a new ID now to use in the atomic transaction
           targetScheduleId = doc(collection(firestore, 'schedules')).id;
         }
       }
@@ -308,34 +310,44 @@ function BookingContent() {
         const scheduleRef = doc(firestore, 'schedules', targetScheduleId);
         const scheduleSnap = await transaction.get(scheduleRef);
         
-        let scheduleDataForUpdate;
+        let finalScheduleData;
+        let isCreation = false;
 
         if (!scheduleSnap.exists()) {
-          scheduleDataForUpdate = {
+          finalScheduleData = {
             ...selectedScheduleTemplate,
             tripType: 'Special',
             date: formattedTravelDate,
             sourceScheduleId: scheduleId,
             id: targetScheduleId,
           };
-          transaction.set(scheduleRef, scheduleDataForUpdate);
+          isCreation = true;
         } else {
-          scheduleDataForUpdate = scheduleSnap.data();
+          finalScheduleData = scheduleSnap.data();
         }
 
-        const currentAvailableSeats = scheduleDataForUpdate.availableSeats || 0;
+        const currentAvailableSeats = finalScheduleData.availableSeats || 0;
         let status: 'Reserved' | 'Waitlisted' = 'Reserved';
 
         if (currentAvailableSeats >= totalSeats) {
           const newAvailableSeats = currentAvailableSeats - totalSeats;
-          transaction.update(scheduleRef, { availableSeats: newAvailableSeats });
+          // Calculate the single final state for the schedule
+          const updatedSchedule = { ...finalScheduleData, availableSeats: newAvailableSeats };
+          if (isCreation) {
+            transaction.set(scheduleRef, updatedSchedule);
+          } else {
+            transaction.update(scheduleRef, { availableSeats: newAvailableSeats });
+          }
         } else {
           status = 'Waitlisted';
+          if (isCreation) {
+             transaction.set(scheduleRef, finalScheduleData);
+          }
         }
   
         const newBookingRef = doc(collection(firestore, 'bookings'));
         const newBookingId = generateBookingReference();
-        const route = routes?.find(r => r.id === scheduleDataForUpdate.routeId);
+        const route = routes?.find(r => r.id === finalScheduleData.routeId);
   
         const newBookingData = {
           id: newBookingId,
@@ -362,8 +374,8 @@ function BookingContent() {
           travelDate: Timestamp.fromDate(travelDateObj),
           numberOfSeats: totalSeats,
           totalPrice: summary.totalPrice,
-          routeName: getRouteName(scheduleDataForUpdate.routeId),
-          departurePortName: data.departurePort || scheduleDataForUpdate.departurePortName || route?.departure || '',
+          routeName: getRouteName(finalScheduleData.routeId),
+          departurePortName: data.departurePort || finalScheduleData.departurePortName || route?.departure || '',
           status: status,
           paymentStatus: 'Unpaid',
           refundStatus: 'Not Applicable',
