@@ -45,21 +45,11 @@ function SignupContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [isEmailSent, setIsEmailSent] = useState(false);
 
-  // Redirect if already logged in (and verified/not blocked)
   useEffect(() => {
     if (isAuthReady && !isUserLoading && user && !isEmailSent) {
         router.replace('/welcome');
     }
   }, [isAuthReady, isUserLoading, user, router, isEmailSent]);
-
-  const form = useForm<SignupFormData>({
-    resolver: zodResolver(signupFormSchema),
-    defaultValues: {
-      email: "",
-      password: "",
-      confirmPassword: "",
-    },
-  });
 
   async function onSubmit(data: SignupFormData) {
     setIsLoading(true);
@@ -70,10 +60,10 @@ function SignupContent() {
         title: "Account Created!",
         description: "We've sent a verification link to your email address.",
       });
-      // Allow a brief moment for state update then navigate
+      // Pause to show confirmation before final welcome redirect
       setTimeout(() => {
           router.push('/welcome');
-      }, 3000);
+      }, 4000);
     } catch (error: any) {
       console.error("Signup error:", error);
       let description = "An unexpected error occurred. Please try again.";

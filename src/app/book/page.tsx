@@ -142,10 +142,8 @@ function BookingContent() {
   useEffect(() => {
     const today = new Date();
     const sixtyDaysFromNow = addDays(today, 60);
-    
     const minDate = format(today, "yyyy-MM-dd");
     const maxDate = format(sixtyDaysFromNow, "yyyy-MM-dd");
-    
     setDateRange({ min: minDate, max: maxDate });
     if (!form.getValues('travelDate')) {
         form.setValue('travelDate', minDate);
@@ -289,10 +287,8 @@ function BookingContent() {
     const formattedTravelDate = format(travelDateObj, 'yyyy-MM-dd');
   
     try {
-      // 1. Resolve the target schedule ID before the transaction (illegal to query in transaction)
       let targetScheduleId = scheduleId;
       const selectedScheduleTemplate = allSchedules.find(s => s.id === scheduleId);
-      
       if (!selectedScheduleTemplate) throw new Error("Selected schedule template is invalid.");
 
       if (selectedScheduleTemplate.tripType === 'Daily') {
@@ -305,7 +301,6 @@ function BookingContent() {
         if (!spawnedSchedules.empty) {
           targetScheduleId = spawnedSchedules.docs[0].id;
         } else {
-          // Generate a fresh ID for the daily-to-special conversion if instance doesn't exist
           targetScheduleId = doc(collection(firestore, 'schedules')).id;
         }
       }
@@ -315,8 +310,6 @@ function BookingContent() {
         const scheduleSnap = await transaction.get(scheduleRef);
         
         let finalScheduleData;
-
-        // Atomic "Get or Create" for the schedule instance
         if (!scheduleSnap.exists()) {
           finalScheduleData = {
             ...selectedScheduleTemplate,
@@ -337,8 +330,7 @@ function BookingContent() {
         let status: 'Reserved' | 'Waitlisted' = 'Reserved';
 
         if (currentAvailableSeats >= totalSeats) {
-          const newAvailableSeats = currentAvailableSeats - totalSeats;
-          transaction.update(scheduleRef, { availableSeats: newAvailableSeats });
+          transaction.update(scheduleRef, { availableSeats: currentAvailableSeats - totalSeats });
         } else {
           status = 'Waitlisted';
         }
@@ -384,22 +376,17 @@ function BookingContent() {
         return { status, bookingId: newBookingId, finalScheduleId: targetScheduleId };
       });
   
-      // Update passenger profile non-blocking
       const passengerRef = doc(firestore, 'passengers', user.uid);
       const mainPassengerName = data.passengers[0].fullName.split(' ');
-      const passengerDataToSave = {
+      setDocumentNonBlocking(passengerRef, {
           id: user.uid,
           firstName: mainPassengerName[0],
           lastName: mainPassengerName.slice(1).join(' '),
           email: data.primaryEmail,
           phone: data.primaryPhone,
-      };
-      setDocumentNonBlocking(passengerRef, passengerDataToSave, { merge: true });
+      }, { merge: true });
   
-      toast({
-        title: "Booking Successful!",
-        description: `Your booking is now ${bookingStatus}.`,
-      });
+      toast({ title: "Booking Successful!", description: `Your booking is now ${bookingStatus}.` });
   
       const currentScheduleDoc = await getDoc(doc(firestore, 'schedules', finalScheduleId));
       const currentSchedule = currentScheduleDoc.data();
@@ -424,20 +411,12 @@ function BookingContent() {
   
     } catch (e: any) {
       console.error("Booking transaction failed:", e);
-      // Emit genuine firestore error if available
-      if (e.code === 'permission-denied') {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: e.message?.includes('schedules') ? 'schedules' : 'bookings',
-          operation: 'write',
-          requestResourceData: data,
-        }));
-      } else {
-          toast({
-            variant: "destructive",
-            title: "Uh oh! Something went wrong.",
-            description: e.message || "Could not complete your booking.",
-          });
-      }
+      const permissionError = new FirestorePermissionError({
+        path: 'bookings',
+        operation: 'write',
+        requestResourceData: data,
+      });
+      errorEmitter.emit('permission-error', permissionError);
     } finally {
         setIsReserving(false);
     }
@@ -458,14 +437,13 @@ function BookingContent() {
     return (
         <div className="flex h-64 w-full flex-col items-center justify-center">
             <Loader2 className="h-12 w-12 animate-spin text-primary" />
-            <p className="mt-4 text-muted-foreground animate-pulse">Preparing your booking dashboard...</p>
+            <p className="mt-4 text-muted-foreground">Preparing your booking dashboard...</p>
         </div>
     );
   }
 
   return (
     <div className="max-w-7xl mx-auto">
-          {/* Progress Steps */}
           <div className="max-w-3xl mx-auto mb-12">
             <div className="flex items-center justify-between relative">
                 <div className="absolute top-1/2 left-0 w-full h-0.5 bg-border -z-10 -translate-y-1/2" />
@@ -508,7 +486,6 @@ function BookingContent() {
               <CardContent className="pt-8">
                 <Form {...form}>
                   <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-10">
-                    
                     <div className="space-y-6">
                         <div className="flex items-center gap-2 text-primary font-bold uppercase tracking-widest text-xs">
                             <MapPin className="h-4 w-4" />
@@ -598,9 +575,6 @@ function BookingContent() {
                                         ))}
                                     </SelectContent>
                                     </Select>
-                                    {(!filteredSchedules || filteredSchedules.length === 0) && watchRouteId && watchTravelDate && (
-                                        <p className="text-xs text-muted-foreground pt-1">No trips available for this date.</p>
-                                    )}
                                     <FormMessage />
                                 </FormItem>
                                 )}
@@ -621,8 +595,7 @@ function BookingContent() {
                                 size="sm"
                                 onClick={() => {
                                     const userName = (passengerData?.firstName && passengerData?.lastName) ? `${passengerData.firstName} ${passengerData.lastName}`.trim() : user?.displayName || '';
-                                    const userBirthDate = passengerData?.birthDate || '';
-                                    append({ id: nanoid(), fullName: userName, birthDate: userBirthDate, fareType: "" });
+                                    append({ id: nanoid(), fullName: userName, birthDate: passengerData?.birthDate || '', fareType: "" });
                                 }}
                                 disabled={!watchScheduleId}
                                 className="h-8"
