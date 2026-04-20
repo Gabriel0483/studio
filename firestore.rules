@@ -42,7 +42,7 @@ service cloud.firestore {
     // --- System Configuration ---
     match /config/settings {
       allow read: if true;
-      allow write: if isSignedIn() && (hasRole('Super Admin') || hasRole('Operations Manager'));
+      allow write: if isPlatformAdmin() || (isSignedIn() && (hasRole('Super Admin') || hasRole('Operations Manager')));
     }
 
     // --- Staff Management ---
@@ -50,7 +50,7 @@ service cloud.firestore {
       allow get: if isSignedIn() && (request.auth.uid == staffId || isStaff());
       allow list: if isStaff();
       allow create: if isSignedIn();
-      allow update, delete: if isSignedIn() && hasRole('Super Admin');
+      allow update, delete: if isSignedIn() && (isPlatformAdmin() || hasRole('Super Admin'));
     }
 
     // --- Passenger Profiles ---

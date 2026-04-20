@@ -126,8 +126,7 @@ export const TripItinerary: React.FC<TripItineraryProps> = ({ booking }) => {
        <Separator />
 
       <div className="text-center text-xs text-gray-500 pt-4">
-        <p>Thank you for choosing Isla Konek. Please arrive at the port at least 30 minutes before departure.</p>
-        <p>This document serves as your official trip itinerary. Have a safe and pleasant journey!</p>
+        <p>Thank you for choosing the Isla Konek booking platform. Please arrive at the port at least 2 hours before departure to settle your payment at our ticketing desks. This document is your official itinerary; please see our advisories page for booking policies. Have a safe and pleasant journey!</p>
       </div>
     </div>
   );
