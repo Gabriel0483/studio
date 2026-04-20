@@ -20,9 +20,10 @@ import { Logo } from '@/components/logo';
 import { UserNav } from '@/components/dashboard/user-nav';
 import { navLinks, APP_VERSION } from '@/lib/data';
 import { Button } from '@/components/ui/button';
-import { Home, Loader2, Info } from 'lucide-react';
-import { useUser, useAuthContext, initializeFirebase } from '@/firebase';
+import { Home, Loader2, Info, ShieldAlert, LogOut } from 'lucide-react';
+import { useUser, useAuthContext, initializeFirebase, useAuth } from '@/firebase';
 import { doc, getDoc } from 'firebase/firestore';
+import { handleSignOut } from '@/firebase/auth';
 
 export default function DashboardLayout({
   children,
@@ -31,6 +32,7 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const auth = useAuth();
   const { user, isUserLoading } = useUser();
   const { isAuthReady } = useAuthContext();
   
@@ -49,28 +51,25 @@ export default function DashboardLayout({
         const staffDocRef = doc(firestore, 'staff', user.uid);
         const staffDoc = await getDoc(staffDocRef);
 
+        // Platform Admin check (emails allowed even without document)
+        const adminEmails = ['rielmagpantay@gmail.com', 'mariel.dumaoal@gmail.com'];
+        const isPlatformAdmin = user.email && adminEmails.includes(user.email);
+
         if (staffDoc.exists()) {
           const data = staffDoc.data();
           setStaffInfo({ roles: data.roles || [] });
           setAuthStatus('authorized');
-          return;
-        }
-        
-        // Initial fallbacks for known admin emails
-        const adminEmails = ['rielmagpantay@gmail.com', 'mariel.dumaoal@gmail.com'];
-        if (user.email && adminEmails.includes(user.email)) {
+        } else if (isPlatformAdmin) {
           setStaffInfo({ roles: ['Super Admin'] });
           setAuthStatus('authorized');
-          return;
+        } else {
+          setAuthStatus('unauthorized');
         }
-
-        setAuthStatus('unauthorized');
-        router.replace('/admin/login');
       };
 
       checkAccess();
     } else {
-      setAuthStatus('unauthorized');
+      // Not logged in at all - safe to redirect to login
       router.replace('/admin/login');
     }
   }, [user, isAuthReady, isUserLoading, router]);
@@ -84,17 +83,50 @@ export default function DashboardLayout({
     });
   }, [staffInfo.roles]);
 
-  if (authStatus !== 'authorized') {
+  const onSignOutAndRedirect = async () => {
+    await handleSignOut(auth);
+    router.replace('/admin/login');
+  };
+
+  // 1. Initial Loading State
+  if (authStatus === 'checking') {
     return (
       <div className="flex h-screen w-full flex-col items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
         <p className="mt-4 text-sm font-medium text-muted-foreground">
-          {authStatus === 'checking' ? 'Verifying secure access...' : 'Redirecting to login...'}
+          Verifying secure access...
         </p>
       </div>
     );
   }
 
+  // 2. Unauthorized State (Logged in but not staff)
+  // This view prevents the infinite redirect loop
+  if (authStatus === 'unauthorized') {
+    return (
+      <div className="flex h-screen w-full flex-col items-center justify-center bg-background p-4 text-center">
+        <div className="bg-destructive/10 p-4 rounded-full mb-4">
+          <ShieldAlert className="h-10 w-10 text-destructive" />
+        </div>
+        <h1 className="text-2xl font-bold tracking-tight">Access Restricted</h1>
+        <p className="mt-2 text-muted-foreground max-w-md">
+          Your account ({user?.email}) is not authorized to access the Isla Konek Command Center. 
+          Please contact your administrator for provisioning.
+        </p>
+        <div className="mt-8 flex flex-col sm:flex-row gap-3">
+          <Button variant="outline" onClick={onSignOutAndRedirect}>
+            <LogOut className="mr-2 h-4 w-4" />
+            Switch Account
+          </Button>
+          <Button asChild>
+            <Link href="/welcome">Return to Portal</Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // 3. Authorized State
   return (
     <SidebarProvider>
       <Sidebar>

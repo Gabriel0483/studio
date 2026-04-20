@@ -18,11 +18,12 @@ import {
 import { Input } from "@/components/ui/input"
 import { toast } from "@/hooks/use-toast"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { useAuth, useUser, useAuthContext } from "@/firebase"
+import { useAuth, useUser, useAuthContext, initializeFirebase } from "@/firebase"
 import { signInWithEmailAndPassword } from "firebase/auth"
 import { Loader2, ShieldCheck } from "lucide-react"
 import { Logo } from "@/components/logo";
 import Link from "next/link";
+import { doc, getDoc } from "firebase/firestore";
 
 const loginFormSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address." }),
@@ -37,11 +38,29 @@ export default function AdminLoginPage() {
   const { isAuthReady } = useAuthContext();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
 
-  // Redirect if already logged in
+  // Redirect if already logged in AND verified as staff
   useEffect(() => {
     if (isAuthReady && user) {
-      router.push('/dashboard');
+      const verifyAndRedirect = async () => {
+        setIsVerifying(true);
+        const { firestore } = initializeFirebase();
+        const staffDocRef = doc(firestore, 'staff', user.uid);
+        const staffDoc = await getDoc(staffDocRef);
+        
+        const adminEmails = ['rielmagpantay@gmail.com', 'mariel.dumaoal@gmail.com'];
+        const isPlatformAdmin = user.email && adminEmails.includes(user.email);
+
+        if (staffDoc.exists() || isPlatformAdmin) {
+          router.push('/dashboard');
+        } else {
+          // If logged in but not staff, don't redirect to dashboard (avoids loop)
+          // Just let them stay on login or log out
+          setIsVerifying(false);
+        }
+      };
+      verifyAndRedirect();
     }
   }, [isAuthReady, user, router]);
 
@@ -60,10 +79,9 @@ export default function AdminLoginPage() {
       
       toast({
         title: "Login Successful",
-        description: "Welcome to the Command Center.",
+        description: "Verifying credentials...",
       });
-      router.push('/dashboard');
-
+      // The useEffect above will handle the redirect if verification passes
     } catch (error: any) {
       console.error("Auth error:", error);
       let description = "An unexpected error occurred. Please try again.";
@@ -82,6 +100,15 @@ export default function AdminLoginPage() {
     } finally {
         setIsLoading(false);
     }
+  }
+
+  if (isVerifying) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-secondary">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="mt-4 text-sm font-medium text-muted-foreground">Verifying access rights...</p>
+      </div>
+    );
   }
 
   return (
