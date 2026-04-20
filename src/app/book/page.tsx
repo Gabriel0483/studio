@@ -813,12 +813,6 @@ function BookingContent() {
                         <span className="text-4xl font-black tracking-tighter text-primary">₱{bookingSummary.totalPrice.toFixed(2)}</span>
                     </div>
                   </div>
-
-                  <div className="space-y-2 px-2">
-                    <p className="text-sm text-muted-foreground leading-relaxed italic">
-                        By clicking "Reserve Now", you agree to Isla Konek's terms of service. Your seats will be held for 30 minutes pending payment at the terminal or via digital channels.
-                    </p>
-                  </div>
                 </CardContent>
                 <CardFooter className="flex flex-col sm:flex-row gap-3 pt-4">
                     <Button variant="ghost" size="lg" className="w-full sm:w-auto h-12" onClick={() => setStep('form')}>

@@ -22,15 +22,14 @@ service cloud.firestore {
     }
 
     // --- Staff Verification (Defensive Lookups) ---
-    // We use a helper to check if a staff document exists without crashing rule evaluation
-    function getStaffData() {
-      return get(/databases/$(database)/documents/staff/$(request.auth.uid)).data;
-    }
-
     function isStaff() {
       return isPlatformAdmin() || (isSignedIn() && exists(/databases/$(database)/documents/staff/$(request.auth.uid)));
     }
     
+    function getStaffData() {
+      return get(/databases/$(database)/documents/staff/$(request.auth.uid)).data;
+    }
+
     function hasRole(role) {
       return isPlatformAdmin() || (isStaff() && role in getStaffData().roles);
     }
@@ -50,7 +49,7 @@ service cloud.firestore {
     match /staff/{staffId} {
       allow get: if isSignedIn() && (request.auth.uid == staffId || isStaff());
       allow list: if isStaff();
-      allow create: if isSignedIn(); // Allow initial registration
+      allow create: if isSignedIn();
       allow update, delete: if isSignedIn() && hasRole('Super Admin');
     }
 
@@ -97,23 +96,20 @@ service cloud.firestore {
     // --- Trip Schedules ---
     match /schedules/{id} {
       allow read: if true;
-      // Allow passengers to decrement seats via transaction
       allow create, update: if isSignedIn(); 
       allow delete: if isStaff();
     }
 
     // --- Passenger Bookings ---
     match /bookings/{id} {
-      // Rule for single document access
       allow get: if isSignedIn() && (
         resource == null || 
         resource.data.passengerId == request.auth.uid || 
         isStaff()
       );
       
-      // Rule for collection listing (crucial for "My Bookings" page)
       allow list: if isSignedIn() && (
-        (request.query.limit <= 100 && resource.data.passengerId == request.auth.uid) || 
+        (resource.data.passengerId == request.auth.uid) || 
         isStaff()
       );
       
