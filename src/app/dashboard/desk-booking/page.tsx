@@ -29,7 +29,7 @@ import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, doc, serverTimestamp, runTransaction, Timestamp, where, query, getDocs, getDoc } from "firebase/firestore"
 import React, { useMemo, useState, useEffect } from "react"
 import { Separator } from "@/components/ui/separator"
-import { format, addDays } from "date-fns"
+import { format, addDays, isValid } from "date-fns"
 import { TripItinerary } from "@/components/trip-itinerary";
 import { nanoid } from "nanoid"
 import { useRouter } from "next/navigation"
@@ -64,15 +64,19 @@ type BookingSummary = {
   totalTickets: number;
 };
 
-type ConfirmedBooking = BookingFormData & {
+type ConfirmedBooking = {
   id: string;
-  bookingDate: Date;
-  status: 'Reserved' | 'Waitlisted' | 'Confirmed';
+  travelDate: string;
   routeName: string;
   departurePortName: string;
   departureTime: string;
   arrivalTime: string;
+  passengers: { fullName: string; fareType: string }[];
   totalPrice: number;
+  status: 'Reserved' | 'Waitlisted' | 'Confirmed';
+  bookingDate: Date;
+  primaryEmail: string;
+  primaryPhone: string;
 };
 
 const generateBookingReference = () => {
@@ -141,7 +145,9 @@ export default function DeskBookingPage() {
     const maxDate = format(sixtyDaysFromNow, "yyyy-MM-dd");
     
     setDateRange({ min: minDate, max: maxDate });
-    form.setValue('travelDate', minDate);
+    if (!form.getValues('travelDate')) {
+        form.setValue('travelDate', minDate);
+    }
   }, [form]);
 
   useEffect(() => {
@@ -150,12 +156,12 @@ export default function DeskBookingPage() {
         form.setValue('primaryEmail', foundPassenger.email || '');
         form.setValue('primaryPhone', foundPassenger.phone || '');
     } else {
-        form.reset({
-            ...form.getValues(),
-            passengers: [{ id: nanoid(), fullName: '', birthDate: '', fareType: '' }],
-            primaryEmail: '',
-            primaryPhone: '',
-        });
+        const currentPassengers = form.getValues('passengers');
+        if (currentPassengers.length === 0 || (currentPassengers.length === 1 && !currentPassengers[0].fullName)) {
+            form.setValue('passengers', [{ id: nanoid(), fullName: '', birthDate: '', fareType: '' }]);
+            form.setValue('primaryEmail', '');
+            form.setValue('primaryPhone', '');
+        }
     }
   }, [foundPassenger, form]);
 
@@ -174,15 +180,28 @@ export default function DeskBookingPage() {
     if (!watchRouteId || !watchTravelDate || !allSchedules) return [];
 
     const selectedDate = new Date(watchTravelDate);
+    if (!isValid(selectedDate)) return [];
+    
     selectedDate.setHours(0, 0, 0, 0);
     const formattedTravelDate = format(selectedDate, 'yyyy-MM-dd');
 
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // Don't show schedules for past dates
+    if (selectedDate < today) return [];
+
+    const isToday = selectedDate.getTime() === today.getTime();
+    const now = new Date();
+    const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+
     const specialTrips = allSchedules.filter(s => 
       s.tripType === 'Special' && 
-      s.date === formattedTravelDate
+      s.date === formattedTravelDate &&
+      (!isToday || s.departureTime > currentTime)
     );
 
-    const dailyTrips = allSchedules.filter(s => s.tripType === 'Daily' && s.routeId === watchRouteId);
+    const dailyTrips = allSchedules.filter(s => s.tripType === 'Daily' && s.routeId === watchRouteId && (!isToday || s.departureTime > currentTime));
 
     const dailyTripInstances = dailyTrips.map(dailyTrip => {
       const existingInstance = specialTrips.find(st => st.sourceScheduleId === dailyTrip.id);
@@ -260,7 +279,6 @@ export default function DeskBookingPage() {
     const formattedTravelDate = format(travelDateObj, 'yyyy-MM-dd');
   
     try {
-      // 1. Instance lookup outside transaction
       let targetScheduleId = scheduleId;
       const selectedScheduleTemplate = allSchedules.find(s => s.id === scheduleId);
       if (!selectedScheduleTemplate) throw new Error("Selected schedule template is invalid.");
@@ -279,7 +297,6 @@ export default function DeskBookingPage() {
         }
       }
 
-      // 2. Atomic transaction
       const { status: bookingStatus, bookingId, finalScheduleId } = await runTransaction(firestore, async (transaction) => {
         const scheduleRef = doc(firestore, 'schedules', targetScheduleId);
         const scheduleSnap = await transaction.get(scheduleRef);
@@ -291,7 +308,10 @@ export default function DeskBookingPage() {
             tripType: 'Special',
             date: formattedTravelDate,
             sourceScheduleId: scheduleId,
-            id: targetScheduleId
+            id: targetScheduleId,
+            availableSeats: selectedScheduleTemplate.availableSeats || 0,
+            boardingStatus: 'Awaiting',
+            status: 'On Time'
           };
           transaction.set(scheduleRef, scheduleData);
         } else {
@@ -362,16 +382,18 @@ export default function DeskBookingPage() {
       const currentSchedule = currentScheduleDoc.data();
   
       setConfirmedBooking({
-        ...data,
-        scheduleId: finalScheduleId,
         id: bookingId,
-        bookingDate: new Date(),
-        status: bookingStatus,
+        travelDate: data.travelDate,
         routeName: getRouteName(watchRouteId),
-        departurePortName: currentSchedule?.departurePortName,
-        departureTime: currentSchedule?.departureTime,
-        arrivalTime: currentSchedule?.arrivalTime,
+        departurePortName: currentSchedule?.departurePortName || '',
+        departureTime: currentSchedule?.departureTime || '',
+        arrivalTime: currentSchedule?.arrivalTime || '',
+        passengers: data.passengers.map(p => ({ fullName: p.fullName, fareType: p.fareType })),
         totalPrice: summary.totalPrice,
+        status: bookingStatus,
+        bookingDate: new Date(),
+        primaryEmail: data.primaryEmail,
+        primaryPhone: data.primaryPhone,
       });
   
       setStep('confirmation');

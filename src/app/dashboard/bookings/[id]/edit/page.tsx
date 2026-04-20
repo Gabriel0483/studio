@@ -1,4 +1,3 @@
-
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -40,7 +39,7 @@ import {
 import { collection, doc, runTransaction, Timestamp, query, where, getDocs, serverTimestamp, getDoc } from 'firebase/firestore';
 import React, { useMemo, useState, useEffect } from 'react';
 import { Separator } from '@/components/ui/separator';
-import { format } from 'date-fns';
+import { format, isValid } from 'date-fns';
 import { useRouter, useParams } from 'next/navigation';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
@@ -82,6 +81,12 @@ export default function EditBookingPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [rebookingFee, setRebookingFee] = useState(0);
   const [rebookingReason, setRebookingReason] = useState('');
+  const [minDate, setMinDate] = useState('');
+
+  useEffect(() => {
+    // Hydration-safe date initialization
+    setMinDate(format(new Date(), 'yyyy-MM-dd'));
+  }, []);
 
 
   const schedulesQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'schedules') : null), [firestore]);
@@ -166,12 +171,17 @@ export default function EditBookingPage() {
     if (!watchRouteId || !watchTravelDate || !allSchedules) return [];
 
     const selectedDate = new Date(watchTravelDate);
+    if (!isValid(selectedDate)) return [];
+
     selectedDate.setHours(0, 0, 0, 0);
     const formattedTravelDate = format(selectedDate, 'yyyy-MM-dd');
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
+    // Don't show schedules for past dates
+    if (selectedDate < today) return [];
+
     const isToday = selectedDate.getTime() === today.getTime();
     const now = new Date();
     const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
@@ -430,7 +440,7 @@ export default function EditBookingPage() {
                         <Input
                           type="date"
                           {...field}
-                          min={new Date().toISOString().split('T')[0]}
+                          min={minDate}
                            onChange={(e) => {
                                 field.onChange(e);
                                 form.setValue('scheduleId', '');
