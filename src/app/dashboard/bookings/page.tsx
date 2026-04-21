@@ -38,7 +38,7 @@ import {
   query,
   where,
 } from 'firebase/firestore';
-import { BookCopy, Pencil, Search, Trash2, XCircle, CreditCard, Loader2, FilterX, Filter, MapPin, ShieldClock, Zap } from 'lucide-react';
+import { BookCopy, Pencil, Search, Trash2, XCircle, CreditCard, Loader2, FilterX, Filter, MapPin, ShieldClock, Zap, Eye, User, Calendar, Ship, Ticket } from 'lucide-react';
 import { format, isValid } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -52,13 +52,23 @@ import {
   CollapsibleContent,
 } from "@/components/ui/collapsible";
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Separator } from '@/components/ui/separator';
 
 interface Booking {
   firestoreId: string;
   id: string;
   scheduleId: string;
-  passengerInfo?: { fullName: string; birthDate?: string }[];
+  passengerInfo?: { fullName: string; birthDate?: string; fareType?: string }[];
   passengerEmail: string;
+  passengerPhone?: string;
   routeName: string;
   departurePortName?: string;
   travelDate: Timestamp;
@@ -87,6 +97,7 @@ export default function BookingsPage() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [isPaidDialogOpen, setIsPaidDialogOpen] = useState(false);
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [bookingToProcess, setBookingToProcess] = useState<Booking | null>(null);
 
   const staffDocRef = useMemoFirebase(() => firestore && user ? doc(firestore, 'staff', user.uid) : null, [firestore, user]);
@@ -159,29 +170,22 @@ export default function BookingsPage() {
     return combinedSchedules.sort((a,b) => a.departureTime.localeCompare(b.departureTime));
   }, [schedules, filterDate, filterRoute]);
 
-  // --- Auto-Cancellation Feature Logic ---
   const expiredBookings = useMemo(() => {
     if (!bookings || !schedules) return [];
     const now = new Date();
     
     return bookings.filter(booking => {
-      // Only "Reserved" and "Unpaid" can expire
       if (booking.status !== 'Reserved' || booking.paymentStatus !== 'Unpaid') return false;
       
       const schedule = schedules.find(s => s.id === booking.scheduleId);
       if (!schedule) return false;
 
-      // travelDate is the day of travel at 00:00:00
       const travelDate = booking.travelDate instanceof Timestamp ? booking.travelDate.toDate() : new Date(booking.travelDate);
-      
-      // Parse departureTime "HH:mm" from schedule
       const [hours, minutes] = schedule.departureTime.split(':').map(Number);
       const departureTime = new Date(travelDate);
       departureTime.setHours(hours, minutes, 0, 0);
 
-      // Expiry is 1 hour before departure
       const expiryThreshold = new Date(departureTime.getTime() - 60 * 60 * 1000);
-      
       return now >= expiryThreshold;
     });
   }, [bookings, schedules]);
@@ -193,20 +197,16 @@ export default function BookingsPage() {
     setIsCleaningUp(true);
     
     let successCount = 0;
-    
     try {
-      // Process in sequence to ensure seat count accuracy
       for (const booking of expiredBookings) {
         await runTransaction(firestore, async (transaction) => {
           const bookingRef = doc(firestore, 'bookings', booking.firestoreId);
           const scheduleRef = doc(firestore, 'schedules', booking.scheduleId);
-          
           const scheduleDoc = await transaction.get(scheduleRef);
           if (scheduleDoc.exists()) {
             const currentSeats = scheduleDoc.data().availableSeats || 0;
             transaction.update(scheduleRef, { availableSeats: currentSeats + booking.numberOfSeats });
           }
-          
           transaction.update(bookingRef, { 
             status: 'Cancelled',
             cancellationReason: 'System: Unpaid reservation expired (1 hour before departure).' 
@@ -214,23 +214,13 @@ export default function BookingsPage() {
         });
         successCount++;
       }
-      
-      toast({
-        title: "Cleanup Complete",
-        description: `Successfully auto-cancelled ${successCount} expired reservations and released seats.`,
-      });
+      toast({ title: "Cleanup Complete", description: `Successfully auto-cancelled ${successCount} expired reservations.` });
     } catch (error: any) {
-      console.error("Cleanup error:", error);
-      toast({
-        variant: "destructive",
-        title: "Cleanup Partial Failure",
-        description: "Some bookings could not be processed. Please check permissions.",
-      });
+      toast({ variant: "destructive", title: "Cleanup Partial Failure", description: "Some bookings could not be processed." });
     } finally {
       setIsCleaningUp(false);
     }
   };
-  // ----------------------------------------
 
   useEffect(() => {
     setFilterSchedule('all');
@@ -296,11 +286,7 @@ export default function BookingsPage() {
   
   const confirmCancel = (booking: Booking) => {
     if (booking.status === 'Cancelled' || booking.status === 'Refunded' || booking.status === 'Completed') {
-      toast({
-        variant: 'destructive',
-        title: 'Already Finalized',
-        description: 'This booking has already been cancelled, refunded, or completed.',
-      });
+      toast({ variant: 'destructive', title: 'Already Finalized', description: 'This booking is already cancelled, refunded, or completed.' });
       return;
     }
     setBookingToProcess(booking);
@@ -309,22 +295,20 @@ export default function BookingsPage() {
   
   const confirmPaid = (booking: Booking) => {
     if (booking.paymentStatus === 'Paid') {
-        toast({
-            title: 'Already Paid',
-            description: 'This booking has already been marked as paid.',
-        });
+        toast({ title: 'Already Paid', description: 'This booking is already marked as paid.' });
         return;
     }
     if (booking.status === 'Cancelled' || booking.status === 'Refunded' || booking.status === 'Completed') {
-        toast({
-            variant: 'destructive',
-            title: 'Cannot Pay',
-            description: 'This booking has been cancelled, refunded, or completed.',
-        });
+        toast({ variant: 'destructive', title: 'Cannot Pay', description: 'This booking is in a final state.' });
         return;
     }
     setBookingToProcess(booking);
     setIsPaidDialogOpen(true);
+  };
+
+  const handleView = (booking: Booking) => {
+    setBookingToProcess(booking);
+    setIsViewDialogOpen(true);
   };
 
   const handleDelete = async () => {
@@ -340,10 +324,9 @@ export default function BookingsPage() {
         }
         transaction.delete(bookingRef);
       });
-      toast({ title: 'Booking Deleted', description: 'The booking has been permanently deleted and seats returned.' });
+      toast({ title: 'Booking Deleted', description: 'Booking removed and seats returned.' });
     } catch (e: any) {
-      console.error(e);
-      toast({ variant: 'destructive', title: 'Error Deleting Booking', description: e.message || 'There was a problem deleting the booking.' });
+      toast({ variant: 'destructive', title: 'Error Deleting Booking', description: e.message });
     } finally {
         setIsDeleteDialogOpen(false);
         setBookingToProcess(null);
@@ -358,14 +341,14 @@ export default function BookingsPage() {
         await runTransaction(firestore, async (transaction) => {
             const scheduleDoc = await transaction.get(scheduleRef);
             if (scheduleDoc.exists() && (bookingToProcess.status === 'Reserved' || bookingToProcess.status === 'Confirmed')) {
-                transaction.update(scheduleRef, { availableSeats: scheduleDoc.data().availableSeats + bookingToProcess.numberOfSeats });
+                const currentSeats = scheduleDoc.data().availableSeats || 0;
+                transaction.update(scheduleRef, { availableSeats: currentSeats + bookingToProcess.numberOfSeats });
             }
             transaction.update(bookingRef, { status: 'Cancelled' });
         });
         toast({ title: 'Booking Cancelled', description: 'The booking has been successfully cancelled.' });
     } catch (e: any) {
-        console.error(e);
-        toast({ variant: 'destructive', title: 'Error Cancelling Booking', description: e.message || 'There was a problem.' });
+        toast({ variant: 'destructive', title: 'Error Cancelling Booking', description: e.message });
     } finally {
         setIsCancelDialogOpen(false);
         setBookingToProcess(null);
@@ -377,13 +360,15 @@ export default function BookingsPage() {
     const bookingRef = doc(firestore, 'bookings', bookingToProcess.firestoreId);
     try {
       await updateDoc(bookingRef, { paymentStatus: 'Paid', status: 'Confirmed' });
-      toast({ title: 'Booking Paid & Confirmed', description: `Booking #${bookingToProcess.id} is now Paid and Confirmed.` });
+      toast({ title: 'Booking Paid & Confirmed', description: `Booking #${bookingToProcess.id} is now Paid.` });
+      // Update local state if the view modal is open
+      if (isViewDialogOpen) {
+        setBookingToProcess(prev => prev ? { ...prev, paymentStatus: 'Paid', status: 'Confirmed' } : null);
+      }
     } catch (e: any) {
-      console.error(e);
-      toast({ variant: 'destructive', title: 'Update Failed', description: e.message || 'Could not mark the booking as paid.' });
+      toast({ variant: 'destructive', title: 'Update Failed', description: e.message });
     } finally {
       setIsPaidDialogOpen(false);
-      setBookingToProcess(null);
     }
   };
 
@@ -432,7 +417,7 @@ export default function BookingsPage() {
             <AlertTitle className="font-bold">Expired Reservations Found</AlertTitle>
             <AlertDescription className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-2">
               <p className="text-sm">
-                There are <strong>{expiredBookings.length}</strong> reserved bookings that remain unpaid within 1 hour of departure. Would you like to auto-cancel them and release the seats?
+                There are <strong>{expiredBookings.length}</strong> reserved bookings that remain unpaid within 1 hour of departure.
               </p>
               <Button 
                 size="sm" 
@@ -542,14 +527,13 @@ export default function BookingsPage() {
                     <TableHead>Payment</TableHead>
                     <TableHead>Seats</TableHead>
                     <TableHead>Total Price</TableHead>
-                    <TableHead>Travel Date</TableHead>
-                    <TableHead className="w-[180px] text-right">Actions</TableHead>
+                    <TableHead className="w-[200px] text-right">Actions</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
                     {isLoading ? (
                     <TableRow key="loading">
-                        <TableCell colSpan={9} className="text-center h-24">
+                        <TableCell colSpan={8} className="text-center h-24">
                           <div className="flex items-center justify-center">
                             <Loader2 className="mr-2 h-6 w-6 animate-spin" />
                             Loading bookings...
@@ -580,9 +564,17 @@ export default function BookingsPage() {
                         <TableCell>
                             ₱{booking.totalPrice?.toFixed(2) ?? '0.00'}
                         </TableCell>
-                        <TableCell>{formatDate(booking.travelDate, 'PPP')}</TableCell>
                         <TableCell className="text-right">
                             <div className="flex justify-end gap-2">
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button variant="ghost" size="icon" onClick={() => handleView(booking)}>
+                                            <Eye className="h-4 w-4" />
+                                            <span className="sr-only">View Details</span>
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>View Booking</TooltipContent>
+                                </Tooltip>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
                                         <Button
@@ -616,20 +608,6 @@ export default function BookingsPage() {
                                         <Button
                                             variant="ghost"
                                             size="icon"
-                                            onClick={() => confirmCancel(booking)}
-                                            disabled={booking.status === 'Cancelled' || booking.status === 'Refunded' || booking.status === 'Completed'}
-                                        >
-                                            <XCircle className="h-4 w-4" />
-                                            <span className="sr-only">Cancel</span>
-                                        </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>Cancel Booking</TooltipContent>
-                                </Tooltip>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
                                             className="text-destructive hover:text-destructive"
                                             onClick={() => confirmDelete(booking)}
                                         >
@@ -645,10 +623,10 @@ export default function BookingsPage() {
                     ))
                     ) : (
                     <TableRow key="no-bookings">
-                        <TableCell colSpan={9} className="h-24 text-center">
+                        <TableCell colSpan={8} className="h-24 text-center">
                         <div className="flex flex-col items-center gap-2">
                             <BookCopy className="h-8 w-8 text-muted-foreground" />
-                            <p className="text-muted-foreground">No access to these bookings or none found.</p>
+                            <p className="text-muted-foreground">No bookings found matching your search.</p>
                         </div>
                         </TableCell>
                     </TableRow>
@@ -660,6 +638,101 @@ export default function BookingsPage() {
         </Card>
       </div>
 
+      {/* View Booking Dialog */}
+      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-2xl">
+              <BookCopy className="h-6 w-6 text-primary" />
+              Booking #{bookingToProcess?.id}
+            </DialogTitle>
+            <DialogDescription>
+              Comprehensive summary for reservation reference {bookingToProcess?.id}.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {bookingToProcess && (
+            <div className="space-y-6 py-4">
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="text-xs font-bold uppercase text-muted-foreground mb-1 flex items-center gap-1">
+                      <MapPin className="h-3 w-3" /> Voyage Details
+                    </h4>
+                    <p className="font-semibold text-lg">{bookingToProcess.routeName}</p>
+                    <p className="text-sm text-muted-foreground">{bookingToProcess.departurePortName}</p>
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold uppercase text-muted-foreground mb-1 flex items-center gap-1">
+                      <Calendar className="h-3 w-3" /> Date of Travel
+                    </h4>
+                    <p className="text-sm font-medium">{formatDate(bookingToProcess.travelDate, 'PPP')}</p>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="text-xs font-bold uppercase text-muted-foreground mb-1 flex items-center gap-1">
+                      <Ticket className="h-3 w-3" /> Booking Status
+                    </h4>
+                    <div className="flex gap-2">
+                      <Badge variant={getStatusVariant(bookingToProcess.status)}>{bookingToProcess.status}</Badge>
+                      <Badge variant={getPaymentStatusVariant(bookingToProcess.paymentStatus)}>{bookingToProcess.paymentStatus}</Badge>
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold uppercase text-muted-foreground mb-1 flex items-center gap-1">
+                      <User className="h-3 w-3" /> Primary Contact
+                    </h4>
+                    <p className="text-sm font-medium">{bookingToProcess.passengerEmail}</p>
+                    <p className="text-xs text-muted-foreground">{bookingToProcess.passengerPhone || 'No phone provided'}</p>
+                  </div>
+                </div>
+              </div>
+
+              <Separator />
+
+              <div>
+                <h4 className="text-xs font-bold uppercase text-muted-foreground mb-3">Passenger List</h4>
+                <div className="bg-muted/30 rounded-lg border p-4 space-y-3">
+                  {bookingToProcess.passengerInfo?.map((p, i) => (
+                    <div key={i} className="flex justify-between items-center text-sm">
+                      <div className="flex items-center gap-2">
+                        <div className="h-6 w-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold">
+                          {i + 1}
+                        </div>
+                        <span className="font-medium">{p.fullName}</span>
+                      </div>
+                      <Badge variant="secondary" className="text-[10px] font-bold uppercase">{p.fareType || 'Standard'}</Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex justify-between items-center bg-primary/5 p-4 rounded-xl border border-primary/10">
+                <div>
+                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Grand Total</p>
+                  <p className="text-xs text-muted-foreground italic">Incl. all terminal fees</p>
+                </div>
+                <p className="text-3xl font-black tracking-tighter text-primary">₱{bookingToProcess.totalPrice.toFixed(2)}</p>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="flex gap-2 sm:gap-0">
+            <Button variant="outline" className="flex-1" onClick={() => { setIsViewDialogOpen(false); handleEdit(bookingToProcess!.id); }}>
+              <Pencil className="mr-2 h-4 w-4" /> Edit Details
+            </Button>
+            {bookingToProcess?.paymentStatus === 'Unpaid' && (
+              <Button className="flex-1" onClick={handleMarkAsPaid}>
+                <CreditCard className="mr-2 h-4 w-4" /> Process Payment
+              </Button>
+            )}
+            <Button variant="secondary" onClick={() => setIsViewDialogOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Standard Dialogs */}
        <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
