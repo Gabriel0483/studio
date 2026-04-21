@@ -37,7 +37,7 @@ import {
   query,
   where,
 } from 'firebase/firestore';
-import { BookCopy, Pencil, Search, Trash2, XCircle, CreditCard, Loader2, FilterX, Filter, MapPin, ShieldClock, Zap, Eye, User, Calendar, Ship, Ticket } from 'lucide-react';
+import { BookCopy, Pencil, Search, Trash2, XCircle, CreditCard, Loader2, FilterX, Filter, MapPin, ShieldClock, Zap, Eye, User, Calendar, Ship, Ticket, Users } from 'lucide-react';
 import { format, isValid } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -67,6 +67,7 @@ interface Booking {
   id: string;
   scheduleId: string;
   passengerInfo?: { fullName: string; birthDate?: string; fareType?: string }[];
+  fareDetails?: { passengerType: string; count: number; pricePerTicket: number }[];
   passengerEmail: string;
   passengerPhone?: string;
   routeName: string;
@@ -692,21 +693,37 @@ export default function BookingsPage() {
 
                 <Separator />
 
-                <div>
-                    <h4 className="text-xs font-bold uppercase text-muted-foreground mb-3">Passenger List</h4>
-                    <div className="bg-muted/30 rounded-lg border p-4 space-y-3">
-                    {bookingToProcess.passengerInfo?.map((p, i) => (
-                        <div key={i} className="flex justify-between items-center text-sm">
-                        <div className="flex items-center gap-2">
-                            <div className="h-6 w-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold">
-                            {i + 1}
-                            </div>
-                            <span className="font-medium">{p.fullName}</span>
-                        </div>
-                        <Badge variant="secondary" className="text-[10px] font-bold uppercase">{p.fareType || 'Standard'}</Badge>
-                        </div>
-                    ))}
-                    </div>
+                <div className="space-y-4">
+                  <h4 className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-2">
+                    <Users className="h-3 w-3" /> Passenger & Fare Breakdown
+                  </h4>
+                  <div className="bg-muted/30 rounded-lg border overflow-hidden">
+                    <Table>
+                      <TableHeader className="bg-muted/50">
+                        <TableRow className="hover:bg-transparent border-none">
+                          <TableHead className="h-8 text-[10px] uppercase font-bold">Name</TableHead>
+                          <TableHead className="h-8 text-[10px] uppercase font-bold text-center">Type</TableHead>
+                          <TableHead className="h-8 text-[10px] uppercase font-bold text-right">Price</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {bookingToProcess.passengerInfo?.map((p, i) => {
+                          const fare = bookingToProcess.fareDetails?.find(f => f.passengerType === p.fareType);
+                          return (
+                            <TableRow key={i} className="hover:bg-transparent border-none">
+                              <TableCell className="py-2 font-medium">{p.fullName}</TableCell>
+                              <TableCell className="py-2 text-center">
+                                <Badge variant="secondary" className="text-[10px] font-bold uppercase">{p.fareType || 'Standard'}</Badge>
+                              </TableCell>
+                              <TableCell className="py-2 text-right font-mono">
+                                ₱{fare?.pricePerTicket?.toFixed(2) || (bookingToProcess.totalPrice / bookingToProcess.numberOfSeats).toFixed(2)}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
                 </div>
 
                 <div className="flex justify-between items-center bg-primary/5 p-4 rounded-xl border border-primary/10">
