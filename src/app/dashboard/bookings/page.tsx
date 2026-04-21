@@ -38,7 +38,7 @@ import {
   query,
   where,
 } from 'firebase/firestore';
-import { BookCopy, Pencil, Search, Trash2, XCircle, CreditCard, Loader2, FilterX, Filter, MapPin } from 'lucide-react';
+import { BookCopy, Pencil, Search, Trash2, XCircle, CreditCard, Loader2, FilterX, Filter, MapPin, ShieldClock, Zap } from 'lucide-react';
 import { format, isValid } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -51,6 +51,7 @@ import {
   Collapsible,
   CollapsibleContent,
 } from "@/components/ui/collapsible";
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 interface Booking {
   firestoreId: string;
@@ -97,7 +98,6 @@ export default function BookingsPage() {
     const isPlatformAdmin = (user.email === 'rielmagpantay@gmail.com' || user.email === 'mariel.dumaoal@gmail.com');
     const roles = staffData?.roles || [];
     
-    // Safety check: If not platform admin and no staff document found yet, wait or return null
     if (!staffData && !isPlatformAdmin) return null;
 
     const isDeskAgent = roles.includes('Desk Booking Agent');
@@ -110,17 +110,15 @@ export default function BookingsPage() {
 
     if (isFullAccessRole) return baseCol;
 
-    // Restricted roles must use a filtered query to satisfy Firestore security rules
     if (isDeskAgent || isStationManager) {
       if (staffData?.assignedPortName) {
         return query(baseCol, where('departurePortName', '==', staffData.assignedPortName));
       } else {
-        // Fail-safe to avoid broad fetch
         return query(baseCol, where('departurePortName', '==', '__NO_ASSIGNED_PORT__'));
       }
     }
 
-    return null; // NO Access for other roles
+    return null;
   }, [firestore, staffData, isLoadingStaffData, user]);
 
   const routesQuery = useMemoFirebase(() => {
@@ -141,7 +139,6 @@ export default function BookingsPage() {
     if (!schedules || !filterDate || !isValid(filterDate)) return [];
     
     const selectedDateStr = format(filterDate, 'yyyy-MM-dd');
-
     const specialTripsForDate = schedules.filter(s => s.tripType === 'Special' && s.date === selectedDateStr);
     const dailyTrips = schedules.filter(s => s.tripType === 'Daily');
 
@@ -160,8 +157,80 @@ export default function BookingsPage() {
     }
 
     return combinedSchedules.sort((a,b) => a.departureTime.localeCompare(b.departureTime));
-
   }, [schedules, filterDate, filterRoute]);
+
+  // --- Auto-Cancellation Feature Logic ---
+  const expiredBookings = useMemo(() => {
+    if (!bookings || !schedules) return [];
+    const now = new Date();
+    
+    return bookings.filter(booking => {
+      // Only "Reserved" and "Unpaid" can expire
+      if (booking.status !== 'Reserved' || booking.paymentStatus !== 'Unpaid') return false;
+      
+      const schedule = schedules.find(s => s.id === booking.scheduleId);
+      if (!schedule) return false;
+
+      // travelDate is the day of travel at 00:00:00
+      const travelDate = booking.travelDate instanceof Timestamp ? booking.travelDate.toDate() : new Date(booking.travelDate);
+      
+      // Parse departureTime "HH:mm" from schedule
+      const [hours, minutes] = schedule.departureTime.split(':').map(Number);
+      const departureTime = new Date(travelDate);
+      departureTime.setHours(hours, minutes, 0, 0);
+
+      // Expiry is 1 hour before departure
+      const expiryThreshold = new Date(departureTime.getTime() - 60 * 60 * 1000);
+      
+      return now >= expiryThreshold;
+    });
+  }, [bookings, schedules]);
+
+  const [isCleaningUp, setIsCleaningUp] = useState(false);
+
+  const handleCleanupExpired = async () => {
+    if (!firestore || expiredBookings.length === 0) return;
+    setIsCleaningUp(true);
+    
+    let successCount = 0;
+    
+    try {
+      // Process in sequence to ensure seat count accuracy
+      for (const booking of expiredBookings) {
+        await runTransaction(firestore, async (transaction) => {
+          const bookingRef = doc(firestore, 'bookings', booking.firestoreId);
+          const scheduleRef = doc(firestore, 'schedules', booking.scheduleId);
+          
+          const scheduleDoc = await transaction.get(scheduleRef);
+          if (scheduleDoc.exists()) {
+            const currentSeats = scheduleDoc.data().availableSeats || 0;
+            transaction.update(scheduleRef, { availableSeats: currentSeats + booking.numberOfSeats });
+          }
+          
+          transaction.update(bookingRef, { 
+            status: 'Cancelled',
+            cancellationReason: 'System: Unpaid reservation expired (1 hour before departure).' 
+          });
+        });
+        successCount++;
+      }
+      
+      toast({
+        title: "Cleanup Complete",
+        description: `Successfully auto-cancelled ${successCount} expired reservations and released seats.`,
+      });
+    } catch (error: any) {
+      console.error("Cleanup error:", error);
+      toast({
+        variant: "destructive",
+        title: "Cleanup Partial Failure",
+        description: "Some bookings could not be processed. Please check permissions.",
+      });
+    } finally {
+      setIsCleaningUp(false);
+    }
+  };
+  // ----------------------------------------
 
   useEffect(() => {
     setFilterSchedule('all');
@@ -356,6 +425,28 @@ export default function BookingsPage() {
             </Badge>
           )}
         </div>
+
+        {expiredBookings.length > 0 && (
+          <Alert variant="destructive" className="bg-destructive/5 border-destructive/20 animate-in fade-in slide-in-from-top-2 duration-300">
+            <ShieldClock className="h-4 w-4" />
+            <AlertTitle className="font-bold">Expired Reservations Found</AlertTitle>
+            <AlertDescription className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-2">
+              <p className="text-sm">
+                There are <strong>{expiredBookings.length}</strong> reserved bookings that remain unpaid within 1 hour of departure. Would you like to auto-cancel them and release the seats?
+              </p>
+              <Button 
+                size="sm" 
+                variant="destructive" 
+                onClick={handleCleanupExpired} 
+                disabled={isCleaningUp}
+                className="font-bold"
+              >
+                {isCleaningUp ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4" />}
+                Process Auto-Cancellation
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
 
         <Card>
           <CardHeader>
