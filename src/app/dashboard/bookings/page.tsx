@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
@@ -61,6 +60,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface Booking {
   firestoreId: string;
@@ -640,7 +640,7 @@ export default function BookingsPage() {
 
       {/* View Booking Dialog */}
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl flex flex-col max-h-[90vh]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-2xl">
               <BookCopy className="h-6 w-6 text-primary" />
@@ -651,83 +651,85 @@ export default function BookingsPage() {
             </DialogDescription>
           </DialogHeader>
           
-          {bookingToProcess && (
-            <div className="space-y-6 py-4">
-              <div className="grid grid-cols-2 gap-6">
-                <div className="space-y-4">
-                  <div>
-                    <h4 className="text-xs font-bold uppercase text-muted-foreground mb-1 flex items-center gap-1">
-                      <MapPin className="h-3 w-3" /> Voyage Details
-                    </h4>
-                    <p className="font-semibold text-lg">{bookingToProcess.routeName}</p>
-                    <p className="text-sm text-muted-foreground">{bookingToProcess.departurePortName}</p>
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-bold uppercase text-muted-foreground mb-1 flex items-center gap-1">
-                      <Calendar className="h-3 w-3" /> Date of Travel
-                    </h4>
-                    <p className="text-sm font-medium">{formatDate(bookingToProcess.travelDate, 'PPP')}</p>
-                  </div>
-                </div>
-                <div className="space-y-4">
-                  <div>
-                    <h4 className="text-xs font-bold uppercase text-muted-foreground mb-1 flex items-center gap-1">
-                      <Ticket className="h-3 w-3" /> Booking Status
-                    </h4>
-                    <div className="flex gap-2">
-                      <Badge variant={getStatusVariant(bookingToProcess.status)}>{bookingToProcess.status}</Badge>
-                      <Badge variant={getPaymentStatusVariant(bookingToProcess.paymentStatus)}>{bookingToProcess.paymentStatus}</Badge>
+          <ScrollArea className="flex-1 pr-4">
+            {bookingToProcess && (
+                <div className="space-y-6 py-4">
+                <div className="grid grid-cols-2 gap-6">
+                    <div className="space-y-4">
+                    <div>
+                        <h4 className="text-xs font-bold uppercase text-muted-foreground mb-1 flex items-center gap-1">
+                        <MapPin className="h-3 w-3" /> Voyage Details
+                        </h4>
+                        <p className="font-semibold text-lg">{bookingToProcess.routeName}</p>
+                        <p className="text-sm text-muted-foreground">{bookingToProcess.departurePortName}</p>
                     </div>
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-bold uppercase text-muted-foreground mb-1 flex items-center gap-1">
-                      <User className="h-3 w-3" /> Primary Contact
-                    </h4>
-                    <p className="text-sm font-medium">{bookingToProcess.passengerEmail}</p>
-                    <p className="text-xs text-muted-foreground">{bookingToProcess.passengerPhone || 'No phone provided'}</p>
-                  </div>
-                </div>
-              </div>
-
-              <Separator />
-
-              <div>
-                <h4 className="text-xs font-bold uppercase text-muted-foreground mb-3">Passenger List</h4>
-                <div className="bg-muted/30 rounded-lg border p-4 space-y-3">
-                  {bookingToProcess.passengerInfo?.map((p, i) => (
-                    <div key={i} className="flex justify-between items-center text-sm">
-                      <div className="flex items-center gap-2">
-                        <div className="h-6 w-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold">
-                          {i + 1}
+                    <div>
+                        <h4 className="text-xs font-bold uppercase text-muted-foreground mb-1 flex items-center gap-1">
+                        <Calendar className="h-3 w-3" /> Date of Travel
+                        </h4>
+                        <p className="text-sm font-medium">{formatDate(bookingToProcess.travelDate, 'PPP')}</p>
+                    </div>
+                    </div>
+                    <div className="space-y-4">
+                    <div>
+                        <h4 className="text-xs font-bold uppercase text-muted-foreground mb-1 flex items-center gap-1">
+                        <Ticket className="h-3 w-3" /> Booking Status
+                        </h4>
+                        <div className="flex gap-2">
+                        <Badge variant={getStatusVariant(bookingToProcess.status)}>{bookingToProcess.status}</Badge>
+                        <Badge variant={getPaymentStatusVariant(bookingToProcess.paymentStatus)}>{bookingToProcess.paymentStatus}</Badge>
                         </div>
-                        <span className="font-medium">{p.fullName}</span>
-                      </div>
-                      <Badge variant="secondary" className="text-[10px] font-bold uppercase">{p.fareType || 'Standard'}</Badge>
                     </div>
-                  ))}
+                    <div>
+                        <h4 className="text-xs font-bold uppercase text-muted-foreground mb-1 flex items-center gap-1">
+                        <User className="h-3 w-3" /> Primary Contact
+                        </h4>
+                        <p className="text-sm font-medium">{bookingToProcess.passengerEmail}</p>
+                        <p className="text-xs text-muted-foreground">{bookingToProcess.passengerPhone || 'No phone provided'}</p>
+                    </div>
+                    </div>
                 </div>
-              </div>
 
-              <div className="flex justify-between items-center bg-primary/5 p-4 rounded-xl border border-primary/10">
+                <Separator />
+
                 <div>
-                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Grand Total</p>
-                  <p className="text-xs text-muted-foreground italic">Incl. all terminal fees</p>
+                    <h4 className="text-xs font-bold uppercase text-muted-foreground mb-3">Passenger List</h4>
+                    <div className="bg-muted/30 rounded-lg border p-4 space-y-3">
+                    {bookingToProcess.passengerInfo?.map((p, i) => (
+                        <div key={i} className="flex justify-between items-center text-sm">
+                        <div className="flex items-center gap-2">
+                            <div className="h-6 w-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold">
+                            {i + 1}
+                            </div>
+                            <span className="font-medium">{p.fullName}</span>
+                        </div>
+                        <Badge variant="secondary" className="text-[10px] font-bold uppercase">{p.fareType || 'Standard'}</Badge>
+                        </div>
+                    ))}
+                    </div>
                 </div>
-                <p className="text-3xl font-black tracking-tighter text-primary">₱{bookingToProcess.totalPrice.toFixed(2)}</p>
-              </div>
-            </div>
-          )}
 
-          <DialogFooter className="flex gap-2 sm:gap-0">
+                <div className="flex justify-between items-center bg-primary/5 p-4 rounded-xl border border-primary/10">
+                    <div>
+                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Grand Total</p>
+                    <p className="text-xs text-muted-foreground italic">Incl. all terminal fees</p>
+                    </div>
+                    <p className="text-3xl font-black tracking-tighter text-primary">₱{bookingToProcess.totalPrice.toFixed(2)}</p>
+                </div>
+                </div>
+            )}
+          </ScrollArea>
+
+          <DialogFooter className="flex flex-col sm:flex-row gap-3 pt-4 border-t bg-background">
             <Button variant="outline" className="flex-1" onClick={() => { setIsViewDialogOpen(false); handleEdit(bookingToProcess!.id); }}>
               <Pencil className="mr-2 h-4 w-4" /> Edit Details
             </Button>
-            {bookingToProcess?.paymentStatus === 'Unpaid' && (
+            {bookingToProcess?.paymentStatus === 'Unpaid' && bookingToProcess?.status !== 'Cancelled' && (
               <Button className="flex-1" onClick={handleMarkAsPaid}>
                 <CreditCard className="mr-2 h-4 w-4" /> Process Payment
               </Button>
             )}
-            <Button variant="secondary" onClick={() => setIsViewDialogOpen(false)}>Close</Button>
+            <Button variant="secondary" className="sm:w-auto" onClick={() => setIsViewDialogOpen(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
