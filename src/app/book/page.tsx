@@ -1,10 +1,9 @@
-
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useFieldArray, useForm } from "react-hook-form"
 import * as z from "zod"
-import { PlusCircle, Trash2, ArrowLeft, RefreshCw, UserPlus, Loader2, Users, MapPin, CheckCircle2, Clock } from "lucide-react"
+import { PlusCircle, Trash2, ArrowLeft, RefreshCw, UserPlus, Loader2, Users, MapPin, CheckCircle2, Clock, Info } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -39,6 +38,7 @@ import { nanoid } from "nanoid"
 import { useRouter } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 const passengerSchema = z.object({
   id: z.string(),
@@ -109,10 +109,11 @@ function BookingContent() {
   useEffect(() => {
     setMounted(true);
     const today = new Date();
-    const sixtyDaysFromNow = addDays(today, 60);
+    // Restriction: Only allow booking 72 hours (3 days) in advance
+    const restrictedLimit = addDays(today, 2); 
     setDateRange({ 
         min: format(today, "yyyy-MM-dd"), 
-        max: format(sixtyDaysFromNow, "yyyy-MM-dd") 
+        max: format(restrictedLimit, "yyyy-MM-dd") 
     });
   }, []);
 
@@ -466,7 +467,15 @@ function BookingContent() {
             </CardHeader>
             
             {step === 'form' && (
-              <CardContent className="pt-8">
+              <CardContent className="pt-8 space-y-8">
+                <Alert className="bg-blue-50 border-blue-200">
+                    <Info className="h-4 w-4 text-blue-600" />
+                    <AlertTitle className="text-blue-800 font-bold">Booking Window Restricted</AlertTitle>
+                    <AlertDescription className="text-blue-700">
+                        Online reservations are currently limited to trips departing within the next 72 hours.
+                    </AlertDescription>
+                </Alert>
+
                 <Form {...form}>
                   <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-10">
                     <div className="space-y-6">

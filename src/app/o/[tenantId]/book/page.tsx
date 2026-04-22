@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useFieldArray, useForm } from "react-hook-form"
 import * as z from "zod"
-import { PlusCircle, Trash2, ArrowLeft, RefreshCw, UserPlus, Loader2, Users } from "lucide-react"
+import { PlusCircle, Trash2, ArrowLeft, RefreshCw, UserPlus, Loader2, Users, Info } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -36,6 +36,7 @@ import { TripItinerary } from "@/components/trip-itinerary";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { nanoid } from "nanoid"
 import { useRouter, useParams } from "next/navigation"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 const passengerSchema = z.object({
   id: z.string(),
@@ -130,9 +131,10 @@ function BookingContent() {
 
   useEffect(() => {
     const today = new Date();
-    const fiveDaysFromNow = addDays(today, 4);
+    // Restriction: Only allow booking 72 hours (3 days) in advance
+    const restrictedLimit = addDays(today, 2); 
     const minDate = format(today, "yyyy-MM-dd");
-    const maxDate = format(fiveDaysFromNow, "yyyy-MM-dd");
+    const maxDate = format(restrictedLimit, "yyyy-MM-dd");
     setDateRange({ min: minDate, max: maxDate });
     if (!form.getValues('travelDate')) {
         form.setValue('travelDate', minDate);
@@ -432,7 +434,15 @@ function BookingContent() {
       </CardHeader>
       
       {step === 'form' && (
-        <CardContent>
+        <CardContent className="space-y-6">
+          <Alert className="bg-blue-50 border-blue-200">
+            <Info className="h-4 w-4 text-blue-600" />
+            <AlertTitle className="text-blue-800 font-bold">Booking Window Restricted</AlertTitle>
+            <AlertDescription className="text-blue-700">
+                Online reservations are currently limited to trips departing within the next 72 hours.
+            </AlertDescription>
+          </Alert>
+
           <Form {...form}>
             <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-8">
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
