@@ -26,7 +26,9 @@ To avoid "Application Error" or "Unauthorized Domain" errors during Sign Up/Logi
 1.  **Authorize Your Domain**:
     - Go to **Firebase Console > Authentication > Settings > Authorized Domains**.
     - Add your production domain: `islakonek--studio-8432386314-93bd2.asia-east1.hosted.app` (remove `https://` and `/welcome`).
-2.  **Dynamic Links Note**: This app uses standard Password Auth. It is **not** affected by the Dynamic Links shutdown as it does not use passwordless email links or Cordova.
+2.  **SSL & Encryption**:
+    - Firebase App Hosting automatically provides SSL certificates. Ensure you are accessing the site via `https://`.
+    - If you see "Not Secure," check that you haven't manually typed `http://` in the address bar. The system is configured to send security headers to encourage encrypted connections.
 
 ## 📂 Project Structure
 - `/src`: Application source code (Next.js App Router).

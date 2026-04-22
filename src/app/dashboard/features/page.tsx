@@ -1,10 +1,9 @@
-
 'use client';
 
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Cpu, ShieldCheck, Database, Zap, LayoutGrid, Globe, Lock, Share2 } from 'lucide-react';
+import { Cpu, ShieldCheck, Database, Zap, LayoutGrid, Globe, Lock, Shield } from 'lucide-react';
 import { APP_VERSION } from '@/lib/data';
 
 export default function SystemFeaturesPage() {
@@ -34,10 +33,10 @@ export default function SystemFeaturesPage() {
       tech: ["Custom Staff Roles", "Firestore Security Rules"]
     },
     {
-      title: "Smart Scheduling Engine",
-      icon: <LayoutGrid className="h-5 w-5 text-purple-500" />,
-      description: "Automated generation of trip instances from recurring templates with support for 'Special' voyage overrides.",
-      tech: ["Virtual Instance Logic", "Temporal Querying"]
+      title: "Encrypted Data In Transit",
+      icon: <Shield className="h-5 w-5 text-cyan-500" />,
+      description: "Mandatory SSL/TLS encryption for all client-server communication, preventing data interception and ensuring passenger privacy.",
+      tech: ["SSL/TLS", "HSTS Headers", "Firebase Hosting"]
     },
     {
       title: "Financial Reconciliation",
