@@ -27,7 +27,7 @@ import { PublicHeader } from "@/components/public-header"
 import { PublicFooter } from "@/components/public-footer"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc, useAuthContext } from "@/firebase"
-import { collection, doc, serverTimestamp, runTransaction, Timestamp, where, query, getDocs, addDoc, getDoc, updateDoc } from "firebase/firestore"
+import { collection, doc, serverTimestamp, runTransaction, Timestamp, where, query, getDocs, getDoc } from "firebase/firestore"
 import React, { useMemo, useState, useEffect, Suspense } from "react"
 import { Separator } from "@/components/ui/separator"
 import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
@@ -131,8 +131,8 @@ function BookingContent() {
 
   useEffect(() => {
     const today = new Date();
-    // Restriction: Only allow booking 72 hours (3 days) in advance
-    const restrictedLimit = addDays(today, 2); 
+    // Restriction: Only allow booking 7 days in advance
+    const restrictedLimit = addDays(today, 6); 
     const minDate = format(today, "yyyy-MM-dd");
     const maxDate = format(restrictedLimit, "yyyy-MM-dd");
     setDateRange({ min: minDate, max: maxDate });
@@ -439,7 +439,7 @@ function BookingContent() {
             <Info className="h-4 w-4 text-blue-600" />
             <AlertTitle className="text-blue-800 font-bold">Booking Window Restricted</AlertTitle>
             <AlertDescription className="text-blue-700">
-                Online reservations are currently limited to trips departing within the next 72 hours.
+                Online reservations are currently limited to trips departing within the next 7 days.
             </AlertDescription>
           </Alert>
 

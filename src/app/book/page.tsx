@@ -109,8 +109,8 @@ function BookingContent() {
   useEffect(() => {
     setMounted(true);
     const today = new Date();
-    // Restriction: Only allow booking 72 hours (3 days) in advance
-    const restrictedLimit = addDays(today, 2); 
+    // Restriction: Only allow booking 7 days in advance
+    const restrictedLimit = addDays(today, 6); 
     setDateRange({ 
         min: format(today, "yyyy-MM-dd"), 
         max: format(restrictedLimit, "yyyy-MM-dd") 
@@ -472,7 +472,7 @@ function BookingContent() {
                     <Info className="h-4 w-4 text-blue-600" />
                     <AlertTitle className="text-blue-800 font-bold">Booking Window Restricted</AlertTitle>
                     <AlertDescription className="text-blue-700">
-                        Online reservations are currently limited to trips departing within the next 72 hours.
+                        Online reservations are currently limited to trips departing within the next 7 days.
                     </AlertDescription>
                 </Alert>
 
