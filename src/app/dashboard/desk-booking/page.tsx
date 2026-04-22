@@ -193,8 +193,10 @@ export default function DeskBookingPage() {
   }, [watchRouteId, watchTravelDate, allSchedules]);
 
   useEffect(() => {
-    form.resetField('scheduleId');
-    setAvailableFares([]);
+    if (watchRouteId) {
+      form.resetField('scheduleId');
+      setAvailableFares([]);
+    }
   }, [watchRouteId, form]);
 
   useEffect(() => {
@@ -529,56 +531,62 @@ export default function DeskBookingPage() {
                   <h3 className="font-medium text-lg border-b pb-2">Passenger Details</h3>
                   {fields.map((field, index) => (
                     <div key={field.id} className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end p-4 border rounded-lg relative">
-                      <FormField
-                        control={form.control}
-                        name={`passengers.${index}.fullName`}
-                        render={({ field }) => (
-                          <FormItem className="sm:col-span-6">
-                            <FormLabel>Full Name</FormLabel>
-                            <FormControl>
-                              <Input placeholder="John Doe" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name={`passengers.${index}.birthDate`}
-                        render={({ field }) => (
-                          <FormItem className="sm:col-span-3">
-                            <FormLabel>Birth Date</FormLabel>
-                            <FormControl>
-                              <Input type="date" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name={`passengers.${index}.fareType`}
-                        render={({ field }) => (
-                          <FormItem className="sm:col-span-2">
-                            <FormLabel>Fare Type</FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value} disabled={!watchScheduleId}>
+                      <div className="sm:col-span-6 space-y-2">
+                        <FormField
+                            control={form.control}
+                            name={`passengers.${index}.fullName`}
+                            render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Full Name</FormLabel>
                                 <FormControl>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Fare" />
-                                    </SelectTrigger>
+                                <Input placeholder="John Doe" {...field} />
                                 </FormControl>
-                                <SelectContent>
-                                    {availableFares.map(fare => (
-                                        <SelectItem key={fare.id} value={fare.passengerType}>
-                                            {fare.passengerType} (₱{fare.price.toFixed(2)})
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                                <FormMessage />
+                            </FormItem>
+                            )}
+                        />
+                      </div>
+                      <div className="sm:col-span-3 space-y-2">
+                        <FormField
+                            control={form.control}
+                            name={`passengers.${index}.birthDate`}
+                            render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Birth Date</FormLabel>
+                                <FormControl>
+                                <Input type="date" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                            )}
+                        />
+                      </div>
+                      <div className="sm:col-span-2 space-y-2">
+                        <FormField
+                            control={form.control}
+                            name={`passengers.${index}.fareType`}
+                            render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Fare Type</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value} disabled={!watchScheduleId}>
+                                    <FormControl>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Fare" />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        {availableFares.map(fare => (
+                                            <SelectItem key={fare.id} value={fare.passengerType}>
+                                                {fare.passengerType} (₱{fare.price.toFixed(2)})
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
+                            </FormItem>
+                            )}
+                        />
+                      </div>
                       <div className="sm:col-span-1">
                         {index > 0 && (
                             <Button type="button" variant="destructive" size="icon" onClick={() => remove(index)} className="w-full">
@@ -598,11 +606,11 @@ export default function DeskBookingPage() {
                         name="primaryPhone"
                         render={({ field }) => (
                             <FormItem>
-                            <FormLabel>Contact Number</FormLabel>
-                            <FormControl>
-                                <Input placeholder="e.g., 09171234567" {...field} />
-                            </FormControl>
-                            <FormMessage />
+                                <FormLabel>Contact Number</FormLabel>
+                                <FormControl>
+                                    <Input placeholder="e.g., 09171234567" {...field} />
+                                </FormControl>
+                                <FormMessage />
                             </FormItem>
                         )}
                     />
@@ -611,11 +619,11 @@ export default function DeskBookingPage() {
                         name="primaryEmail"
                         render={({ field }) => (
                             <FormItem>
-                            <FormLabel>Email Address</FormLabel>
-                            <FormControl>
-                                <Input placeholder="you@example.com" {...field} />
-                            </FormControl>
-                            <FormMessage />
+                                <FormLabel>Email Address</FormLabel>
+                                <FormControl>
+                                    <Input placeholder="you@example.com" {...field} />
+                                </FormControl>
+                                <FormMessage />
                             </FormItem>
                         )}
                     />

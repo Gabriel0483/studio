@@ -204,14 +204,16 @@ function BookingContent() {
   }, [watchRouteId, watchTravelDate, allSchedules]);
 
   useEffect(() => {
-    form.setValue('routeId', '');
-    form.resetField('scheduleId');
-    setAvailableFares([]);
+    if (watchDeparturePort) {
+      form.setValue('routeId', '');
+      form.resetField('scheduleId');
+    }
   }, [watchDeparturePort, form]);
 
   useEffect(() => {
-    form.resetField('scheduleId');
-    setAvailableFares([]);
+    if (watchRouteId) {
+      form.resetField('scheduleId');
+    }
   }, [watchRouteId, form]);
 
   useEffect(() => {

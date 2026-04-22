@@ -26,7 +26,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useCollection, useFirestore, useMemoFirebase, useUser, useDoc } from '@/firebase';
 import {
   collection,
@@ -172,7 +172,6 @@ export default function BookingsPage() {
     let successCount = 0;
     try {
       for (const booking of expiredBookings) {
-        // Find potential waitlist candidates for this schedule before transaction
         const waitlistQuery = query(
           collection(firestore, 'bookings'),
           where('scheduleId', '==', booking.scheduleId),
@@ -191,8 +190,6 @@ export default function BookingsPage() {
           let currentSeats = (scheduleDoc.data().availableSeats || 0) + booking.numberOfSeats;
           let currentWaitlistCount = scheduleDoc.data().waitlistCount || 0;
 
-          // PASS: Promotion Pass
-          // Attempt to fill the newly opened seats with passengers from the waitlist (FCFS)
           for (const wDoc of waitlistSnap.docs) {
             const wData = wDoc.data();
             if (wData.numberOfSeats <= currentSeats) {
@@ -214,10 +211,10 @@ export default function BookingsPage() {
         });
         successCount++;
       }
-      toast({ title: "Cleanup Complete", description: `Successfully auto-cancelled ${successCount} ghost reservations and promoted waitlisted passengers.` });
+      toast({ title: "Cleanup Complete", description: `Successfully auto-cancelled ${successCount} ghost reservations.` });
     } catch (error: any) {
       console.error("Cleanup failed:", error);
-      toast({ variant: "destructive", title: "Cleanup Failed", description: "Could not process all bookings." });
+      toast({ variant: "destructive", title: "Cleanup Failed", description: "Could not process all bookings. Please check if composite indexes are created." });
     } finally {
       setIsCleaningUp(false);
     }
@@ -296,7 +293,6 @@ export default function BookingsPage() {
     const bookingRef = doc(firestore, 'bookings', bookingToProcess.firestoreId);
     const scheduleRef = doc(firestore, 'schedules', bookingToProcess.scheduleId);
 
-    // Get waitlist candidates
     const waitlistQuery = query(
       collection(firestore, 'bookings'),
       where('scheduleId', '==', bookingToProcess.scheduleId),
@@ -315,8 +311,6 @@ export default function BookingsPage() {
 
         if (bookingToProcess.status === 'Reserved' || bookingToProcess.status === 'Confirmed') {
           currentSeats += bookingToProcess.numberOfSeats;
-          
-          // PASS: Fill Waitlist
           for (const wDoc of waitlistSnap.docs) {
             const wData = wDoc.data();
             if (wData.numberOfSeats <= currentSeats) {
@@ -367,8 +361,6 @@ export default function BookingsPage() {
 
             if (bookingToProcess.status === 'Reserved' || bookingToProcess.status === 'Confirmed') {
                 currentSeats += bookingToProcess.numberOfSeats;
-                
-                // PASS: Fill Waitlist
                 for (const wDoc of waitlistSnap.docs) {
                   const wData = wDoc.data();
                   if (wData.numberOfSeats <= currentSeats) {
@@ -387,7 +379,7 @@ export default function BookingsPage() {
             });
             transaction.update(bookingRef, { status: 'Cancelled' });
         });
-        toast({ title: 'Booking Cancelled', description: 'Booking cancelled and seats released to waitlist.' });
+        toast({ title: 'Booking Cancelled', description: 'Booking cancelled and seats released.' });
     } catch (e: any) {
         toast({ variant: 'destructive', title: 'Error Cancelling Booking', description: e.message });
     } finally {
@@ -688,7 +680,6 @@ export default function BookingsPage() {
         </Card>
       </div>
 
-      {/* View Booking Dialog */}
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
         <DialogContent className="max-w-2xl flex flex-col h-[90vh]">
           <DialogHeader>
@@ -800,7 +791,6 @@ export default function BookingsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Standard Dialogs */}
        <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
