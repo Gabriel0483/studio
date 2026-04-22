@@ -170,6 +170,8 @@ export default function BookingsPage() {
     setIsCleaningUp(true);
     
     let successCount = 0;
+    let indexMissing = false;
+
     try {
       for (const booking of expiredBookings) {
         const waitlistQuery = query(
@@ -178,24 +180,38 @@ export default function BookingsPage() {
           where('status', '==', 'Waitlisted'),
           orderBy('bookingDate', 'asc')
         );
-        const waitlistSnap = await getDocs(waitlistQuery);
+
+        let waitlistSnap;
+        try {
+          waitlistSnap = await getDocs(waitlistQuery);
+        } catch (e: any) {
+          if (e.code === 'failed-precondition') {
+            indexMissing = true;
+          }
+        }
 
         await runTransaction(firestore, async (transaction) => {
           const bookingRef = doc(firestore, 'bookings', booking.firestoreId);
           const scheduleRef = doc(firestore, 'schedules', booking.scheduleId);
           const scheduleDoc = await transaction.get(scheduleRef);
           
-          if (!scheduleDoc.exists()) return;
+          if (!scheduleDoc.exists()) {
+             transaction.delete(bookingRef);
+             return;
+          }
 
           let currentSeats = (scheduleDoc.data().availableSeats || 0) + booking.numberOfSeats;
           let currentWaitlistCount = scheduleDoc.data().waitlistCount || 0;
 
-          for (const wDoc of waitlistSnap.docs) {
-            const wData = wDoc.data();
-            if (wData.numberOfSeats <= currentSeats) {
-              transaction.update(wDoc.ref, { status: 'Reserved' });
-              currentSeats -= wData.numberOfSeats;
-              currentWaitlistCount = Math.max(0, currentWaitlistCount - wData.numberOfSeats);
+          // Only attempt promotion if the index exists and returned a snapshot
+          if (waitlistSnap) {
+            for (const wDoc of waitlistSnap.docs) {
+              const wData = wDoc.data();
+              if (wData.numberOfSeats <= currentSeats) {
+                transaction.update(wDoc.ref, { status: 'Reserved' });
+                currentSeats -= wData.numberOfSeats;
+                currentWaitlistCount = Math.max(0, currentWaitlistCount - wData.numberOfSeats);
+              }
             }
           }
 
@@ -204,17 +220,23 @@ export default function BookingsPage() {
             waitlistCount: currentWaitlistCount
           });
           
-          transaction.update(bookingRef, { 
-            status: 'Cancelled',
-            cancellationReason: 'System: Unpaid reservation expired (1 hour before departure).' 
-          });
+          // Delete ghost records to save space and clear list
+          transaction.delete(bookingRef);
         });
         successCount++;
       }
-      toast({ title: "Cleanup Complete", description: `Successfully auto-cancelled ${successCount} ghost reservations.` });
+      
+      if (indexMissing) {
+        toast({ 
+          title: "Cleanup Partial", 
+          description: `Deleted ${successCount} ghost records. Automatic waitlist promotion was skipped due to missing Firestore index.` 
+        });
+      } else {
+        toast({ title: "Cleanup Complete", description: `Successfully purged ${successCount} ghost reservations.` });
+      }
     } catch (error: any) {
       console.error("Cleanup failed:", error);
-      toast({ variant: "destructive", title: "Cleanup Failed", description: "Could not process all bookings. Please check if composite indexes are created." });
+      toast({ variant: "destructive", title: "Cleanup Failed", description: error.message || "Could not complete cleanup." });
     } finally {
       setIsCleaningUp(false);
     }
@@ -299,24 +321,35 @@ export default function BookingsPage() {
       where('status', '==', 'Waitlisted'),
       orderBy('bookingDate', 'asc')
     );
-    const waitlistSnap = await getDocs(waitlistQuery);
+
+    let waitlistSnap;
+    try {
+      waitlistSnap = await getDocs(waitlistQuery);
+    } catch (e: any) {
+      console.warn("Index missing for waitlist promotion. Skipping promotion.");
+    }
 
     try {
       await runTransaction(firestore, async (transaction) => {
         const scheduleDoc = await transaction.get(scheduleRef);
-        if (!scheduleDoc.exists()) return;
+        if (!scheduleDoc.exists()) {
+          transaction.delete(bookingRef);
+          return;
+        }
 
         let currentSeats = scheduleDoc.data().availableSeats || 0;
         let currentWaitlistCount = scheduleDoc.data().waitlistCount || 0;
 
         if (bookingToProcess.status === 'Reserved' || bookingToProcess.status === 'Confirmed') {
           currentSeats += bookingToProcess.numberOfSeats;
-          for (const wDoc of waitlistSnap.docs) {
-            const wData = wDoc.data();
-            if (wData.numberOfSeats <= currentSeats) {
-              transaction.update(wDoc.ref, { status: 'Reserved' });
-              currentSeats -= wData.numberOfSeats;
-              currentWaitlistCount = Math.max(0, currentWaitlistCount - wData.numberOfSeats);
+          if (waitlistSnap) {
+            for (const wDoc of waitlistSnap.docs) {
+              const wData = wDoc.data();
+              if (wData.numberOfSeats <= currentSeats) {
+                transaction.update(wDoc.ref, { status: 'Reserved' });
+                currentSeats -= wData.numberOfSeats;
+                currentWaitlistCount = Math.max(0, currentWaitlistCount - wData.numberOfSeats);
+              }
             }
           }
         } else if (bookingToProcess.status === 'Waitlisted') {
@@ -329,7 +362,7 @@ export default function BookingsPage() {
         });
         transaction.delete(bookingRef);
       });
-      toast({ title: 'Booking Deleted', description: 'Booking removed and waitlist processed.' });
+      toast({ title: 'Booking Deleted', description: 'Booking removed successfully.' });
     } catch (e: any) {
       toast({ variant: 'destructive', title: 'Error Deleting Booking', description: e.message });
     } finally {
@@ -349,25 +382,36 @@ export default function BookingsPage() {
       where('status', '==', 'Waitlisted'),
       orderBy('bookingDate', 'asc')
     );
-    const waitlistSnap = await getDocs(waitlistQuery);
+    
+    let waitlistSnap;
+    try {
+      waitlistSnap = await getDocs(waitlistQuery);
+    } catch (e) {
+      console.warn("Index missing, skipping promotion.");
+    }
 
     try {
         await runTransaction(firestore, async (transaction) => {
             const scheduleDoc = await transaction.get(scheduleRef);
-            if (!scheduleDoc.exists()) return;
+            if (!scheduleDoc.exists()) {
+                transaction.update(bookingRef, { status: 'Cancelled' });
+                return;
+            }
 
             let currentSeats = scheduleDoc.data().availableSeats || 0;
             let currentWaitlistCount = scheduleDoc.data().waitlistCount || 0;
 
             if (bookingToProcess.status === 'Reserved' || bookingToProcess.status === 'Confirmed') {
                 currentSeats += bookingToProcess.numberOfSeats;
-                for (const wDoc of waitlistSnap.docs) {
-                  const wData = wDoc.data();
-                  if (wData.numberOfSeats <= currentSeats) {
-                    transaction.update(wDoc.ref, { status: 'Reserved' });
-                    currentSeats -= wData.numberOfSeats;
-                    currentWaitlistCount = Math.max(0, currentWaitlistCount - wData.numberOfSeats);
-                  }
+                if (waitlistSnap) {
+                    for (const wDoc of waitlistSnap.docs) {
+                      const wData = wDoc.data();
+                      if (wData.numberOfSeats <= currentSeats) {
+                        transaction.update(wDoc.ref, { status: 'Reserved' });
+                        currentSeats -= wData.numberOfSeats;
+                        currentWaitlistCount = Math.max(0, currentWaitlistCount - wData.numberOfSeats);
+                      }
+                    }
                 }
             } else if (bookingToProcess.status === 'Waitlisted') {
               currentWaitlistCount = Math.max(0, currentWaitlistCount - bookingToProcess.numberOfSeats);
@@ -379,7 +423,7 @@ export default function BookingsPage() {
             });
             transaction.update(bookingRef, { status: 'Cancelled' });
         });
-        toast({ title: 'Booking Cancelled', description: 'Booking cancelled and seats released.' });
+        toast({ title: 'Booking Cancelled', description: 'Booking status updated and seats released.' });
     } catch (e: any) {
         toast({ variant: 'destructive', title: 'Error Cancelling Booking', description: e.message });
     } finally {
