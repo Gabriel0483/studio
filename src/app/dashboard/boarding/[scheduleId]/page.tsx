@@ -9,14 +9,15 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, ArrowLeft, UserCheck, UserX, LogIn, LogOut, Users, Ticket, UserMinus, Play, Square, Ship, Printer, CheckCircle } from 'lucide-react';
+import { Loader2, ArrowLeft, UserCheck, UserX, LogIn, LogOut, Users, Ticket, UserMinus, Play, Square, Ship, Printer, CheckCircle, Settings2, Info } from 'lucide-react';
 import { format, differenceInYears, parseISO } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { PrintableManifest } from '@/components/printable-manifest';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 
 const TripStatusControl = ({ baseSchedule, effectiveSchedule, tripDateStr }: { baseSchedule: any, effectiveSchedule: any, tripDateStr: string }) => {
     const firestore = useFirestore();
@@ -32,7 +33,6 @@ const TripStatusControl = ({ baseSchedule, effectiveSchedule, tripDateStr }: { b
                 let scheduleToUpdateRef: DocumentReference;
                 
                 if (baseSchedule.tripType === 'Daily') {
-                    // Find or create a special instance for this daily template on this date
                     const specialInstanceQuery = query(
                         collection(firestore, 'schedules'),
                         where('sourceScheduleId', '==', baseSchedule.id),
@@ -53,6 +53,8 @@ const TripStatusControl = ({ baseSchedule, effectiveSchedule, tripDateStr }: { b
                             sourceScheduleId: baseSchedule.id,
                             id: scheduleToUpdateRef.id,
                             status: newStatus,
+                            waitlistCount: 0,
+                            waitlistLimit: baseSchedule.waitlistLimit || 50
                         };
                         transaction.set(scheduleToUpdateRef, newInstanceData);
                     }
@@ -62,17 +64,10 @@ const TripStatusControl = ({ baseSchedule, effectiveSchedule, tripDateStr }: { b
                 }
             });
 
-            toast({
-                title: 'Trip Status Updated',
-                description: `The trip status has been set to ${newStatus}.`,
-            });
+            toast({ title: 'Trip Status Updated', description: `Status set to ${newStatus}.` });
         } catch (error) {
             console.error("Failed to update trip status:", error);
-            toast({
-                variant: 'destructive',
-                title: 'Update Failed',
-                description: 'Could not update the trip status.',
-            });
+            toast({ variant: 'destructive', title: 'Update Failed', description: 'Could not update status.' });
         } finally {
             setIsUpdating(false);
         }
@@ -87,7 +82,6 @@ const TripStatusControl = ({ baseSchedule, effectiveSchedule, tripDateStr }: { b
 
     return (
         <div className="flex items-center gap-2">
-             <Label htmlFor="trip-status" className="text-sm shrink-0 sr-only sm:not-sr-only">Status</Label>
              <Select onValueChange={handleStatusUpdate} value={currentStatus} disabled={isUpdating}>
                 <SelectTrigger id="trip-status" className="w-[120px] sm:w-[150px]">
                     <SelectValue placeholder="Set status" />
@@ -99,6 +93,92 @@ const TripStatusControl = ({ baseSchedule, effectiveSchedule, tripDateStr }: { b
                 </SelectContent>
             </Select>
         </div>
+    );
+};
+
+const WaitlistControl = ({ baseSchedule, effectiveSchedule, tripDateStr }: { baseSchedule: any, effectiveSchedule: any, tripDateStr: string }) => {
+    const firestore = useFirestore();
+    const { toast } = useToast();
+    const [isOpen, setIsOpen] = useState(false);
+    const [limit, setLimit] = useState(effectiveSchedule?.waitlistLimit?.toString() || baseSchedule?.waitlistLimit?.toString() || '50');
+    const [isUpdating, setIsUpdating] = useState(false);
+
+    const handleUpdateLimit = async () => {
+        if (!firestore || !baseSchedule) return;
+        setIsUpdating(true);
+        const newLimit = parseInt(limit, 10);
+
+        try {
+            await runTransaction(firestore, async (transaction) => {
+                let scheduleRef: DocumentReference;
+                if (baseSchedule.tripType === 'Daily') {
+                    const q = query(collection(firestore, 'schedules'), where('sourceScheduleId', '==', baseSchedule.id), where('date', '==', tripDateStr));
+                    const snap = await getDocs(q);
+                    if (!snap.empty) {
+                        scheduleRef = snap.docs[0].ref;
+                    } else {
+                        scheduleRef = doc(collection(firestore, 'schedules'));
+                        transaction.set(scheduleRef, {
+                            ...baseSchedule,
+                            tripType: 'Special',
+                            date: tripDateStr,
+                            sourceScheduleId: baseSchedule.id,
+                            id: scheduleRef.id,
+                            waitlistCount: 0,
+                        });
+                    }
+                } else {
+                    scheduleRef = doc(firestore, 'schedules', baseSchedule.id);
+                }
+                transaction.update(scheduleRef, { waitlistLimit: newLimit });
+            });
+            toast({ title: 'Waitlist Updated', description: `Limit set to ${newLimit} for this trip.` });
+            setIsOpen(false);
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to update limit.' });
+        } finally {
+            setIsUpdating(false);
+        }
+    };
+
+    return (
+        <>
+            <Button variant="outline" size="sm" onClick={() => setIsOpen(true)}>
+                <Settings2 className="mr-2 h-4 w-4" /> Waitlist
+            </Button>
+            <Dialog open={isOpen} onOpenChange={setIsOpen}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Waitlist Control</DialogTitle>
+                        <DialogDescription>Adjust the maximum number of waitlisted bookings for this specific trip.</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="bg-muted p-3 rounded-lg text-center">
+                                <p className="text-[10px] uppercase font-bold text-muted-foreground">Current Waitlist</p>
+                                <p className="text-2xl font-black">{effectiveSchedule?.waitlistCount || 0}</p>
+                            </div>
+                            <div className="bg-primary/5 p-3 rounded-lg text-center border border-primary/10">
+                                <p className="text-[10px] uppercase font-bold text-primary/70">Current Limit</p>
+                                <p className="text-2xl font-black text-primary">{effectiveSchedule?.waitlistLimit ?? baseSchedule?.waitlistLimit ?? 50}</p>
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="new-limit">New Waitlist Capacity</Label>
+                            <Input id="new-limit" type="number" value={limit} onChange={(e) => setLimit(e.target.value)} />
+                            <p className="text-xs text-muted-foreground">Setting this to 0 will effectively close the waitlist for this trip.</p>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
+                        <Button onClick={handleUpdateLimit} disabled={isUpdating}>
+                            {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Save Limit
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </>
     );
 };
 
@@ -141,7 +221,7 @@ function ManifestPageContent() {
             if (!querySnapshot.empty) {
                 setEffectiveSchedule({ ...querySnapshot.docs[0].data(), id: querySnapshot.docs[0].id });
             } else {
-                setEffectiveSchedule({ ...baseSchedule, date: tripDateStr }); 
+                setEffectiveSchedule({ ...baseSchedule, date: tripDateStr, waitlistCount: 0 }); 
             }
         }
     };
@@ -271,8 +351,6 @@ function ManifestPageContent() {
   };
 
   const isLoading = isLoadingBaseSchedule || !displaySchedule || isLoadingBookings || isLoadingBoarding;
-  
-  // Boarding and deboarding are allowed during 'Boarding' phase and also when 'Boarding Closed' (before departure)
   const isOperationAllowed = displaySchedule?.boardingStatus === 'Boarding' || displaySchedule?.boardingStatus === 'Boarding Closed';
 
   if (isLoading) {
@@ -365,6 +443,7 @@ function ManifestPageContent() {
                         date: tripDateStr,
                         sourceScheduleId: baseSchedule.id,
                         id: scheduleToUpdateRef.id,
+                        waitlistCount: 0,
                         ...updateData,
                     };
                     transaction.set(scheduleToUpdateRef, newInstanceData);
@@ -440,6 +519,7 @@ function ManifestPageContent() {
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:gap-4 w-full lg:w-auto">
             <TripStatusControl baseSchedule={baseSchedule} effectiveSchedule={displaySchedule} tripDateStr={tripDateStr} />
+            <WaitlistControl baseSchedule={baseSchedule} effectiveSchedule={displaySchedule} tripDateStr={tripDateStr} />
             <BoardingWorkflowButtons 
                 baseSchedule={baseSchedule}
                 displaySchedule={displaySchedule}
@@ -456,7 +536,7 @@ function ManifestPageContent() {
       </div>
       <Separator/>
 
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Confirmed</CardTitle>
@@ -482,6 +562,15 @@ function ManifestPageContent() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{boardingStats.awaiting}</div>
+            </CardContent>
+          </Card>
+          <Card className="bg-primary/5">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-xs font-bold uppercase text-primary/70">Waitlist</CardTitle>
+              <Clock className="h-4 w-4 text-primary/70" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-primary">{displaySchedule.waitlistCount || 0} / {displaySchedule.waitlistLimit ?? baseSchedule?.waitlistLimit ?? 50}</div>
             </CardContent>
           </Card>
         </div>

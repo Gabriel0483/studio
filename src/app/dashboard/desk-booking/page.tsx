@@ -1,9 +1,10 @@
+
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useFieldArray, useForm } from "react-hook-form"
 import * as z from "zod"
-import { PlusCircle, Trash2, ArrowLeft, RefreshCw, Loader2, UserSearch } from "lucide-react"
+import { PlusCircle, Trash2, ArrowLeft, RefreshCw, Loader2, UserSearch, Clock } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -34,6 +35,7 @@ import { TripItinerary } from "@/components/trip-itinerary";
 import { nanoid } from "nanoid"
 import { useRouter } from "next/navigation"
 import { Switch } from "@/components/ui/switch"
+import { Badge } from "@/components/ui/badge"
 
 const passengerSchema = z.object({
   id: z.string(),
@@ -188,7 +190,6 @@ export default function DeskBookingPage() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
-    // Don't show schedules for past dates
     if (selectedDate < today) return [];
 
     const isToday = selectedDate.getTime() === today.getTime();
@@ -310,6 +311,8 @@ export default function DeskBookingPage() {
             sourceScheduleId: scheduleId,
             id: targetScheduleId,
             availableSeats: selectedScheduleTemplate.availableSeats || 0,
+            waitlistLimit: selectedScheduleTemplate.waitlistLimit || 50,
+            waitlistCount: 0,
             boardingStatus: 'Awaiting',
             status: 'On Time'
           };
@@ -319,6 +322,9 @@ export default function DeskBookingPage() {
         }
 
         const currentAvailableSeats = scheduleData.availableSeats || 0;
+        const currentWaitlistCount = scheduleData.waitlistCount || 0;
+        const waitlistLimit = scheduleData.waitlistLimit ?? 50;
+
         let status: 'Reserved' | 'Waitlisted' | 'Confirmed';
         let paymentStatus: 'Paid' | 'Unpaid' = data.isPaid ? 'Paid' : 'Unpaid';
 
@@ -327,8 +333,12 @@ export default function DeskBookingPage() {
           transaction.update(scheduleRef, { availableSeats: newAvailableSeats });
           status = data.isPaid ? 'Confirmed' : 'Reserved';
         } else {
+          if (currentWaitlistCount + totalSeats > waitlistLimit) {
+            throw new Error("Waitlist capacity reached for this trip.");
+          }
           status = 'Waitlisted';
           paymentStatus = 'Unpaid';
+          transaction.update(scheduleRef, { waitlistCount: currentWaitlistCount + totalSeats });
         }
   
         const newBookingRef = doc(collection(firestore, 'bookings'));
@@ -547,11 +557,23 @@ export default function DeskBookingPage() {
                             </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                            {filteredSchedules.map(schedule => (
-                                <SelectItem key={schedule.id} value={schedule.id}>
-                                    {schedule.departureTime} - {schedule.arrivalTime} ({schedule.availableSeats > 0 ? `${schedule.availableSeats} seats left` : 'Waitlist available'})
+                            {filteredSchedules.map(schedule => {
+                              const isWaitlistFull = schedule.waitlistCount >= (schedule.waitlistLimit ?? 50);
+                              return (
+                                <SelectItem key={schedule.id} value={schedule.id} disabled={schedule.availableSeats <= 0 && isWaitlistFull}>
+                                    <div className="flex items-center justify-between w-full gap-4">
+                                      <span>{schedule.departureTime} - {schedule.arrivalTime}</span>
+                                      {schedule.availableSeats > 0 ? (
+                                        <Badge variant="secondary" className="text-[10px]">{schedule.availableSeats} left</Badge>
+                                      ) : isWaitlistFull ? (
+                                        <Badge variant="destructive" className="text-[10px]">FULL</Badge>
+                                      ) : (
+                                        <Badge variant="outline" className="text-[10px] flex items-center gap-1"><Clock className="h-3 w-3" /> Waitlist</Badge>
+                                      )}
+                                    </div>
                                 </SelectItem>
-                            ))}
+                              );
+                            })}
                         </SelectContent>
                         </Select>
                         {(!filteredSchedules || filteredSchedules.length === 0) && watchRouteId && watchTravelDate && (
@@ -649,7 +671,7 @@ export default function DeskBookingPage() {
                         name="primaryPhone"
                         render={({ field }) => (
                             <FormItem>
-                            <FormLabel>Contact Number</FormLabel>
+                            <FormLabel>Contact Number</Label>
                             <FormControl>
                                 <Input placeholder="e.g., 09171234567" {...field} />
                             </FormControl>

@@ -4,7 +4,7 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useFieldArray, useForm } from "react-hook-form"
 import * as z from "zod"
-import { PlusCircle, Trash2, ArrowLeft, RefreshCw, UserPlus, Loader2, Users, MapPin, CheckCircle2 } from "lucide-react"
+import { PlusCircle, Trash2, ArrowLeft, RefreshCw, UserPlus, Loader2, Users, MapPin, CheckCircle2, Clock } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -318,6 +318,8 @@ function BookingContent() {
             sourceScheduleId: scheduleId,
             id: targetScheduleId,
             availableSeats: selectedScheduleTemplate.availableSeats || 0,
+            waitlistLimit: selectedScheduleTemplate.waitlistLimit || 50,
+            waitlistCount: 0,
             boardingStatus: 'Awaiting',
             status: 'On Time'
           };
@@ -327,12 +329,19 @@ function BookingContent() {
         }
 
         const currentAvailableSeats = finalScheduleData.availableSeats || 0;
+        const currentWaitlistCount = finalScheduleData.waitlistCount || 0;
+        const waitlistLimit = finalScheduleData.waitlistLimit ?? 50;
+
         let status: 'Reserved' | 'Waitlisted' = 'Reserved';
 
         if (currentAvailableSeats >= totalSeats) {
           transaction.update(scheduleRef, { availableSeats: currentAvailableSeats - totalSeats });
         } else {
+          if (currentWaitlistCount + totalSeats > waitlistLimit) {
+            throw new Error("Waitlist is full for this trip. Please select a different time or date.");
+          }
           status = 'Waitlisted';
+          transaction.update(scheduleRef, { waitlistCount: currentWaitlistCount + totalSeats });
         }
   
         const newBookingRef = doc(collection(firestore, 'bookings'));
@@ -411,12 +420,7 @@ function BookingContent() {
   
     } catch (e: any) {
       console.error("Booking transaction failed:", e);
-      const permissionError = new FirestorePermissionError({
-        path: 'bookings',
-        operation: 'write',
-        requestResourceData: data,
-      });
-      errorEmitter.emit('permission-error', permissionError);
+      toast({ variant: 'destructive', title: 'Booking Failed', description: e.message || 'Could not complete reservation.' });
     } finally {
         setIsReserving(false);
     }
@@ -521,7 +525,7 @@ function BookingContent() {
                                 name="routeId"
                                 render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>To</FormLabel>
+                                    <FormLabel>To</Label>
                                     <Select onValueChange={field.onChange} value={field.value} disabled={!watchDeparturePort}>
                                     <FormControl>
                                         <SelectTrigger className="h-12 border-2 hover:border-primary transition-all">
@@ -568,11 +572,23 @@ function BookingContent() {
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        {filteredSchedules.map(schedule => (
-                                            <SelectItem key={schedule.id} value={schedule.id}>
-                                                {schedule.departureTime} - {schedule.arrivalTime} ({schedule.availableSeats > 0 ? `${schedule.availableSeats} seats left` : 'Waitlist available'})
+                                        {filteredSchedules.map(schedule => {
+                                          const isWaitlistFull = schedule.waitlistCount >= (schedule.waitlistLimit ?? 50);
+                                          return (
+                                            <SelectItem key={schedule.id} value={schedule.id} disabled={schedule.availableSeats <= 0 && isWaitlistFull}>
+                                                <div className="flex items-center justify-between w-full gap-4">
+                                                  <span>{schedule.departureTime} - {schedule.arrivalTime}</span>
+                                                  {schedule.availableSeats > 0 ? (
+                                                    <Badge variant="secondary" className="text-[10px]">{schedule.availableSeats} left</Badge>
+                                                  ) : isWaitlistFull ? (
+                                                    <Badge variant="destructive" className="text-[10px]">FULL</Badge>
+                                                  ) : (
+                                                    <Badge variant="outline" className="text-[10px] flex items-center gap-1"><Clock className="h-3 w-3" /> Waitlist</Badge>
+                                                  )}
+                                                </div>
                                             </SelectItem>
-                                        ))}
+                                          );
+                                        })}
                                     </SelectContent>
                                     </Select>
                                     <FormMessage />

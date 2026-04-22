@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useMemo } from 'react';
@@ -52,7 +53,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Pencil, Plus, Trash2, Calendar as CalendarIcon, Users } from 'lucide-react';
+import { Pencil, Plus, Trash2, Calendar as CalendarIcon, Users, Clock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format, parse } from 'date-fns';
 
@@ -85,6 +86,8 @@ interface Schedule {
   departureTime: string;
   arrivalTime: string;
   availableSeats: number;
+  waitlistLimit: number;
+  waitlistCount: number;
   status?: 'On Time' | 'Delayed' | 'Departed' | 'Arrived' | 'Cancelled';
   sourceScheduleId?: string;
 }
@@ -109,6 +112,7 @@ const ScheduleForm = ({
   const [departureTime, setDepartureTime] = useState(schedule?.departureTime || '');
   const [arrivalTime, setArrivalTime] = useState(schedule?.arrivalTime || '');
   const [availableSeats, setAvailableSeats] = useState(schedule?.availableSeats?.toString() || '');
+  const [waitlistLimit, setWaitlistLimit] = useState(schedule?.waitlistLimit?.toString() || '50');
   const [assignedCrew, setAssignedCrew] = useState<Staff[]>([]);
   const { toast } = useToast();
   
@@ -134,12 +138,10 @@ const ScheduleForm = ({
     }
     
     const seatsNum = parseInt(availableSeats, 10);
+    const waitLimitNum = parseInt(waitlistLimit, 10);
+
      if (isNaN(seatsNum)) {
-        toast({
-            variant: 'destructive',
-            title: 'Invalid Seats',
-            description: 'Available seats must be a valid number.',
-        });
+        toast({ variant: 'destructive', title: 'Invalid Seats', description: 'Available seats must be a valid number.' });
         return;
     }
     
@@ -156,6 +158,8 @@ const ScheduleForm = ({
       departureTime,
       arrivalTime,
       availableSeats: seatsNum,
+      waitlistLimit: isNaN(waitLimitNum) ? 50 : waitLimitNum,
+      waitlistCount: schedule?.waitlistCount || 0,
       status: schedule?.status || 'On Time',
     };
 
@@ -164,14 +168,14 @@ const ScheduleForm = ({
       updateDocumentNonBlocking(scheduleRef, scheduleData);
       toast({
         title: 'Schedule Updated',
-        description: `The schedule has been successfully updated.`,
+        description: `The schedule template has been updated.`,
       });
     } else {
       const schedulesCol = collection(firestore, 'schedules');
       addDocumentNonBlocking(schedulesCol, scheduleData);
       toast({
         title: 'Schedule Added',
-        description: `The schedule has been successfully added.`,
+        description: `The daily trip template has been added.`,
       });
     }
     onFinished();
@@ -220,7 +224,7 @@ const ScheduleForm = ({
             </Select>
         </div>
         <div className="space-y-2">
-            <Label htmlFor="availableSeats">Available Seats</Label>
+            <Label htmlFor="availableSeats">Passenger Capacity</Label>
             <Input
             id="availableSeats"
             type="number"
@@ -229,6 +233,17 @@ const ScheduleForm = ({
             placeholder="e.g., 150"
             />
         </div>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="waitlistLimit">Waitlist Limit</Label>
+        <Input
+          id="waitlistLimit"
+          type="number"
+          value={waitlistLimit}
+          onChange={(e) => setWaitlistLimit(e.target.value)}
+          placeholder="Max passengers on waitlist"
+        />
+        <p className="text-xs text-muted-foreground">The maximum number of passengers allowed to reserve a spot once the ship is full.</p>
       </div>
 
        {assignedCrew.length > 0 && (
@@ -428,7 +443,7 @@ export default function SchedulesPage() {
                 <TableHead>Route</TableHead>
                 <TableHead>Frequency</TableHead>
                 <TableHead>Departure</TableHead>
-                <TableHead>Seats</TableHead>
+                <TableHead>Waitlist Limit</TableHead>
                 <TableHead className="w-[100px] text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -445,7 +460,12 @@ export default function SchedulesPage() {
                     <TableCell className="font-medium">{getRouteName(schedule.routeId)}</TableCell>
                     <TableCell>Daily</TableCell>
                     <TableCell>{formatTime(schedule.departureTime)}</TableCell>
-                    <TableCell>{schedule.availableSeats}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <Clock className="h-3 w-3 text-muted-foreground" />
+                        {schedule.waitlistLimit || 50}
+                      </div>
+                    </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
                         <Button

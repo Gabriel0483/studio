@@ -106,7 +106,9 @@
         "routeId": { "type": "string" },
         "date": { "type": "string", "format": "date" },
         "departureTime": { "type": "string", "format": "time" },
-        "availableSeats": { "type": "number" }
+        "availableSeats": { "type": "number" },
+        "waitlistLimit": { "type": "number", "description": "Max passengers allowed on waitlist." },
+        "waitlistCount": { "type": "number", "description": "Current number of waitlisted passengers." }
       },
       "required": ["id", "tripType", "routeId", "departureTime", "availableSeats"]
     },

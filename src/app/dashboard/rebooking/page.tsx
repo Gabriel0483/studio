@@ -42,11 +42,7 @@ export default function RebookingPage() {
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!firestore || !searchQuery || !user) {
-      toast({
-        variant: "destructive",
-        title: "Search Blocked",
-        description: "Please enter a search term and ensure you are logged in.",
-      });
+      toast({ variant: "destructive", title: "Search Blocked", description: "Please enter a search term." });
       return;
     }
 
@@ -62,9 +58,7 @@ export default function RebookingPage() {
       const bookingsRef = collection(firestore, "bookings");
       let q;
 
-      // Use a more targeted query to satisfy security rules
       if (isFullAccess) {
-        // Try ID exact match first as it's common
         q = query(bookingsRef, where('id', '==', searchQuery.toUpperCase()));
       } else if (staffData?.assignedPortName) {
         q = query(bookingsRef, where('departurePortName', '==', staffData.assignedPortName));
@@ -76,8 +70,6 @@ export default function RebookingPage() {
       const allBookings = querySnapshot.docs.map(doc => ({...doc.data(), firestoreId: doc.id}) as any);
 
       const searchTerm = searchQuery.toLowerCase();
-      
-      // Fine-grained filter in memory from the permitted subset
       const foundBooking = allBookings.find((booking: any) => {
         const idMatch = booking.id.toLowerCase() === searchTerm || booking.id.toLowerCase().includes(searchTerm);
         const passengerMatch = (booking.passengerInfo || []).some((p: any) => p.fullName.toLowerCase().includes(searchTerm));
@@ -88,11 +80,7 @@ export default function RebookingPage() {
 
     } catch (error: any) {
       console.error("Error searching for booking: ", error);
-      toast({
-        variant: "destructive",
-        title: "Search Failed",
-        description: error.message || "Failed to search for booking.",
-      });
+      toast({ variant: "destructive", title: "Search Failed", description: error.message || "Failed to search for booking." });
     } finally {
       setIsLoading(false);
     }
@@ -118,15 +106,19 @@ export default function RebookingPage() {
                 cancellationReason: cancellationReason,
             };
 
-            if ((searchedBooking.status === 'Reserved' || searchedBooking.status === 'Confirmed') && scheduleDoc.exists()) {
-                const currentSeats = scheduleDoc.data().availableSeats || 0;
-                transaction.update(scheduleRef, { availableSeats: currentSeats + searchedBooking.numberOfSeats });
+            if (scheduleDoc.exists()) {
+                if (searchedBooking.status === 'Reserved' || searchedBooking.status === 'Confirmed') {
+                    const currentSeats = scheduleDoc.data().availableSeats || 0;
+                    transaction.update(scheduleRef, { availableSeats: currentSeats + searchedBooking.numberOfSeats });
+                } else if (searchedBooking.status === 'Waitlisted') {
+                    const currentWaitlist = scheduleDoc.data().waitlistCount || 0;
+                    transaction.update(scheduleRef, { waitlistCount: Math.max(0, currentWaitlist - searchedBooking.numberOfSeats) });
+                }
             }
             
             transaction.update(bookingRef, updateData);
         });
 
-        // Refresh booking state locally after transaction
         setSearchedBooking((prev: any) => ({
             ...prev,
             status: 'Refunded',
@@ -137,18 +129,11 @@ export default function RebookingPage() {
             cancellationReason: cancellationReason,
         }));
 
-        toast({
-            title: "Refund Processed",
-            description: `Refund for booking #${searchedBooking.id} has been processed.`,
-        });
+        toast({ title: "Refund Processed", description: `Refund for booking #${searchedBooking.id} has been processed.` });
 
     } catch (error) {
         console.error("Error processing refund: ", error);
-        toast({
-            variant: "destructive",
-            title: "Error",
-            description: "Failed to process refund.",
-        });
+        toast({ variant: "destructive", title: "Error", description: "Failed to process refund." });
     } finally {
         setIsLoading(false);
         setIsRefundDialogOpen(false);
@@ -208,7 +193,7 @@ export default function RebookingPage() {
                  <div className="w-full text-center py-8">
                     <FileQuestion className="mx-auto h-12 w-12 text-muted-foreground" />
                     <h3 className="mt-4 text-lg font-semibold">No Booking Found</h3>
-                    <p className="mt-1 text-sm text-muted-foreground">We couldn't find a booking matching your search criteria or port assignment.</p>
+                    <p className="mt-1 text-sm text-muted-foreground">We couldn't find a booking matching your search criteria.</p>
                 </div>
             </CardFooter>
         )}
@@ -282,14 +267,6 @@ export default function RebookingPage() {
                     Rebook
                 </Button>
             </CardFooter>
-             {isRefundable && (
-                <CardFooter>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <AlertCircle className="h-4 w-4" />
-                        <span>This booking is eligible for a refund.</span>
-                    </div>
-                </CardFooter>
-            )}
           </>
         )}
       </Card>
@@ -300,7 +277,7 @@ export default function RebookingPage() {
             <DialogHeader>
                 <DialogTitle>Process Refund for Booking #{searchedBooking?.id}</DialogTitle>
                 <DialogDescription>
-                    Enter a cancellation fee and reason if applicable. The final refund amount will be calculated. To issue a full refund, leave the fee as 0.
+                    Enter a cancellation fee and reason if applicable. The final refund amount will be calculated.
                 </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
@@ -310,22 +287,11 @@ export default function RebookingPage() {
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="cancellation-fee">Cancellation Fee (₱)</Label>
-                    <Input
-                        id="cancellation-fee"
-                        type="number"
-                        value={cancellationFee}
-                        onChange={(e) => setCancellationFee(parseFloat(e.target.value) || 0)}
-                        placeholder="0.00"
-                    />
+                    <Input id="cancellation-fee" type="number" value={cancellationFee} onChange={(e) => setCancellationFee(parseFloat(e.target.value) || 0)} />
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="cancellation-reason">Reason for Cancellation</Label>
-                    <Textarea
-                        id="cancellation-reason"
-                        value={cancellationReason}
-                        onChange={(e) => setCancellationReason(e.target.value)}
-                        placeholder="e.g., Passenger request, service disruption..."
-                    />
+                    <Textarea id="cancellation-reason" value={cancellationReason} onChange={(e) => setCancellationReason(e.target.value)} />
                 </div>
                  <Separator />
                 <div className="flex justify-between items-center text-lg font-bold">
@@ -334,13 +300,8 @@ export default function RebookingPage() {
                 </div>
             </div>
             <DialogFooter>
-                <DialogClose asChild>
-                    <Button variant="outline">Cancel</Button>
-                </DialogClose>
-                <Button onClick={handleProcessRefund} disabled={isLoading}>
-                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    Confirm Refund
-                </Button>
+                <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+                <Button onClick={handleProcessRefund} disabled={isLoading}>Confirm Refund</Button>
             </DialogFooter>
         </DialogContent>
     </Dialog>
