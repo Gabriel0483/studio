@@ -37,8 +37,8 @@ import {
   query,
   where,
 } from 'firebase/firestore';
-import { BookCopy, Pencil, Search, Trash2, XCircle, CreditCard, Loader2, FilterX, Filter, MapPin, ShieldClock, Zap, Eye, User, Calendar, Ship, Ticket, Users } from 'lucide-react';
-import { format, isValid } from 'date-fns';
+import { BookCopy, Pencil, Search, Trash2, XCircle, CreditCard, Loader2, FilterX, Filter, MapPin, ShieldClock, Zap, Eye, User, Calendar, Ship, Ticket, Users, Ghost } from 'lucide-react';
+import { format, isValid, isBefore, subHours } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -74,13 +74,13 @@ interface Booking {
   departurePortName?: string;
   travelDate: Timestamp;
   bookingDate: Timestamp;
-  numberOfSeats: number;
-  totalPrice: number;
   status: 'Confirmed' | 'Reserved' | 'Waitlisted' | 'Cancelled' | 'Refunded' | 'Completed';
   paymentStatus: 'Paid' | 'Unpaid' | 'Refunded';
+  numberOfSeats: number;
+  totalPrice: number;
 }
 
-const bookingStatuses = ['Confirmed', 'Reserved', 'Waitlisted', 'Cancelled', 'Refunded', 'Completed'] as const;
+const bookingStatuses = ['Confirmed', 'Reserved', 'Waitlisted', 'Cancelled', 'Refunded', 'Completed', 'Ghost'] as const;
 
 export default function BookingsPage() {
   const firestore = useFirestore();
@@ -101,6 +101,14 @@ export default function BookingsPage() {
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [bookingToProcess, setBookingToProcess] = useState<Booking | null>(null);
 
+  // Live timer to re-calc expiration every minute
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 60000);
+    return () => clearInterval(timer);
+  }, []);
+
   const staffDocRef = useMemoFirebase(() => firestore && user ? doc(firestore, 'staff', user.uid) : null, [firestore, user]);
   const { data: staffData, isLoading: isLoadingStaffData } = useDoc(staffDocRef);
 
@@ -112,8 +120,6 @@ export default function BookingsPage() {
     
     if (!staffData && !isPlatformAdmin) return null;
 
-    const isDeskAgent = roles.includes('Desk Booking Agent');
-    const isStationManager = roles.includes('Station Manager');
     const isFullAccessRole = roles.some((r: string) => 
       ['Super Admin', 'Operations Manager', 'Finance/Accounting'].includes(r)
     ) || isPlatformAdmin;
@@ -122,7 +128,7 @@ export default function BookingsPage() {
 
     if (isFullAccessRole) return baseCol;
 
-    if (isDeskAgent || isStationManager) {
+    if (roles.includes('Desk Booking Agent') || roles.includes('Station Manager')) {
       if (staffData?.assignedPortName) {
         return query(baseCol, where('departurePortName', '==', staffData.assignedPortName));
       } else {
@@ -133,63 +139,30 @@ export default function BookingsPage() {
     return null;
   }, [firestore, staffData, isLoadingStaffData, user]);
 
-  const routesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return collection(firestore, 'routes');
-  }, [firestore]);
-
-  const schedulesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return collection(firestore, 'schedules');
-  }, [firestore]);
-
   const { data: bookings, isLoading: isLoadingBookings } = useCollection<Booking>(bookingsQuery, { idField: 'firestoreId' });
-  const { data: routes, isLoading: isLoadingRoutes } = useCollection(routesQuery);
-  const { data: schedules, isLoading: isLoadingSchedules } = useCollection(schedulesQuery);
+  const { data: routes, isLoading: isLoadingRoutes } = useCollection(useMemoFirebase(() => firestore ? collection(firestore, 'routes') : null, [firestore]));
+  const { data: schedules, isLoading: isLoadingSchedules } = useCollection(useMemoFirebase(() => firestore ? collection(firestore, 'schedules') : null, [firestore]));
 
-  const availableSchedules = useMemo(() => {
-    if (!schedules || !filterDate || !isValid(filterDate)) return [];
-    
-    const selectedDateStr = format(filterDate, 'yyyy-MM-dd');
-    const specialTripsForDate = schedules.filter(s => s.tripType === 'Special' && s.date === selectedDateStr);
-    const dailyTrips = schedules.filter(s => s.tripType === 'Daily');
+  // Identification Logic for Ghost Reservations
+  const isGhost = (booking: Booking) => {
+    if (booking.status !== 'Reserved' || booking.paymentStatus !== 'Unpaid') return false;
+    const schedule = schedules?.find(s => s.id === booking.scheduleId);
+    if (!schedule) return false;
 
-    const dailyInstancesForDate = dailyTrips.map(daily => {
-        const existingInstance = specialTripsForDate.find(st => st.sourceScheduleId === daily.id);
-        return existingInstance || daily;
-    });
+    const travelDate = booking.travelDate instanceof Timestamp ? booking.travelDate.toDate() : new Date(booking.travelDate);
+    const [hours, minutes] = schedule.departureTime.split(':').map(Number);
+    const departureTime = new Date(travelDate);
+    departureTime.setHours(hours, minutes, 0, 0);
 
-    let combinedSchedules = [
-        ...specialTripsForDate.filter(st => !st.sourceScheduleId),
-        ...dailyInstancesForDate
-    ];
-    
-    if (filterRoute !== 'all') {
-      combinedSchedules = combinedSchedules.filter(s => s.routeId === filterRoute);
-    }
-
-    return combinedSchedules.sort((a,b) => a.departureTime.localeCompare(b.departureTime));
-  }, [schedules, filterDate, filterRoute]);
+    // Expired if current time is within 1 hour of departure or departure has passed
+    const expiryThreshold = subHours(departureTime, 1);
+    return isBefore(expiryThreshold, currentTime);
+  };
 
   const expiredBookings = useMemo(() => {
     if (!bookings || !schedules) return [];
-    const now = new Date();
-    
-    return bookings.filter(booking => {
-      if (booking.status !== 'Reserved' || booking.paymentStatus !== 'Unpaid') return false;
-      
-      const schedule = schedules.find(s => s.id === booking.scheduleId);
-      if (!schedule) return false;
-
-      const travelDate = booking.travelDate instanceof Timestamp ? booking.travelDate.toDate() : new Date(booking.travelDate);
-      const [hours, minutes] = schedule.departureTime.split(':').map(Number);
-      const departureTime = new Date(travelDate);
-      departureTime.setHours(hours, minutes, 0, 0);
-
-      const expiryThreshold = new Date(departureTime.getTime() - 60 * 60 * 1000);
-      return now >= expiryThreshold;
-    });
-  }, [bookings, schedules]);
+    return bookings.filter(isGhost);
+  }, [bookings, schedules, currentTime]);
 
   const [isCleaningUp, setIsCleaningUp] = useState(false);
 
@@ -223,6 +196,14 @@ export default function BookingsPage() {
     }
   };
 
+  const availableSchedules = useMemo(() => {
+    if (!schedules || !filterDate || !isValid(filterDate)) return [];
+    const selectedDateStr = format(filterDate, 'yyyy-MM-dd');
+    return schedules
+      .filter(s => s.date === selectedDateStr || (s.tripType === 'Daily'))
+      .sort((a,b) => a.departureTime.localeCompare(b.departureTime));
+  }, [schedules, filterDate]);
+
   useEffect(() => {
     setFilterSchedule('all');
   }, [filterDate, filterRoute]);
@@ -247,7 +228,10 @@ export default function BookingsPage() {
         booking.passengerEmail.toLowerCase().includes(searchTerm) ||
         booking.routeName.toLowerCase().includes(searchTerm);
 
-      const statusMatch = filterStatus === 'all' || booking.status === filterStatus;
+      let statusMatch = filterStatus === 'all' || booking.status === filterStatus;
+      if (filterStatus === 'Ghost') {
+        statusMatch = isGhost(booking);
+      }
       
       let dateMatch = true;
       if (filterDate && isValid(filterDate)) {
@@ -260,7 +244,7 @@ export default function BookingsPage() {
 
       return searchMatch && statusMatch && dateMatch && routeMatch && scheduleMatch;
     });
-  }, [bookings, search, filterStatus, filterDate, filterRoute, filterSchedule, routes]);
+  }, [bookings, search, filterStatus, filterDate, filterRoute, filterSchedule, routes, schedules, currentTime]);
   
   const clearFilters = () => {
     setSearch('');
@@ -278,38 +262,6 @@ export default function BookingsPage() {
 
   const handleEdit = (bookingId: string) => {
     router.push(`/dashboard/bookings/${bookingId}/edit`);
-  };
-
-  const confirmDelete = (booking: Booking) => {
-    setBookingToProcess(booking);
-    setIsDeleteDialogOpen(true);
-  };
-  
-  const confirmCancel = (booking: Booking) => {
-    if (booking.status === 'Cancelled' || booking.status === 'Refunded' || booking.status === 'Completed') {
-      toast({ variant: 'destructive', title: 'Already Finalized', description: 'This booking is already cancelled, refunded, or completed.' });
-      return;
-    }
-    setBookingToProcess(booking);
-    setIsCancelDialogOpen(true);
-  };
-  
-  const confirmPaid = (booking: Booking) => {
-    if (booking.paymentStatus === 'Paid') {
-        toast({ title: 'Already Paid', description: 'This booking is already marked as paid.' });
-        return;
-    }
-    if (booking.status === 'Cancelled' || booking.status === 'Refunded' || booking.status === 'Completed') {
-        toast({ variant: 'destructive', title: 'Cannot Pay', description: 'This booking is in a final state.' });
-        return;
-    }
-    setBookingToProcess(booking);
-    setIsPaidDialogOpen(true);
-  };
-
-  const handleView = (booking: Booking) => {
-    setBookingToProcess(booking);
-    setIsViewDialogOpen(true);
   };
 
   const handleDelete = async () => {
@@ -362,7 +314,6 @@ export default function BookingsPage() {
     try {
       await updateDoc(bookingRef, { paymentStatus: 'Paid', status: 'Confirmed' });
       toast({ title: 'Booking Paid & Confirmed', description: `Booking #${bookingToProcess.id} is now Paid.` });
-      // Update local state if the view modal is open
       if (isViewDialogOpen) {
         setBookingToProcess(prev => prev ? { ...prev, paymentStatus: 'Paid', status: 'Confirmed' } : null);
       }
@@ -413,22 +364,25 @@ export default function BookingsPage() {
         </div>
 
         {expiredBookings.length > 0 && (
-          <Alert variant="destructive" className="bg-destructive/5 border-destructive/20 animate-in fade-in slide-in-from-top-2 duration-300">
-            <ShieldClock className="h-4 w-4" />
-            <AlertTitle className="font-bold">Expired Reservations Found</AlertTitle>
-            <AlertDescription className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-2">
-              <p className="text-sm">
-                There are <strong>{expiredBookings.length}</strong> reserved bookings that remain unpaid within 1 hour of departure.
-              </p>
+          <Alert variant="destructive" className="bg-destructive/10 border-destructive/40 shadow-lg animate-in fade-in slide-in-from-top-4 duration-500">
+            <ShieldClock className="h-5 w-5" />
+            <AlertTitle className="font-black text-lg">Administrative Action Required</AlertTitle>
+            <AlertDescription className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mt-3">
+              <div className="space-y-1">
+                <p className="text-sm font-medium">
+                  System detected <strong>{expiredBookings.length}</strong> ghost reservations.
+                </p>
+                <p className="text-xs opacity-80 italic">Unpaid bookings within 1 hour of departure are blocking seat capacity.</p>
+              </div>
               <Button 
                 size="sm" 
                 variant="destructive" 
                 onClick={handleCleanupExpired} 
                 disabled={isCleaningUp}
-                className="font-bold"
+                className="font-bold shadow-sm"
               >
                 {isCleaningUp ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4" />}
-                Process Auto-Cancellation
+                Purge All Expired & Release Seats
               </Button>
             </AlertDescription>
           </Alert>
@@ -448,9 +402,9 @@ export default function BookingsPage() {
                     <Filter className="mr-2 h-4 w-4" />
                     {isFilterOpen ? 'Hide' : 'Show'} Filters
                 </Button>
-                <Button variant="ghost" onClick={clearFilters} disabled={!search && filterRoute === 'all' && filterStatus === 'all' && !filterDate && filterSchedule === 'all'} className="w-full sm:w-auto">
+                <Button variant="ghost" onClick={clearFilters} className="w-full sm:w-auto">
                     <FilterX className="mr-2 h-4 w-4" />
-                    Clear All Filters
+                    Clear Filters
                 </Button>
               </div>
             </div>
@@ -497,7 +451,11 @@ export default function BookingsPage() {
                                 <SelectTrigger id="filter-status"><SelectValue placeholder="All Statuses" /></SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="all">All Statuses</SelectItem>
-                                    {bookingStatuses.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                                    {bookingStatuses.map(s => (
+                                      <SelectItem key={s} value={s} className={s === 'Ghost' ? "text-destructive font-bold" : ""}>
+                                        {s === 'Ghost' ? 'Ghost Reservations' : s}
+                                      </SelectItem>
+                                    ))}
                                 </SelectContent>
                             </Select>
                         </div>
@@ -552,9 +510,16 @@ export default function BookingsPage() {
                         </TableCell>
                         <TableCell>{booking.routeName}</TableCell>
                         <TableCell>
-                            <Badge variant={getStatusVariant(booking.status)}>
-                                {booking.status}
-                            </Badge>
+                            <div className="flex flex-col gap-1">
+                              <Badge variant={getStatusVariant(booking.status)}>
+                                  {booking.status}
+                              </Badge>
+                              {isGhost(booking) && (
+                                <Badge variant="destructive" className="w-fit text-[10px] flex items-center gap-1 py-0 px-1 font-bold animate-pulse">
+                                  <Ghost className="h-2 w-2" /> GHOST
+                                </Badge>
+                              )}
+                            </div>
                         </TableCell>
                         <TableCell>
                             <Badge variant={getPaymentStatusVariant(booking.paymentStatus || 'Unpaid')}>
@@ -569,23 +534,21 @@ export default function BookingsPage() {
                             <div className="flex justify-end gap-2">
                                 <Tooltip>
                                     <TooltipTrigger asChild>
-                                        <Button variant="ghost" size="icon" onClick={() => handleView(booking)}>
+                                        <Button variant="ghost" size="icon" onClick={() => { setBookingToProcess(booking); setIsViewDialogOpen(true); }}>
                                             <Eye className="h-4 w-4" />
-                                            <span className="sr-only">View Details</span>
                                         </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent>View Booking</TooltipContent>
+                                    <TooltipContent>View Details</TooltipContent>
                                 </Tooltip>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
                                         <Button
                                             variant="ghost"
                                             size="icon"
-                                            onClick={() => confirmPaid(booking)}
-                                            disabled={booking.paymentStatus === 'Paid' || booking.status === 'Cancelled' || booking.status === 'Refunded' || booking.status === 'Completed'}
+                                            onClick={() => { setBookingToProcess(booking); setIsPaidDialogOpen(true); }}
+                                            disabled={booking.paymentStatus === 'Paid' || booking.status === 'Cancelled'}
                                         >
                                             <CreditCard className="h-4 w-4" />
-                                            <span className="sr-only">Mark as Paid</span>
                                         </Button>
                                     </TooltipTrigger>
                                     <TooltipContent>Mark as Paid</TooltipContent>
@@ -596,27 +559,25 @@ export default function BookingsPage() {
                                             variant="ghost"
                                             size="icon"
                                             onClick={() => handleEdit(booking.id)}
-                                            disabled={booking.status === 'Cancelled' || booking.status === 'Refunded' || booking.status === 'Completed'}
+                                            disabled={booking.status === 'Cancelled'}
                                         >
                                             <Pencil className="h-4 w-4" />
-                                            <span className="sr-only">Edit</span>
                                         </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent>Edit Booking</TooltipContent>
+                                    <TooltipContent>Edit</TooltipContent>
                                 </Tooltip>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
                                         <Button
                                             variant="ghost"
                                             size="icon"
-                                            className="text-destructive hover:text-destructive"
-                                            onClick={() => confirmDelete(booking)}
+                                            className="text-destructive"
+                                            onClick={() => { setBookingToProcess(booking); setIsDeleteDialogOpen(true); }}
                                         >
                                             <Trash2 className="h-4 w-4" />
-                                            <span className="sr-only">Delete</span>
                                         </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent>Delete Booking</TooltipContent>
+                                    <TooltipContent>Delete</TooltipContent>
                                 </Tooltip>
                             </div>
                         </TableCell>
@@ -641,7 +602,7 @@ export default function BookingsPage() {
 
       {/* View Booking Dialog */}
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-        <DialogContent className="max-w-2xl flex flex-col max-h-[90vh]">
+        <DialogContent className="max-w-2xl flex flex-col h-[90vh]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-2xl">
               <BookCopy className="h-6 w-6 text-primary" />
