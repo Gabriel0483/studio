@@ -36,6 +36,8 @@ import {
   updateDoc,
   query,
   where,
+  getDocs,
+  orderBy,
 } from 'firebase/firestore';
 import { BookCopy, Pencil, Search, Trash2, CreditCard, Loader2, FilterX, Filter, MapPin, ShieldAlert, Zap, Eye, User, Calendar, Ship, Ticket, Users, Ghost } from 'lucide-react';
 import { format, isValid, isBefore, subHours } from 'date-fns';
@@ -101,7 +103,6 @@ export default function BookingsPage() {
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [bookingToProcess, setBookingToProcess] = useState<Booking | null>(null);
 
-  // Live timer to re-calc expiration every minute
   const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
@@ -140,10 +141,9 @@ export default function BookingsPage() {
   }, [firestore, staffData, isLoadingStaffData, user]);
 
   const { data: bookings, isLoading: isLoadingBookings } = useCollection<Booking>(bookingsQuery, { idField: 'firestoreId' });
-  const { data: routes, isLoading: isLoadingRoutes } = useCollection(useMemoFirebase(() => firestore ? collection(firestore, 'routes') : null, [firestore]));
-  const { data: schedules, isLoading: isLoadingSchedules } = useCollection(useMemoFirebase(() => firestore ? collection(firestore, 'schedules') : null, [firestore]));
+  const { data: routes } = useCollection(useMemoFirebase(() => firestore ? collection(firestore, 'routes') : null, [firestore]));
+  const { data: schedules } = useCollection(useMemoFirebase(() => firestore ? collection(firestore, 'schedules') : null, [firestore]));
 
-  // Identification Logic for Ghost Reservations
   const isGhost = (booking: Booking) => {
     if (booking.status !== 'Reserved' || booking.paymentStatus !== 'Unpaid') return false;
     const schedule = schedules?.find(s => s.id === booking.scheduleId);
@@ -154,7 +154,6 @@ export default function BookingsPage() {
     const departureTime = new Date(travelDate);
     departureTime.setHours(hours, minutes, 0, 0);
 
-    // Expired if current time is within 1 hour of departure or departure has passed
     const expiryThreshold = subHours(departureTime, 1);
     return isBefore(expiryThreshold, currentTime);
   };
@@ -173,14 +172,41 @@ export default function BookingsPage() {
     let successCount = 0;
     try {
       for (const booking of expiredBookings) {
+        // Find potential waitlist candidates for this schedule before transaction
+        const waitlistQuery = query(
+          collection(firestore, 'bookings'),
+          where('scheduleId', '==', booking.scheduleId),
+          where('status', '==', 'Waitlisted'),
+          orderBy('bookingDate', 'asc')
+        );
+        const waitlistSnap = await getDocs(waitlistQuery);
+
         await runTransaction(firestore, async (transaction) => {
           const bookingRef = doc(firestore, 'bookings', booking.firestoreId);
           const scheduleRef = doc(firestore, 'schedules', booking.scheduleId);
           const scheduleDoc = await transaction.get(scheduleRef);
-          if (scheduleDoc.exists()) {
-            const currentSeats = scheduleDoc.data().availableSeats || 0;
-            transaction.update(scheduleRef, { availableSeats: currentSeats + booking.numberOfSeats });
+          
+          if (!scheduleDoc.exists()) return;
+
+          let currentSeats = (scheduleDoc.data().availableSeats || 0) + booking.numberOfSeats;
+          let currentWaitlistCount = scheduleDoc.data().waitlistCount || 0;
+
+          // PASS: Promotion Pass
+          // Attempt to fill the newly opened seats with passengers from the waitlist (FCFS)
+          for (const wDoc of waitlistSnap.docs) {
+            const wData = wDoc.data();
+            if (wData.numberOfSeats <= currentSeats) {
+              transaction.update(wDoc.ref, { status: 'Reserved' });
+              currentSeats -= wData.numberOfSeats;
+              currentWaitlistCount = Math.max(0, currentWaitlistCount - wData.numberOfSeats);
+            }
           }
+
+          transaction.update(scheduleRef, { 
+            availableSeats: currentSeats,
+            waitlistCount: currentWaitlistCount
+          });
+          
           transaction.update(bookingRef, { 
             status: 'Cancelled',
             cancellationReason: 'System: Unpaid reservation expired (1 hour before departure).' 
@@ -188,9 +214,10 @@ export default function BookingsPage() {
         });
         successCount++;
       }
-      toast({ title: "Cleanup Complete", description: `Successfully auto-cancelled ${successCount} expired reservations.` });
+      toast({ title: "Cleanup Complete", description: `Successfully auto-cancelled ${successCount} ghost reservations and promoted waitlisted passengers.` });
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Cleanup Partial Failure", description: "Some bookings could not be processed." });
+      console.error("Cleanup failed:", error);
+      toast({ variant: "destructive", title: "Cleanup Failed", description: "Could not process all bookings." });
     } finally {
       setIsCleaningUp(false);
     }
@@ -268,16 +295,47 @@ export default function BookingsPage() {
     if (!firestore || !bookingToProcess) return;
     const bookingRef = doc(firestore, 'bookings', bookingToProcess.firestoreId);
     const scheduleRef = doc(firestore, 'schedules', bookingToProcess.scheduleId);
+
+    // Get waitlist candidates
+    const waitlistQuery = query(
+      collection(firestore, 'bookings'),
+      where('scheduleId', '==', bookingToProcess.scheduleId),
+      where('status', '==', 'Waitlisted'),
+      orderBy('bookingDate', 'asc')
+    );
+    const waitlistSnap = await getDocs(waitlistQuery);
+
     try {
       await runTransaction(firestore, async (transaction) => {
         const scheduleDoc = await transaction.get(scheduleRef);
-        if (scheduleDoc.exists() && (bookingToProcess.status === 'Reserved' || bookingToProcess.status === 'Confirmed')) {
-          const currentSeats = scheduleDoc.data().availableSeats || 0;
-          transaction.update(scheduleRef, { availableSeats: currentSeats + bookingToProcess.numberOfSeats });
+        if (!scheduleDoc.exists()) return;
+
+        let currentSeats = scheduleDoc.data().availableSeats || 0;
+        let currentWaitlistCount = scheduleDoc.data().waitlistCount || 0;
+
+        if (bookingToProcess.status === 'Reserved' || bookingToProcess.status === 'Confirmed') {
+          currentSeats += bookingToProcess.numberOfSeats;
+          
+          // PASS: Fill Waitlist
+          for (const wDoc of waitlistSnap.docs) {
+            const wData = wDoc.data();
+            if (wData.numberOfSeats <= currentSeats) {
+              transaction.update(wDoc.ref, { status: 'Reserved' });
+              currentSeats -= wData.numberOfSeats;
+              currentWaitlistCount = Math.max(0, currentWaitlistCount - wData.numberOfSeats);
+            }
+          }
+        } else if (bookingToProcess.status === 'Waitlisted') {
+          currentWaitlistCount = Math.max(0, currentWaitlistCount - bookingToProcess.numberOfSeats);
         }
+
+        transaction.update(scheduleRef, { 
+          availableSeats: currentSeats,
+          waitlistCount: currentWaitlistCount 
+        });
         transaction.delete(bookingRef);
       });
-      toast({ title: 'Booking Deleted', description: 'Booking removed and seats returned.' });
+      toast({ title: 'Booking Deleted', description: 'Booking removed and waitlist processed.' });
     } catch (e: any) {
       toast({ variant: 'destructive', title: 'Error Deleting Booking', description: e.message });
     } finally {
@@ -290,16 +348,46 @@ export default function BookingsPage() {
     if (!firestore || !bookingToProcess) return;
     const bookingRef = doc(firestore, 'bookings', bookingToProcess.firestoreId);
     const scheduleRef = doc(firestore, 'schedules', bookingToProcess.scheduleId);
+
+    const waitlistQuery = query(
+      collection(firestore, 'bookings'),
+      where('scheduleId', '==', bookingToProcess.scheduleId),
+      where('status', '==', 'Waitlisted'),
+      orderBy('bookingDate', 'asc')
+    );
+    const waitlistSnap = await getDocs(waitlistQuery);
+
     try {
         await runTransaction(firestore, async (transaction) => {
             const scheduleDoc = await transaction.get(scheduleRef);
-            if (scheduleDoc.exists() && (bookingToProcess.status === 'Reserved' || bookingToProcess.status === 'Confirmed')) {
-                const currentSeats = scheduleDoc.data().availableSeats || 0;
-                transaction.update(scheduleRef, { availableSeats: currentSeats + bookingToProcess.numberOfSeats });
+            if (!scheduleDoc.exists()) return;
+
+            let currentSeats = scheduleDoc.data().availableSeats || 0;
+            let currentWaitlistCount = scheduleDoc.data().waitlistCount || 0;
+
+            if (bookingToProcess.status === 'Reserved' || bookingToProcess.status === 'Confirmed') {
+                currentSeats += bookingToProcess.numberOfSeats;
+                
+                // PASS: Fill Waitlist
+                for (const wDoc of waitlistSnap.docs) {
+                  const wData = wDoc.data();
+                  if (wData.numberOfSeats <= currentSeats) {
+                    transaction.update(wDoc.ref, { status: 'Reserved' });
+                    currentSeats -= wData.numberOfSeats;
+                    currentWaitlistCount = Math.max(0, currentWaitlistCount - wData.numberOfSeats);
+                  }
+                }
+            } else if (bookingToProcess.status === 'Waitlisted') {
+              currentWaitlistCount = Math.max(0, currentWaitlistCount - bookingToProcess.numberOfSeats);
             }
+
+            transaction.update(scheduleRef, { 
+              availableSeats: currentSeats,
+              waitlistCount: currentWaitlistCount
+            });
             transaction.update(bookingRef, { status: 'Cancelled' });
         });
-        toast({ title: 'Booking Cancelled', description: 'The booking has been successfully cancelled.' });
+        toast({ title: 'Booking Cancelled', description: 'Booking cancelled and seats released to waitlist.' });
     } catch (e: any) {
         toast({ variant: 'destructive', title: 'Error Cancelling Booking', description: e.message });
     } finally {
@@ -343,7 +431,7 @@ export default function BookingsPage() {
     }
   };
   
-  const isLoading = isLoadingBookings || isLoadingRoutes || isLoadingSchedules || isLoadingStaffData;
+  const isLoading = isLoadingBookings || isLoadingStaffData;
 
   return (
     <>

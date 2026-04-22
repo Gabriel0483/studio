@@ -1,4 +1,3 @@
-
 'use client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Loader2, Search, AlertCircle, FileQuestion } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase";
-import { collection, doc, query, where, getDocs, updateDoc, Timestamp, runTransaction } from "firebase/firestore";
+import { collection, doc, query, where, getDocs, updateDoc, Timestamp, runTransaction, orderBy } from "firebase/firestore";
 import React, { useState, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
@@ -90,13 +89,26 @@ export default function RebookingPage() {
     if (!firestore || !searchedBooking) return;
     setIsLoading(true);
 
+    // Prepare waitlist pass
+    const waitlistQuery = query(
+        collection(firestore, 'bookings'),
+        where('scheduleId', '==', searchedBooking.scheduleId),
+        where('status', '==', 'Waitlisted'),
+        orderBy('bookingDate', 'asc')
+    );
+    const waitlistSnap = await getDocs(waitlistQuery);
+
     try {
         await runTransaction(firestore, async (transaction) => {
             const bookingRef = doc(firestore, 'bookings', searchedBooking.firestoreId);
             const scheduleRef = doc(firestore, 'schedules', searchedBooking.scheduleId);
             
             const scheduleDoc = await transaction.get(scheduleRef);
+            if (!scheduleDoc.exists()) return;
             
+            let currentSeats = scheduleDoc.data().availableSeats || 0;
+            let currentWaitlistCount = scheduleDoc.data().waitlistCount || 0;
+
             const updateData: any = {
                 status: 'Refunded',
                 paymentStatus: 'Refunded',
@@ -106,16 +118,26 @@ export default function RebookingPage() {
                 cancellationReason: cancellationReason,
             };
 
-            if (scheduleDoc.exists()) {
-                if (searchedBooking.status === 'Reserved' || searchedBooking.status === 'Confirmed') {
-                    const currentSeats = scheduleDoc.data().availableSeats || 0;
-                    transaction.update(scheduleRef, { availableSeats: currentSeats + searchedBooking.numberOfSeats });
-                } else if (searchedBooking.status === 'Waitlisted') {
-                    const currentWaitlist = scheduleDoc.data().waitlistCount || 0;
-                    transaction.update(scheduleRef, { waitlistCount: Math.max(0, currentWaitlist - searchedBooking.numberOfSeats) });
+            if (searchedBooking.status === 'Reserved' || searchedBooking.status === 'Confirmed') {
+                currentSeats += searchedBooking.numberOfSeats;
+
+                // AUTOMATIC PROMOTION PASS
+                for (const wDoc of waitlistSnap.docs) {
+                    const wData = wDoc.data();
+                    if (wData.numberOfSeats <= currentSeats) {
+                        transaction.update(wDoc.ref, { status: 'Reserved' });
+                        currentSeats -= wData.numberOfSeats;
+                        currentWaitlistCount = Math.max(0, currentWaitlistCount - wData.numberOfSeats);
+                    }
                 }
+            } else if (searchedBooking.status === 'Waitlisted') {
+                currentWaitlistCount = Math.max(0, currentWaitlistCount - searchedBooking.numberOfSeats);
             }
             
+            transaction.update(scheduleRef, { 
+                availableSeats: currentSeats,
+                waitlistCount: currentWaitlistCount
+            });
             transaction.update(bookingRef, updateData);
         });
 
@@ -129,7 +151,7 @@ export default function RebookingPage() {
             cancellationReason: cancellationReason,
         }));
 
-        toast({ title: "Refund Processed", description: `Refund for booking #${searchedBooking.id} has been processed.` });
+        toast({ title: "Refund Processed", description: `Refund processed and waitlist promoted.` });
 
     } catch (error) {
         console.error("Error processing refund: ", error);
@@ -138,7 +160,7 @@ export default function RebookingPage() {
         setIsLoading(false);
         setIsRefundDialogOpen(false);
         setCancellationFee(0);
-        setCancellationReason('');
+        cancellationReason && setCancellationReason('');
     }
   };
 

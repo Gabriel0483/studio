@@ -36,7 +36,7 @@ import {
   useCollection,
   useMemoFirebase,
 } from '@/firebase';
-import { collection, doc, runTransaction, Timestamp, query, where, getDocs, serverTimestamp, getDoc } from 'firebase/firestore';
+import { collection, doc, runTransaction, Timestamp, query, where, getDocs, serverTimestamp, getDoc, orderBy } from 'firebase/firestore';
 import React, { useMemo, useState, useEffect } from 'react';
 import { Separator } from '@/components/ui/separator';
 import { format, isValid } from 'date-fns';
@@ -84,7 +84,6 @@ export default function EditBookingPage() {
   const [minDate, setMinDate] = useState('');
 
   useEffect(() => {
-    // Hydration-safe date initialization
     setMinDate(format(new Date(), 'yyyy-MM-dd'));
   }, []);
 
@@ -179,7 +178,6 @@ export default function EditBookingPage() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
-    // Don't show schedules for past dates
     if (selectedDate < today) return [];
 
     const isToday = selectedDate.getTime() === today.getTime();
@@ -271,87 +269,93 @@ export default function EditBookingPage() {
     setIsSubmitting(true);
 
     const newSeats = data.passengers.length;
-    const newSchedule = allSchedules.find(s => s.id === data.scheduleId);
-    if (!newSchedule) {
-        toast({ variant: 'destructive', title: 'Error', description: 'Selected schedule could not be found.' });
-        setIsSubmitting(false);
-        return;
-    }
+    const newScheduleRef = doc(firestore, 'schedules', data.scheduleId);
+    const oldScheduleRef = doc(firestore, 'schedules', booking.scheduleId);
 
-    const travelDateObj = new Date(data.travelDate);
+    // Fetch waitlist for the OLD schedule (if seats are released)
+    const oldWaitlistQuery = query(
+      collection(firestore, 'bookings'),
+      where('scheduleId', '==', booking.scheduleId),
+      where('status', '==', 'Waitlisted'),
+      orderBy('bookingDate', 'asc')
+    );
+    const oldWaitlistSnap = await getDocs(oldWaitlistQuery);
+
+    // Fetch waitlist for the NEW schedule (if seat count changes)
+    const newWaitlistQuery = query(
+      collection(firestore, 'bookings'),
+      where('scheduleId', '==', data.scheduleId),
+      where('status', '==', 'Waitlisted'),
+      orderBy('bookingDate', 'asc')
+    );
+    const newWaitlistSnap = await getDocs(newWaitlistQuery);
 
     try {
         await runTransaction(firestore, async (transaction) => {
             const bookingRef = doc(firestore, 'bookings', booking.firestoreId);
-            const oldScheduleRef = doc(firestore, 'schedules', booking.scheduleId);
-            const newScheduleRef = doc(firestore, 'schedules', data.scheduleId);
-
             const oldScheduleDoc = await transaction.get(oldScheduleRef);
-            const newScheduleDoc = await transaction.get(newScheduleRef);
+            const newScheduleDoc = await transaction.get(newWaitlistRef);
 
-            if (!newScheduleDoc.exists()) {
-                throw new Error("The new schedule you selected no longer exists.");
-            }
-            
+            if (!newScheduleDoc.exists()) throw new Error("The selected trip template no longer exists.");
+
+            // STEP 1: Release seats from OLD schedule
             if (oldScheduleDoc.exists() && (booking.status === 'Reserved' || booking.status === 'Confirmed')) {
-                transaction.update(oldScheduleRef, { availableSeats: oldScheduleDoc.data().availableSeats + booking.numberOfSeats });
+                let oldSeats = oldScheduleDoc.data().availableSeats + booking.numberOfSeats;
+                let oldWaitlistCount = oldScheduleDoc.data().waitlistCount || 0;
+
+                // PROMOTION: Try to fill old seats with old waitlist
+                for (const wDoc of oldWaitlistSnap.docs) {
+                  const wData = wDoc.data();
+                  if (wData.numberOfSeats <= oldSeats) {
+                    transaction.update(wDoc.ref, { status: 'Reserved' });
+                    oldSeats -= wData.numberOfSeats;
+                    oldWaitlistCount = Math.max(0, oldWaitlistCount - wData.numberOfSeats);
+                  }
+                }
+                transaction.update(oldScheduleRef, { availableSeats: oldSeats, waitlistCount: oldWaitlistCount });
             }
 
-            const newScheduleData = newScheduleDoc.data();
+            // STEP 2: Allocate seats from NEW schedule
+            let newAvailable = newScheduleDoc.data().availableSeats || 0;
+            let newWaitCount = newScheduleDoc.data().waitlistCount || 0;
             let newStatus = booking.status;
 
-            if (newScheduleData.availableSeats >= newSeats) {
-                transaction.update(newScheduleRef, { availableSeats: newScheduleData.availableSeats - newSeats });
+            if (newAvailable >= newSeats) {
+                newAvailable -= newSeats;
                 if (newStatus === 'Waitlisted' || data.paymentStatus === 'Paid' || booking.paymentStatus === 'Paid') {
                     newStatus = (data.paymentStatus === 'Paid' || booking.paymentStatus === 'Paid') ? 'Confirmed' : 'Reserved';
                 }
             } else {
                 newStatus = 'Waitlisted';
+                newWaitCount += newSeats;
             }
             
-            const fareDetails = data.passengers.map((p) => {
-                const fareInfo = availableFares.find(f => f.passengerType === p.fareType);
-                return { fareId: fareInfo?.id || null, passengerType: p.fareType, count: 1, pricePerTicket: fareInfo?.price || 0 };
-            });
+            const route = routes?.find(r => r.id === newScheduleDoc.data().routeId);
 
-            const newRebookingHistory = [...(booking.rebookingHistory || [])];
-            if (rebookingFee > 0) {
-                newRebookingHistory.push({ fee: rebookingFee, date: serverTimestamp(), reason: rebookingReason || 'Rebooking Fee' });
-            }
-            
-            const route = routes?.find(r => r.id === newScheduleData.routeId);
-
+            transaction.update(newScheduleRef, { availableSeats: newAvailable, waitlistCount: newWaitCount });
             transaction.update(bookingRef, {
                 passengerInfo: data.passengers.map((p) => ({ fullName: p.fullName, birthDate: p.birthDate || null, fareType: p.fareType })),
                 passengerEmail: data.primaryEmail,
                 passengerPhone: data.primaryPhone,
                 scheduleId: newScheduleRef.id,
-                fareDetails,
-                travelDate: Timestamp.fromDate(travelDateObj),
+                travelDate: Timestamp.fromDate(new Date(data.travelDate)),
                 numberOfSeats: newSeats,
                 totalPrice: bookingSummary.totalPrice,
-                routeName: getRouteName(newScheduleData.routeId),
-                departurePortName: newScheduleData.departurePortName || route?.departure || '',
+                routeName: getRouteName(newScheduleDoc.data().routeId),
+                departurePortName: newScheduleDoc.data().departurePortName || route?.departure || '',
                 status: newStatus,
                 paymentStatus: data.paymentStatus,
-                rebookingHistory: newRebookingHistory,
-                noShowFee: data.noShowFee > 0 ? data.noShowFee : null,
+                rebookingHistory: [...(booking.rebookingHistory || []), ...(rebookingFee > 0 ? [{ fee: rebookingFee, date: Timestamp.now(), reason: rebookingReason || 'Rebooking' }] : [])],
+                noShowFee: data.noShowFee || null,
                 lastUpdated: serverTimestamp()
             });
         });
 
-        toast({
-            title: 'Booking Updated!',
-            description: 'The booking has been successfully updated.',
-        });
+        toast({ title: 'Booking Updated', description: 'Changes saved and waitlists processed.' });
         router.push('/dashboard/bookings');
     } catch (e: any) {
         console.error(e);
-        toast({
-            variant: 'destructive',
-            title: 'Uh oh! Something went wrong.',
-            description: e.message || 'Could not update the booking.',
-        });
+        toast({ variant: 'destructive', title: 'Update Failed', description: e.message });
     } finally {
         setIsSubmitting(false);
     }
@@ -389,7 +393,7 @@ export default function EditBookingPage() {
             Edit Booking #{booking.id}
           </CardTitle>
           <CardDescription>
-            Modify the booking details below and save your changes. The original seat count will be restored and the new count will be applied.
+            Modify the booking details below. If you release seats, passengers from the waitlist will be promoted automatically (FCFS).
           </CardDescription>
         </CardHeader>
 
