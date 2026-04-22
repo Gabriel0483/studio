@@ -1,4 +1,3 @@
-
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -89,7 +88,6 @@ const generateBookingReference = () => {
   }
   return result;
 };
-
 
 export default function DeskBookingPage() {
   const firestore = useFirestore();
@@ -671,7 +669,7 @@ export default function DeskBookingPage() {
                         name="primaryPhone"
                         render={({ field }) => (
                             <FormItem>
-                            <FormLabel>Contact Number</Label>
+                            <FormLabel>Contact Number</FormLabel>
                             <FormControl>
                                 <Input placeholder="e.g., 09171234567" {...field} />
                             </FormControl>
