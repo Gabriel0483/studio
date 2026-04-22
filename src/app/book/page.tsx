@@ -1,4 +1,3 @@
-
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -27,12 +26,12 @@ import { toast } from "@/hooks/use-toast"
 import { PublicHeader } from "@/components/public-header"
 import { PublicFooter } from "@/components/public-footer"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
-import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc, useAuthContext, errorEmitter, FirestorePermissionError } from "@/firebase"
+import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc, useAuthContext } from "@/firebase"
 import { collection, doc, serverTimestamp, runTransaction, Timestamp, where, query, getDocs, getDoc } from "firebase/firestore"
 import React, { useMemo, useState, useEffect, Suspense } from "react"
 import { Separator } from "@/components/ui/separator"
 import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
-import { format, addDays, isValid } from "date-fns"
+import { format, addDays, isValid, isBefore, parseISO } from "date-fns"
 import { TripItinerary } from "@/components/trip-itinerary";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { nanoid } from "nanoid"
@@ -104,6 +103,17 @@ function BookingContent() {
   const [confirmedBooking, setConfirmedBooking] = useState<ConfirmedBooking | null>(null);
   const [isReserving, setIsReserving] = useState(false);
   const [dateRange, setDateRange] = useState<{ min: string; max: string }>({ min: '', max: '' });
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    const today = new Date();
+    const sixtyDaysFromNow = addDays(today, 60);
+    setDateRange({ 
+        min: format(today, "yyyy-MM-dd"), 
+        max: format(sixtyDaysFromNow, "yyyy-MM-dd") 
+    });
+  }, []);
 
   useEffect(() => {
     if (isAuthReady && !isUserLoading && !user) {
@@ -114,15 +124,10 @@ function BookingContent() {
   const passengerDocRef = useMemoFirebase(() => firestore && user ? doc(firestore, 'passengers', user.uid) : null, [firestore, user]);
   const { data: passengerData } = useDoc(passengerDocRef);
 
-  const schedulesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'schedules') : null, [firestore]);
-  const routesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'routes') : null, [firestore]);
-  const faresQuery = useMemoFirebase(() => firestore ? collection(firestore, 'fares') : null, [firestore]);
-  const portsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'ports') : null, [firestore]);
-  
-  const { data: allSchedules, isLoading: isLoadingSchedules } = useCollection(schedulesQuery);
-  const { data: routes, isLoading: isLoadingRoutes } = useCollection(routesQuery);
-  const { data: allFares, isLoading: isLoadingFares } = useCollection(faresQuery);
-  const { data: ports, isLoading: isLoadingPorts } = useCollection(portsQuery);
+  const { data: allSchedules, isLoading: isLoadingSchedules } = useCollection(useMemoFirebase(() => firestore ? collection(firestore, 'schedules') : null, [firestore]));
+  const { data: routes, isLoading: isLoadingRoutes } = useCollection(useMemoFirebase(() => firestore ? collection(firestore, 'routes') : null, [firestore]));
+  const { data: allFares, isLoading: isLoadingFares } = useCollection(useMemoFirebase(() => firestore ? collection(firestore, 'fares') : null, [firestore]));
+  const { data: ports, isLoading: isLoadingPorts } = useCollection(useMemoFirebase(() => firestore ? collection(firestore, 'ports') : null, [firestore]));
 
   const [availableFares, setAvailableFares] = useState<any[]>([]);
   
@@ -134,21 +139,10 @@ function BookingContent() {
       travelDate: "",
       scheduleId: "",
       passengers: [],
-      primaryEmail: user?.email || "",
+      primaryEmail: "",
       primaryPhone: "",
     },
   });
-
-  useEffect(() => {
-    const today = new Date();
-    const sixtyDaysFromNow = addDays(today, 60);
-    const minDate = format(today, "yyyy-MM-dd");
-    const maxDate = format(sixtyDaysFromNow, "yyyy-MM-dd");
-    setDateRange({ min: minDate, max: maxDate });
-    if (!form.getValues('travelDate')) {
-        form.setValue('travelDate', minDate);
-    }
-  }, [form]);
 
   useEffect(() => {
     if (user && passengerData) {
@@ -178,16 +172,16 @@ function BookingContent() {
   const filteredSchedules = useMemo(() => {
     if (!watchRouteId || !watchTravelDate || !allSchedules) return [];
 
-    const selectedDate = new Date(watchTravelDate);
+    const selectedDate = parseISO(watchTravelDate);
     if (!isValid(selectedDate)) return [];
     
-    selectedDate.setHours(0, 0, 0, 0);
     const formattedTravelDate = format(selectedDate, 'yyyy-MM-dd');
-
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
-    const isToday = selectedDate.getTime() === today.getTime();
+    if (isBefore(selectedDate, today)) return [];
+
+    const isToday = formattedTravelDate === format(new Date(), 'yyyy-MM-dd');
     const now = new Date();
     const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
 
@@ -220,7 +214,6 @@ function BookingContent() {
     setAvailableFares([]);
   }, [watchRouteId, form]);
 
-
   useEffect(() => {
     const selectedSchedule = filteredSchedules?.find(s => s.id === watchScheduleId);
     if (selectedSchedule && routes && allFares) {
@@ -233,7 +226,6 @@ function BookingContent() {
   }, [watchScheduleId, filteredSchedules, routes, allFares]);
 
   const totalSeats = watchPassengers.length;
-  
   const getRouteName = (routeId: string) => routes?.find(r => r.id === routeId)?.name || 'Unknown Route';
   
   const calculateBookingSummary = (data: BookingFormData): BookingSummary => {
@@ -275,26 +267,19 @@ function BookingContent() {
     }
   
     setIsReserving(true);
-  
-    const { scheduleId } = data;
     const summary = calculateBookingSummary(data);
-    const travelDateObj = new Date(data.travelDate);
-    if (!isValid(travelDateObj)) {
-        toast({ variant: 'destructive', title: 'Error', description: 'Invalid travel date.' });
-        setIsReserving(false);
-        return;
-    }
+    const travelDateObj = parseISO(data.travelDate);
     const formattedTravelDate = format(travelDateObj, 'yyyy-MM-dd');
   
     try {
-      let targetScheduleId = scheduleId;
-      const selectedScheduleTemplate = allSchedules.find(s => s.id === scheduleId);
-      if (!selectedScheduleTemplate) throw new Error("Selected schedule template is invalid.");
+      let targetScheduleId = data.scheduleId;
+      const selectedScheduleTemplate = allSchedules.find(s => s.id === data.scheduleId);
+      if (!selectedScheduleTemplate) throw new Error("Selected schedule is invalid.");
 
       if (selectedScheduleTemplate.tripType === 'Daily') {
         const spawnedScheduleQuery = query(
           collection(firestore, 'schedules'),
-          where('sourceScheduleId', '==', scheduleId),
+          where('sourceScheduleId', '==', data.scheduleId),
           where('date', '==', formattedTravelDate)
         );
         const spawnedSchedules = await getDocs(spawnedScheduleQuery);
@@ -315,7 +300,7 @@ function BookingContent() {
             ...selectedScheduleTemplate,
             tripType: 'Special',
             date: formattedTravelDate,
-            sourceScheduleId: scheduleId,
+            sourceScheduleId: data.scheduleId,
             id: targetScheduleId,
             availableSeats: selectedScheduleTemplate.availableSeats || 0,
             waitlistLimit: selectedScheduleTemplate.waitlistLimit || 50,
@@ -338,7 +323,7 @@ function BookingContent() {
           transaction.update(scheduleRef, { availableSeats: currentAvailableSeats - totalSeats });
         } else {
           if (currentWaitlistCount + totalSeats > waitlistLimit) {
-            throw new Error("Waitlist is full for this trip. Please select a different time or date.");
+            throw new Error("Waitlist is full for this trip. Please select a different time.");
           }
           status = 'Waitlisted';
           transaction.update(scheduleRef, { waitlistCount: currentWaitlistCount + totalSeats });
@@ -396,7 +381,6 @@ function BookingContent() {
       }, { merge: true });
   
       toast({ title: "Booking Successful!", description: `Your booking is now ${bookingStatus}.` });
-  
       const currentScheduleDoc = await getDoc(doc(firestore, 'schedules', finalScheduleId));
       const currentSchedule = currentScheduleDoc.data();
   
@@ -417,23 +401,15 @@ function BookingContent() {
   
       setStep('confirmation');
       window.scrollTo({ top: 0, behavior: 'smooth' });
-  
     } catch (e: any) {
-      console.error("Booking transaction failed:", e);
+      console.error(e);
       toast({ variant: 'destructive', title: 'Booking Failed', description: e.message || 'Could not complete reservation.' });
     } finally {
         setIsReserving(false);
     }
   }
 
-  const handleNewBooking = () => {
-    form.reset();
-    setStep('form');
-    setConfirmedBooking(null);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const isLoading = isLoadingSchedules || isLoadingRoutes || isLoadingFares || isLoadingPorts || !isAuthReady || isUserLoading;
+  const isLoading = isLoadingSchedules || isLoadingRoutes || isLoadingFares || isLoadingPorts || !isAuthReady || isUserLoading || !mounted;
   const currentSchedule = filteredSchedules.find(s => s.id === watchScheduleId);
   const familyMembers = passengerData?.familyMembers || [];
 
@@ -502,10 +478,10 @@ function BookingContent() {
                                 render={({ field }) => (
                                 <FormItem>
                                     <FormLabel>From</FormLabel>
-                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <Select onValueChange={field.onChange} value={field.value}>
                                     <FormControl>
                                         <SelectTrigger className="h-12 border-2 hover:border-primary transition-all">
-                                        <SelectValue placeholder={isLoadingPorts ? "Loading ports..." : "Choose Port"} />
+                                        <SelectValue placeholder="Choose Port" />
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
@@ -525,7 +501,7 @@ function BookingContent() {
                                 name="routeId"
                                 render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>To</Label>
+                                    <FormLabel>To</FormLabel>
                                     <Select onValueChange={field.onChange} value={field.value} disabled={!watchDeparturePort}>
                                     <FormControl>
                                         <SelectTrigger className="h-12 border-2 hover:border-primary transition-all">
@@ -553,7 +529,7 @@ function BookingContent() {
                                     <FormItem>
                                     <FormLabel>Date of Travel</FormLabel>
                                     <FormControl>
-                                    <Input type="date" {...field} min={dateRange.min} max={dateRange.max} disabled={!watchRouteId || !dateRange.min} className="h-12 border-2 hover:border-primary" />
+                                    <Input type="date" {...field} min={dateRange.min} max={dateRange.max} disabled={!watchRouteId} className="h-12 border-2 hover:border-primary" />
                                     </FormControl>
                                     <FormMessage />
                                     </FormItem>
@@ -848,7 +824,7 @@ function BookingContent() {
                     <TripItinerary booking={confirmedBooking} />
                 </div>
                 <div className="mt-8 flex flex-col sm:flex-row gap-4">
-                    <Button variant="outline" size="lg" className="flex-1 h-12" onClick={handleNewBooking}>
+                    <Button variant="outline" size="lg" className="flex-1 h-12" onClick={() => { form.reset(); setStep('form'); setConfirmedBooking(null); }}>
                         <RefreshCw className="mr-2 h-4 w-4" /> New Booking
                     </Button>
                     <Button variant="default" size="lg" className="flex-1 h-12" onClick={() => router.push('/my-bookings')}>

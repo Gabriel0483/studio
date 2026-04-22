@@ -29,7 +29,7 @@ import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, doc, serverTimestamp, runTransaction, Timestamp, where, query, getDocs, getDoc } from "firebase/firestore"
 import React, { useMemo, useState, useEffect } from "react"
 import { Separator } from "@/components/ui/separator"
-import { format, addDays, isValid } from "date-fns"
+import { format, addDays, isValid, isBefore, parseISO } from "date-fns"
 import { TripItinerary } from "@/components/trip-itinerary";
 import { nanoid } from "nanoid"
 import { useRouter } from "next/navigation"
@@ -98,29 +98,25 @@ export default function DeskBookingPage() {
   const [confirmedBooking, setConfirmedBooking] = useState<ConfirmedBooking | null>(null);
   const [isReserving, setIsReserving] = useState(false);
   const [dateRange, setDateRange] = useState<{ min: string; max: string }>({ min: '', max: '' });
+  const [mounted, setMounted] = useState(false);
   
   const [searchQuery, setSearchQuery] = useState('');
   const [foundPassenger, setFoundPassenger] = useState<any>(null);
   const [isSearching, setIsSearching] = useState(false);
 
-  const schedulesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return collection(firestore, 'schedules');
-  }, [firestore]);
+  useEffect(() => {
+    setMounted(true);
+    const today = new Date();
+    const sixtyDaysFromNow = addDays(today, 59);
+    setDateRange({ 
+        min: format(today, "yyyy-MM-dd"), 
+        max: format(sixtyDaysFromNow, "yyyy-MM-dd") 
+    });
+  }, []);
 
-  const routesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return collection(firestore, 'routes');
-  }, [firestore]);
-
-  const faresQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return collection(firestore, 'fares');
-  }, [firestore]);
-  
-  const { data: allSchedules, isLoading: isLoadingSchedules } = useCollection(schedulesQuery);
-  const { data: routes, isLoading: isLoadingRoutes } = useCollection(routesQuery);
-  const { data: allFares, isLoading: isLoadingFares } = useCollection(faresQuery);
+  const { data: allSchedules, isLoading: isLoadingSchedules } = useCollection(useMemoFirebase(() => firestore ? collection(firestore, 'schedules') : null, [firestore]));
+  const { data: routes, isLoading: isLoadingRoutes } = useCollection(useMemoFirebase(() => firestore ? collection(firestore, 'routes') : null, [firestore]));
+  const { data: allFares, isLoading: isLoadingFares } = useCollection(useMemoFirebase(() => firestore ? collection(firestore, 'fares') : null, [firestore]));
 
   const [availableFares, setAvailableFares] = useState<any[]>([]);
   
@@ -138,19 +134,6 @@ export default function DeskBookingPage() {
   });
 
   useEffect(() => {
-    const today = new Date();
-    const sixtyDaysFromNow = addDays(today, 59);
-    
-    const minDate = format(today, "yyyy-MM-dd");
-    const maxDate = format(sixtyDaysFromNow, "yyyy-MM-dd");
-    
-    setDateRange({ min: minDate, max: maxDate });
-    if (!form.getValues('travelDate')) {
-        form.setValue('travelDate', minDate);
-    }
-  }, [form]);
-
-  useEffect(() => {
     if (foundPassenger) {
         form.setValue('passengers', [{ id: foundPassenger.id, fullName: `${foundPassenger.firstName || ''} ${foundPassenger.lastName || ''}`.trim(), birthDate: foundPassenger.birthDate || "", fareType: "" }]);
         form.setValue('primaryEmail', foundPassenger.email || '');
@@ -165,7 +148,6 @@ export default function DeskBookingPage() {
     }
   }, [foundPassenger, form]);
 
-
   const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: "passengers",
@@ -179,18 +161,16 @@ export default function DeskBookingPage() {
   const filteredSchedules = useMemo(() => {
     if (!watchRouteId || !watchTravelDate || !allSchedules) return [];
 
-    const selectedDate = new Date(watchTravelDate);
+    const selectedDate = parseISO(watchTravelDate);
     if (!isValid(selectedDate)) return [];
     
-    selectedDate.setHours(0, 0, 0, 0);
     const formattedTravelDate = format(selectedDate, 'yyyy-MM-dd');
-
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
-    if (selectedDate < today) return [];
+    if (isBefore(selectedDate, today)) return [];
 
-    const isToday = selectedDate.getTime() === today.getTime();
+    const isToday = formattedTravelDate === format(new Date(), 'yyyy-MM-dd');
     const now = new Date();
     const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
 
@@ -217,7 +197,6 @@ export default function DeskBookingPage() {
     setAvailableFares([]);
   }, [watchRouteId, form]);
 
-
   useEffect(() => {
     const selectedSchedule = filteredSchedules?.find(s => s.id === watchScheduleId);
     if (selectedSchedule && routes && allFares) {
@@ -230,7 +209,6 @@ export default function DeskBookingPage() {
   }, [watchScheduleId, filteredSchedules, routes, allFares]);
 
   const totalSeats = watchPassengers.length;
-  
   const getRouteName = (routeId: string) => routes?.find(r => r.id === routeId)?.name || 'Unknown Route';
   
   const calculateBookingSummary = (data: BookingFormData): BookingSummary => {
@@ -271,21 +249,19 @@ export default function DeskBookingPage() {
     }
   
     setIsReserving(true);
-  
-    const { scheduleId } = data;
     const summary = calculateBookingSummary(data);
-    const travelDateObj = new Date(data.travelDate);
+    const travelDateObj = parseISO(data.travelDate);
     const formattedTravelDate = format(travelDateObj, 'yyyy-MM-dd');
   
     try {
-      let targetScheduleId = scheduleId;
-      const selectedScheduleTemplate = allSchedules.find(s => s.id === scheduleId);
-      if (!selectedScheduleTemplate) throw new Error("Selected schedule template is invalid.");
+      let targetScheduleId = data.scheduleId;
+      const selectedScheduleTemplate = allSchedules.find(s => s.id === data.scheduleId);
+      if (!selectedScheduleTemplate) throw new Error("Selected schedule is invalid.");
 
       if (selectedScheduleTemplate.tripType === 'Daily') {
         const spawnedScheduleQuery = query(
           collection(firestore, 'schedules'),
-          where('sourceScheduleId', '==', scheduleId),
+          where('sourceScheduleId', '==', data.scheduleId),
           where('date', '==', formattedTravelDate)
         );
         const spawnedSchedules = await getDocs(spawnedScheduleQuery);
@@ -306,7 +282,7 @@ export default function DeskBookingPage() {
             ...selectedScheduleTemplate,
             tripType: 'Special',
             date: formattedTravelDate,
-            sourceScheduleId: scheduleId,
+            sourceScheduleId: data.scheduleId,
             id: targetScheduleId,
             availableSeats: selectedScheduleTemplate.availableSeats || 0,
             waitlistLimit: selectedScheduleTemplate.waitlistLimit || 50,
@@ -327,8 +303,7 @@ export default function DeskBookingPage() {
         let paymentStatus: 'Paid' | 'Unpaid' = data.isPaid ? 'Paid' : 'Unpaid';
 
         if (currentAvailableSeats >= totalSeats) {
-          const newAvailableSeats = currentAvailableSeats - totalSeats;
-          transaction.update(scheduleRef, { availableSeats: newAvailableSeats });
+          transaction.update(scheduleRef, { availableSeats: currentAvailableSeats - totalSeats });
           status = data.isPaid ? 'Confirmed' : 'Reserved';
         } else {
           if (currentWaitlistCount + totalSeats > waitlistLimit) {
@@ -381,11 +356,7 @@ export default function DeskBookingPage() {
         return { status, bookingId: newBookingId, finalScheduleId: targetScheduleId };
       });
   
-      toast({
-        title: "Booking Successful!",
-        description: `Booking is now ${bookingStatus}.`,
-      });
-  
+      toast({ title: "Booking Successful!", description: `Booking is now ${bookingStatus}.` });
       const currentScheduleDoc = await getDoc(doc(firestore, 'schedules', finalScheduleId));
       const currentSchedule = currentScheduleDoc.data();
   
@@ -405,37 +376,22 @@ export default function DeskBookingPage() {
       });
   
       setStep('confirmation');
-  
     } catch (e: any) {
-      console.error("Desk booking failed:", e);
-      toast({
-        variant: "destructive",
-        title: "Uh oh! Something went wrong.",
-        description: e.message || "Could not complete your booking.",
-      });
+      console.error(e);
+      toast({ variant: "destructive", title: "Booking Failed", description: e.message || "Could not complete your booking." });
     } finally {
         setIsReserving(false);
     }
   }
 
-  const handleNewBooking = () => {
-    form.reset();
-    setFoundPassenger(null);
-    setSearchQuery('');
-    setStep('form');
-    setConfirmedBooking(null);
-  };
-  
   const handlePassengerSearch = async () => {
     if (!searchQuery) return;
     setIsSearching(true);
     setFoundPassenger(null);
     try {
         let foundDoc = null;
-
         const emailQuery = query(collection(firestore, 'passengers'), where('email', '==', searchQuery));
         let querySnapshot = await getDocs(emailQuery);
-        
         if (!querySnapshot.empty) {
             foundDoc = querySnapshot.docs[0];
         } else {
@@ -445,12 +401,11 @@ export default function DeskBookingPage() {
                 foundDoc = querySnapshot.docs[0];
             }
         }
-
         if (foundDoc) {
             setFoundPassenger({ ...foundDoc.data(), id: foundDoc.id });
             toast({ title: 'Passenger Found', description: 'Form has been pre-filled with passenger details.' });
         } else {
-            toast({ variant: 'destructive', title: 'Passenger Not Found', description: 'No passenger found with that email or phone. Proceed with manual entry.' });
+            toast({ variant: 'destructive', title: 'Passenger Not Found', description: 'No passenger found. Proceed with manual entry.' });
         }
     } catch (error) {
         toast({ variant: 'destructive', title: 'Search Error', description: 'Could not perform passenger search.' });
@@ -459,8 +414,17 @@ export default function DeskBookingPage() {
     }
   };
 
-  const isLoading = isLoadingSchedules || isLoadingRoutes || isLoadingFares;
+  const isLoading = isLoadingSchedules || isLoadingRoutes || isLoadingFares || !mounted;
   const currentSchedule = filteredSchedules.find(s => s.id === watchScheduleId);
+
+  if (isLoading) {
+      return (
+          <div className="flex h-64 w-full flex-col items-center justify-center">
+              <Loader2 className="h-12 w-12 animate-spin text-primary" />
+              <p className="mt-4 text-muted-foreground">Preparing desk dashboard...</p>
+          </div>
+      );
+  }
 
   return (
     <div className="space-y-6">
@@ -494,11 +458,6 @@ export default function DeskBookingPage() {
                         Search
                     </Button>
                 </div>
-                {foundPassenger && (
-                    <div className="text-sm text-green-600">
-                        Found: {foundPassenger.firstName} {foundPassenger.lastName} ({foundPassenger.email})
-                    </div>
-                )}
             </div>
 
             <Form {...form}>
@@ -510,10 +469,10 @@ export default function DeskBookingPage() {
                         render={({ field }) => (
                         <FormItem>
                             <FormLabel>Route</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <Select onValueChange={field.onChange} value={field.value}>
                             <FormControl>
-                                <SelectTrigger disabled={isLoadingRoutes}>
-                                  <SelectValue placeholder={isLoadingRoutes ? "Loading routes..." : "Select a route"} />
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select a route" />
                                 </SelectTrigger>
                             </FormControl>
                             <SelectContent>
@@ -535,7 +494,7 @@ export default function DeskBookingPage() {
                             <FormItem>
                             <FormLabel>Date of Travel</FormLabel>
                             <FormControl>
-                              <Input type="date" {...field} min={dateRange.min} max={dateRange.max} disabled={!watchRouteId || !dateRange.min} />
+                              <Input type="date" {...field} min={dateRange.min} max={dateRange.max} disabled={!watchRouteId} />
                             </FormControl>
                             <FormMessage />
                             </FormItem>
@@ -555,28 +514,13 @@ export default function DeskBookingPage() {
                             </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                            {filteredSchedules.map(schedule => {
-                              const isWaitlistFull = schedule.waitlistCount >= (schedule.waitlistLimit ?? 50);
-                              return (
-                                <SelectItem key={schedule.id} value={schedule.id} disabled={schedule.availableSeats <= 0 && isWaitlistFull}>
-                                    <div className="flex items-center justify-between w-full gap-4">
-                                      <span>{schedule.departureTime} - {schedule.arrivalTime}</span>
-                                      {schedule.availableSeats > 0 ? (
-                                        <Badge variant="secondary" className="text-[10px]">{schedule.availableSeats} left</Badge>
-                                      ) : isWaitlistFull ? (
-                                        <Badge variant="destructive" className="text-[10px]">FULL</Badge>
-                                      ) : (
-                                        <Badge variant="outline" className="text-[10px] flex items-center gap-1"><Clock className="h-3 w-3" /> Waitlist</Badge>
-                                      )}
-                                    </div>
+                            {filteredSchedules.map(schedule => (
+                                <SelectItem key={schedule.id} value={schedule.id}>
+                                    {schedule.departureTime} - {schedule.arrivalTime} ({schedule.availableSeats} seats left)
                                 </SelectItem>
-                              );
-                            })}
+                            ))}
                         </SelectContent>
                         </Select>
-                        {(!filteredSchedules || filteredSchedules.length === 0) && watchRouteId && watchTravelDate && (
-                            <p className="text-sm text-muted-foreground pt-1">No available trips for the selected route and date.</p>
-                        )}
                         <FormMessage />
                     </FormItem>
                     )}
@@ -585,9 +529,6 @@ export default function DeskBookingPage() {
                   <h3 className="font-medium text-lg border-b pb-2">Passenger Details</h3>
                   {fields.map((field, index) => (
                     <div key={field.id} className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end p-4 border rounded-lg relative">
-                      <div className="sm:col-span-12">
-                        <p className="font-semibold text-md">Passenger {index + 1}</p>
-                      </div>
                       <FormField
                         control={form.control}
                         name={`passengers.${index}.fullName`}
@@ -608,7 +549,7 @@ export default function DeskBookingPage() {
                           <FormItem className="sm:col-span-3">
                             <FormLabel>Birth Date</FormLabel>
                             <FormControl>
-                              <Input type="date" {...field} placeholder="YYYY-MM-DD" />
+                              <Input type="date" {...field} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -623,7 +564,7 @@ export default function DeskBookingPage() {
                             <Select onValueChange={field.onChange} value={field.value} disabled={!watchScheduleId}>
                                 <FormControl>
                                     <SelectTrigger>
-                                        <SelectValue placeholder={isLoadingFares ? "Loading..." : "Select fare"} />
+                                        <SelectValue placeholder="Fare" />
                                     </SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
@@ -640,26 +581,14 @@ export default function DeskBookingPage() {
                       />
                       <div className="sm:col-span-1">
                         {index > 0 && (
-                            <Button
-                                type="button"
-                                variant="destructive"
-                                size="icon"
-                                onClick={() => remove(index)}
-                                className="w-full"
-                            >
+                            <Button type="button" variant="destructive" size="icon" onClick={() => remove(index)} className="w-full">
                                 <Trash2 className="h-4 w-4" />
                             </Button>
                         )}
                       </div>
                     </div>
                   ))}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => append({ id: nanoid(), fullName: "", birthDate: "", fareType: "" })}
-                    disabled={!watchScheduleId}
-                  >
+                  <Button type="button" variant="outline" size="sm" onClick={() => append({ id: nanoid(), fullName: "", birthDate: "", fareType: "" })} disabled={!watchScheduleId}>
                     <PlusCircle className="mr-2 h-4 w-4" /> Add Another Passenger
                   </Button>
                 </div>
@@ -682,7 +611,7 @@ export default function DeskBookingPage() {
                         name="primaryEmail"
                         render={({ field }) => (
                             <FormItem>
-                            <FormLabel>Contact Email Address</FormLabel>
+                            <FormLabel>Email Address</FormLabel>
                             <FormControl>
                                 <Input placeholder="you@example.com" {...field} />
                             </FormControl>
@@ -698,15 +627,10 @@ export default function DeskBookingPage() {
                     <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
                       <div className="space-y-0.5">
                         <FormLabel className="text-base">Process Payment</FormLabel>
-                        <FormDescription>
-                          Mark this booking as paid and confirmed immediately.
-                        </FormDescription>
+                        <FormDescription>Mark this booking as paid immediately.</FormDescription>
                       </div>
                       <FormControl>
-                        <Switch
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                        />
+                        <Switch checked={field.value} onCheckedChange={field.onChange} />
                       </FormControl>
                     </FormItem>
                   )}
@@ -730,16 +654,14 @@ export default function DeskBookingPage() {
                     <p className="font-medium">{getRouteName(watchRouteId)}</p>
                   </div>
                    <div>
-                    <p className="text-muted-foreground">Date &amp; Time</p>
-                    <p className="font-medium">
-                      {format(new Date(watchTravelDate), 'PPP')} at {currentSchedule?.departureTime}
-                    </p>
+                    <p className="text-muted-foreground">Date & Time</p>
+                    <p className="font-medium">{format(new Date(watchTravelDate), 'PPP')} at {currentSchedule?.departureTime}</p>
                   </div>
                 </div>
               </div>
               <Separator />
               <div className="space-y-4">
-                <h3 className="font-semibold text-lg">Passenger &amp; Fare Breakdown</h3>
+                <h3 className="font-semibold text-lg">Passenger Breakdown</h3>
                  {bookingSummary.details.map((item, index) => (
                     <div key={index} className="flex justify-between items-center text-sm pb-2">
                         <div>
@@ -755,35 +677,26 @@ export default function DeskBookingPage() {
                   <span>Total Price</span>
                   <span>₱{bookingSummary.totalPrice.toFixed(2)}</span>
               </div>
-               <div className="text-sm text-muted-foreground">
-                  Contact: {form.getValues('primaryEmail')} | {form.getValues('primaryPhone')}
-                </div>
             </CardContent>
             <CardFooter className="flex-col sm:flex-row gap-2">
                 <Button variant="outline" size="lg" className="w-full sm:w-auto" onClick={() => setStep('form')}>
-                    <ArrowLeft className="mr-2 h-4 w-4" /> Edit Details
+                    <ArrowLeft className="mr-2 h-4 w-4" /> Edit
                 </Button>
                 <Button onClick={() => handleFinalReserve(form.getValues())} size="lg" className="w-full sm:w-auto flex-1" disabled={isReserving}>
                     {isReserving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    {form.getValues('isPaid') ? 'Confirm & Mark as Paid' : 'Reserve Now'}
+                    Confirm Booking
                 </Button>
             </CardFooter>
           </>
         )}
 
         {step === 'confirmation' && confirmedBooking && (
-          <>
-            <CardContent>
-              <div className="p-4 sm:p-6 border rounded-lg">
-                <TripItinerary booking={confirmedBooking} />
-              </div>
-            </CardContent>
-            <CardFooter className="flex-col sm:flex-row gap-2">
-              <Button variant="outline" size="lg" className="w-full sm:w-auto" onClick={handleNewBooking}>
-                <RefreshCw className="mr-2 h-4 w-4" /> Make Another Booking
-              </Button>
-            </CardFooter>
-          </>
+          <CardContent>
+            <TripItinerary booking={confirmedBooking} />
+            <Button variant="outline" className="w-full mt-6" onClick={() => { form.reset(); setStep('form'); setConfirmedBooking(null); }}>
+              New Booking
+            </Button>
+          </CardContent>
         )}
       </Card>
     </div>

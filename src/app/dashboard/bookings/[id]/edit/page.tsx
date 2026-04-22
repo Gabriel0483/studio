@@ -39,7 +39,7 @@ import {
 import { collection, doc, runTransaction, Timestamp, query, where, getDocs, serverTimestamp, getDoc, orderBy } from 'firebase/firestore';
 import React, { useMemo, useState, useEffect } from 'react';
 import { Separator } from '@/components/ui/separator';
-import { format, isValid } from 'date-fns';
+import { format, isValid, parseISO, isBefore } from 'date-fns';
 import { useRouter, useParams } from 'next/navigation';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
@@ -82,22 +82,18 @@ export default function EditBookingPage() {
   const [rebookingFee, setRebookingFee] = useState(0);
   const [rebookingReason, setRebookingReason] = useState('');
   const [minDate, setMinDate] = useState('');
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     setMinDate(format(new Date(), 'yyyy-MM-dd'));
   }, []);
 
-
-  const schedulesQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'schedules') : null), [firestore]);
-  const routesQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'routes') : null), [firestore]);
-  const faresQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'fares') : null), [firestore]);
-
-  const { data: allSchedules, isLoading: isLoadingSchedules } = useCollection(schedulesQuery);
-  const { data: routes, isLoading: isLoadingRoutes } = useCollection(routesQuery);
-  const { data: allFares, isLoading: isLoadingFares } = useCollection(faresQuery);
+  const { data: allSchedules, isLoading: isLoadingSchedules } = useCollection(useMemoFirebase(() => (firestore ? collection(firestore, 'schedules') : null), [firestore]));
+  const { data: routes, isLoading: isLoadingRoutes } = useCollection(useMemoFirebase(() => (firestore ? collection(firestore, 'routes') : null), [firestore]));
+  const { data: allFares, isLoading: isLoadingFares } = useCollection(useMemoFirebase(() => (firestore ? collection(firestore, 'fares') : null), [firestore]));
 
   const [availableFares, setAvailableFares] = useState<any[]>([]);
-  
   const form = useForm<BookingFormData>({
     resolver: zodResolver(bookingFormSchema),
   });
@@ -152,8 +148,7 @@ export default function EditBookingPage() {
     if(firestore && bookingId) {
         fetchBooking();
     }
-  }, [firestore, bookingId, form, toast]);
-
+  }, [firestore, bookingId, form]);
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
@@ -169,18 +164,16 @@ export default function EditBookingPage() {
   const filteredSchedules = useMemo(() => {
     if (!watchRouteId || !watchTravelDate || !allSchedules) return [];
 
-    const selectedDate = new Date(watchTravelDate);
+    const selectedDate = parseISO(watchTravelDate);
     if (!isValid(selectedDate)) return [];
 
-    selectedDate.setHours(0, 0, 0, 0);
     const formattedTravelDate = format(selectedDate, 'yyyy-MM-dd');
-
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
-    if (selectedDate < today) return [];
+    if (isBefore(selectedDate, today)) return [];
 
-    const isToday = selectedDate.getTime() === today.getTime();
+    const isToday = formattedTravelDate === format(new Date(), 'yyyy-MM-dd');
     const now = new Date();
     const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
 
@@ -214,37 +207,22 @@ export default function EditBookingPage() {
   }, [watchScheduleId, allSchedules, routes, allFares]);
 
   const bookingSummary = useMemo(() => {
-    if (!watchPassengers) {
-      return { details: [], totalPrice: 0, totalTickets: 0 };
-    }
+    if (!watchPassengers) return { details: [], totalPrice: 0, totalTickets: 0 };
 
-    const fareDetails = watchPassengers
-      .map((passenger) => {
-        if (!passenger.fareType) return null;
-        const fareInfo = availableFares.find(
-          (f) => f.passengerType === passenger.fareType
-        );
-        return {
-          name: passenger.fullName || 'Passenger',
-          fareType: passenger.fareType,
-          price: fareInfo?.price || 0,
-        };
-      })
-      .filter(
-        (item): item is { name: string; fareType: string; price: number } =>
-          item !== null
-      );
+    const fareDetails = watchPassengers.map((passenger) => {
+      const fareInfo = availableFares.find((f) => f.passengerType === passenger.fareType);
+      return {
+        name: passenger.fullName || 'Passenger',
+        fareType: passenger.fareType,
+        price: fareInfo?.price || 0,
+      };
+    }).filter(item => !!item.fareType);
 
-    const basePrice = fareDetails.reduce(
-      (acc, detail) => acc + (detail?.price || 0),
-      0
-    );
-    
+    const basePrice = fareDetails.reduce((acc, detail) => acc + detail.price, 0);
     const historicalRebookingFees = booking?.rebookingHistory?.reduce((acc: number, item: any) => acc + item.fee, 0) || 0;
     const noShowFee = watchNoShowFee || 0;
     const currentRebookingFee = rebookingFee || 0;
     const totalFees = historicalRebookingFees + currentRebookingFee + noShowFee;
-    const totalPrice = basePrice + totalFees;
 
     return {
       details: fareDetails,
@@ -252,70 +230,45 @@ export default function EditBookingPage() {
       historicalRebookingFees,
       currentRebookingFee,
       noShowFee,
-      totalPrice,
+      totalPrice: basePrice + totalFees,
       totalTickets: watchPassengers.length,
     };
   }, [watchPassengers, availableFares, booking, rebookingFee, watchNoShowFee]);
 
-
-  const getRouteName = (routeId: string) =>
-    routes?.find((r) => r.id === routeId)?.name || 'Unknown Route';
-
   async function handleUpdateBooking(data: BookingFormData) {
-    if (!firestore || !booking || !allSchedules) {
-        toast({ variant: 'destructive', title: 'Error', description: 'Could not connect. Please try again.' });
-        return;
-    }
+    if (!firestore || !booking || !allSchedules) return;
     setIsSubmitting(true);
 
     const newSeats = data.passengers.length;
-    const newScheduleRef = doc(firestore, 'schedules', data.scheduleId);
     const oldScheduleRef = doc(firestore, 'schedules', booking.scheduleId);
+    const newScheduleRef = doc(firestore, 'schedules', data.scheduleId);
 
-    // Fetch waitlist for the OLD schedule (if seats are released)
-    const oldWaitlistQuery = query(
-      collection(firestore, 'bookings'),
-      where('scheduleId', '==', booking.scheduleId),
-      where('status', '==', 'Waitlisted'),
-      orderBy('bookingDate', 'asc')
-    );
+    const oldWaitlistQuery = query(collection(firestore, 'bookings'), where('scheduleId', '==', booking.scheduleId), where('status', '==', 'Waitlisted'), orderBy('bookingDate', 'asc'));
     const oldWaitlistSnap = await getDocs(oldWaitlistQuery);
-
-    // Fetch waitlist for the NEW schedule (if seat count changes)
-    const newWaitlistQuery = query(
-      collection(firestore, 'bookings'),
-      where('scheduleId', '==', data.scheduleId),
-      where('status', '==', 'Waitlisted'),
-      orderBy('bookingDate', 'asc')
-    );
-    const newWaitlistSnap = await getDocs(newWaitlistQuery);
 
     try {
         await runTransaction(firestore, async (transaction) => {
             const bookingRef = doc(firestore, 'bookings', booking.firestoreId);
             const oldScheduleDoc = await transaction.get(oldScheduleRef);
-            const newScheduleDoc = await transaction.get(newWaitlistRef);
+            const newScheduleDoc = await transaction.get(newScheduleRef);
 
             if (!newScheduleDoc.exists()) throw new Error("The selected trip template no longer exists.");
 
-            // STEP 1: Release seats from OLD schedule
             if (oldScheduleDoc.exists() && (booking.status === 'Reserved' || booking.status === 'Confirmed')) {
                 let oldSeats = oldScheduleDoc.data().availableSeats + booking.numberOfSeats;
-                let oldWaitlistCount = oldScheduleDoc.data().waitlistCount || 0;
+                let oldWaitCount = oldScheduleDoc.data().waitlistCount || 0;
 
-                // PROMOTION: Try to fill old seats with old waitlist
                 for (const wDoc of oldWaitlistSnap.docs) {
                   const wData = wDoc.data();
                   if (wData.numberOfSeats <= oldSeats) {
                     transaction.update(wDoc.ref, { status: 'Reserved' });
                     oldSeats -= wData.numberOfSeats;
-                    oldWaitlistCount = Math.max(0, oldWaitlistCount - wData.numberOfSeats);
+                    oldWaitCount = Math.max(0, oldWaitCount - wData.numberOfSeats);
                   }
                 }
-                transaction.update(oldScheduleRef, { availableSeats: oldSeats, waitlistCount: oldWaitlistCount });
+                transaction.update(oldScheduleRef, { availableSeats: oldSeats, waitlistCount: oldWaitCount });
             }
 
-            // STEP 2: Allocate seats from NEW schedule
             let newAvailable = newScheduleDoc.data().availableSeats || 0;
             let newWaitCount = newScheduleDoc.data().waitlistCount || 0;
             let newStatus = booking.status;
@@ -361,26 +314,16 @@ export default function EditBookingPage() {
     }
   }
 
-
-  const isLoading =
-    isLoadingSchedules || isLoadingRoutes || isLoadingFares || isLoadingBooking;
-    
+  const isLoading = isLoadingSchedules || isLoadingRoutes || isLoadingFares || isLoadingBooking || !mounted;
   if (isLoading) {
     return (
-        <div className="flex h-full min-h-[400px] w-full items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            <p className="ml-2">Loading booking details...</p>
+        <div className="flex h-64 w-full items-center justify-center">
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
         </div>
-    )
+    );
   }
   
-  if (!booking) {
-     return (
-        <div className="flex h-full min-h-[400px] w-full items-center justify-center">
-            <p>Booking not found.</p>
-        </div>
-    )
-  }
+  if (!booking) return <div className="p-8 text-center">Booking not found.</div>;
 
   return (
     <div className="space-y-6">
@@ -389,20 +332,15 @@ export default function EditBookingPage() {
            <Button variant="ghost" size="sm" className="w-fit p-0 h-auto mb-2" onClick={() => router.back()}>
                 <ArrowLeft className="mr-2 h-4 w-4" /> Back to Bookings
             </Button>
-          <CardTitle className="text-3xl font-bold tracking-tight">
-            Edit Booking #{booking.id}
-          </CardTitle>
+          <CardTitle className="text-3xl font-bold tracking-tight">Edit Booking #{booking.id}</CardTitle>
           <CardDescription>
-            Modify the booking details below. If you release seats, passengers from the waitlist will be promoted automatically (FCFS).
+            Modify the booking details. Releasing seats will automatically promote waitlisted passengers (FCFS).
           </CardDescription>
         </CardHeader>
 
         <CardContent>
           <Form {...form}>
-            <form
-              onSubmit={form.handleSubmit(handleUpdateBooking)}
-              className="space-y-8"
-            >
+            <form onSubmit={form.handleSubmit(handleUpdateBooking)} className="space-y-8">
               <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
                 <FormField
                   control={form.control}
@@ -410,25 +348,9 @@ export default function EditBookingPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Route</FormLabel>
-                      <Select
-                        onValueChange={(value) => {
-                            field.onChange(value);
-                            form.setValue('scheduleId', '');
-                        }}
-                        value={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a route" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {routes?.map((route) => (
-                            <SelectItem key={route.id} value={route.id}>
-                              {route.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
+                      <Select onValueChange={(v) => { field.onChange(v); form.setValue('scheduleId', ''); }} value={field.value}>
+                        <FormControl><SelectTrigger><SelectValue placeholder="Select route" /></SelectTrigger></FormControl>
+                        <SelectContent>{routes?.map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}</SelectContent>
                       </Select>
                       <FormMessage />
                     </FormItem>
@@ -441,15 +363,7 @@ export default function EditBookingPage() {
                     <FormItem>
                       <FormLabel>Date of Travel</FormLabel>
                       <FormControl>
-                        <Input
-                          type="date"
-                          {...field}
-                          min={minDate}
-                           onChange={(e) => {
-                                field.onChange(e);
-                                form.setValue('scheduleId', '');
-                            }}
-                        />
+                        <Input type="date" {...field} min={minDate} onChange={(e) => { field.onChange(e); form.setValue('scheduleId', ''); }} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -461,32 +375,14 @@ export default function EditBookingPage() {
                     render={({ field }) => (
                     <FormItem>
                         <FormLabel>Available Trips</FormLabel>
-                        <Select
-                        onValueChange={field.onChange}
-                        value={field.value}
-                        disabled={!watchRouteId || !watchTravelDate}
-                        >
-                        <FormControl>
-                            <SelectTrigger>
-                            <SelectValue placeholder="Select a time" />
-                            </SelectTrigger>
-                        </FormControl>
+                        <Select onValueChange={field.onChange} value={field.value} disabled={!watchRouteId || !watchTravelDate}>
+                        <FormControl><SelectTrigger><SelectValue placeholder="Select time" /></SelectTrigger></FormControl>
                         <SelectContent>
-                            {filteredSchedules.map((schedule) => (
-                            <SelectItem key={schedule.id} value={schedule.id}>
-                                {schedule.departureTime} - {schedule.arrivalTime} (
-                                {schedule.availableSeats} seats left)
-                            </SelectItem>
+                            {filteredSchedules.map((s) => (
+                            <SelectItem key={s.id} value={s.id}>{s.departureTime} - {s.arrivalTime} ({s.availableSeats} seats left)</SelectItem>
                             ))}
                         </SelectContent>
                         </Select>
-                        {(!filteredSchedules || filteredSchedules.length === 0) &&
-                        watchRouteId &&
-                        watchTravelDate && (
-                            <p className="text-sm text-muted-foreground pt-1">
-                            No available trips for the selected route and date.
-                            </p>
-                        )}
                         <FormMessage />
                     </FormItem>
                     )}
@@ -496,23 +392,16 @@ export default function EditBookingPage() {
               <Separator />
 
               <div className="space-y-6">
-                <h3 className="font-medium text-lg">
-                  Passenger Details
-                </h3>
+                <h3 className="font-medium text-lg">Passenger Details</h3>
                 {fields.map((field, index) => (
-                  <div
-                    key={field.id}
-                    className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end p-4 border rounded-lg"
-                  >
+                  <div key={field.id} className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end p-4 border rounded-lg">
                     <FormField
                       control={form.control}
                       name={`passengers.${index}.fullName`}
                       render={({ field }) => (
                         <FormItem className="sm:col-span-5">
-                          <FormLabel>Full Name (Passenger {index + 1})</FormLabel>
-                          <FormControl>
-                            <Input placeholder="John Doe" {...field} />
-                          </FormControl>
+                          <FormLabel>Full Name</FormLabel>
+                          <FormControl><Input placeholder="John Doe" {...field} /></FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -523,9 +412,7 @@ export default function EditBookingPage() {
                       render={({ field }) => (
                         <FormItem className="sm:col-span-3">
                           <FormLabel>Birth Date</FormLabel>
-                          <FormControl>
-                            <Input type="date" {...field} />
-                          </FormControl>
+                          <FormControl><Input type="date" {...field} /></FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -536,25 +423,11 @@ export default function EditBookingPage() {
                       render={({ field }) => (
                         <FormItem className="sm:col-span-3">
                           <FormLabel>Fare Type</FormLabel>
-                          <Select
-                            onValueChange={field.onChange}
-                            value={field.value}
-                            disabled={!watchScheduleId}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select fare" />
-                              </SelectTrigger>
-                            </FormControl>
+                          <Select onValueChange={field.onChange} value={field.value} disabled={!watchScheduleId}>
+                            <FormControl><SelectTrigger><SelectValue placeholder="Fare" /></SelectTrigger></FormControl>
                             <SelectContent>
-                              {availableFares.map((fare) => (
-                                <SelectItem
-                                  key={fare.id}
-                                  value={fare.passengerType}
-                                >
-                                  {fare.passengerType} (₱
-                                  {fare.price.toFixed(2)})
-                                </SelectItem>
+                              {availableFares.map((f) => (
+                                <SelectItem key={f.id} value={f.passengerType}>{f.passengerType} (₱{f.price.toFixed(2)})</SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
@@ -564,170 +437,61 @@ export default function EditBookingPage() {
                     />
                     <div className="sm:col-span-1">
                       {index > 0 && (
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="icon"
-                          onClick={() => remove(index)}
-                          className="w-full"
-                          aria-label="Remove passenger"
-                        >
+                        <Button type="button" variant="destructive" size="icon" onClick={() => remove(index)} className="w-full">
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       )}
                     </div>
                   </div>
                 ))}
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => append({ fullName: '', birthDate: '', fareType: '' })}
-                  disabled={!watchScheduleId}
-                >
+                <Button type="button" variant="outline" size="sm" onClick={() => append({ fullName: '', birthDate: '', fareType: '' })} disabled={!watchScheduleId}>
                   <PlusCircle className="mr-2 h-4 w-4" /> Add Another Passenger
                 </Button>
               </div>
 
               <Separator />
-                <h3 className="font-medium text-lg">Contact, Payment & Fees</h3>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <FormField
-                  control={form.control}
-                  name="primaryPhone"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Contact Number</FormLabel>
-                      <FormControl>
-                        <Input placeholder="e.g., 09171234567" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="primaryEmail"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Contact Email Address</FormLabel>
-                      <FormControl>
-                        <Input placeholder="you@example.com" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <FormField control={form.control} name="primaryPhone" render={({ field }) => (
+                    <FormItem><FormLabel>Contact Number</FormLabel><FormControl><Input placeholder="e.g., 09171234567" {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="primaryEmail" render={({ field }) => (
+                    <FormItem><FormLabel>Email Address</FormLabel><FormControl><Input placeholder="you@example.com" {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
               </div>
-                <div className="space-y-4 rounded-lg border p-4">
-                  <h4 className="font-medium">Fees</h4>
-                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                        <div className="space-y-2">
-                            <Label htmlFor="rebookingFee">Add Rebooking Fee (₱)</Label>
-                            <Input id="rebookingFee" type="number" placeholder="0.00" value={rebookingFee} onChange={e => setRebookingFee(parseFloat(e.target.value) || 0)} />
-                        </div>
-                        <div className="space-y-2">
-                           <Label htmlFor="rebookingReason">Reason for Rebooking Fee</Label>
-                           <Textarea id="rebookingReason" placeholder="e.g., Change of travel date" value={rebookingReason} onChange={e => setRebookingReason(e.target.value)} />
-                        </div>
-                   </div>
-                    <FormField
-                        control={form.control}
-                        name="noShowFee"
-                        render={({ field }) => (
-                            <FormItem>
-                            <FormLabel>No-Show Fee (₱)</FormLabel>
-                            <FormControl>
-                                <Input type="number" placeholder="0.00" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} />
-                            </FormControl>
-                            <FormDescription>Apply a one-time fee if the passenger did not show.</FormDescription>
-                            <FormMessage />
-                            </FormItem>
-                        )}
-                    />
+
+              <div className="space-y-4 rounded-lg border p-4 bg-secondary/20">
+                <h4 className="font-medium">Adjustment Fees</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                        <Label>Add Rebooking Fee (₱)</Label>
+                        <Input type="number" value={rebookingFee} onChange={e => setRebookingFee(parseFloat(e.target.value) || 0)} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label>Reason</Label>
+                        <Textarea placeholder="Reason for fee" value={rebookingReason} onChange={e => setRebookingReason(e.target.value)} />
+                    </div>
                 </div>
+              </div>
+
               <FormField
                 control={form.control}
                 name="paymentStatus"
                 render={({ field }) => (
                   <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
                     <div className="space-y-0.5">
-                      <FormLabel className="text-base">
-                        Payment Status
-                      </FormLabel>
-                      <FormDescription>
-                        Mark this booking as paid or unpaid.
-                      </FormDescription>
+                      <FormLabel className="text-base">Payment Status</FormLabel>
+                      <FormDescription>Mark as Paid or Unpaid.</FormDescription>
                     </div>
                     <FormControl>
-                       <Switch
-                        checked={field.value === 'Paid'}
-                        onCheckedChange={(checked) => field.onChange(checked ? 'Paid' : 'Unpaid')}
-                      />
+                       <Switch checked={field.value === 'Paid'} onCheckedChange={(c) => field.onChange(c ? 'Paid' : 'Unpaid')} />
                     </FormControl>
                   </FormItem>
                 )}
               />
 
-                <Separator />
-
-                  <div className="space-y-4 rounded-lg border bg-secondary/50 p-4">
-                    <h3 className="font-semibold text-lg">Updated Summary</h3>
-                     {bookingSummary.details.map((item, index) => (
-                        <div key={index} className="flex justify-between items-center text-sm pb-2">
-                            <div>
-                                <p className="font-medium">{item.name}</p>
-                                <p className="text-muted-foreground">{item.fareType}</p>
-                            </div>
-                            <span className="font-medium">₱{item.price.toFixed(2)}</span>
-                        </div>
-                    ))}
-                    <Separator />
-                    <div className="text-sm space-y-2">
-                        <div className="flex justify-between">
-                            <span>New Base Fare Total:</span>
-                            <span>₱{bookingSummary.basePrice.toFixed(2)}</span>
-                        </div>
-
-                        {booking.rebookingHistory?.length > 0 && (
-                          <div className="text-muted-foreground">
-                            <p className="font-medium">Previous Rebooking Fees:</p>
-                             {booking.rebookingHistory.map((item: any, index: number) => (
-                                <div key={index} className="flex justify-between pl-2">
-                                    <span>- {item.reason || 'Rebooking Fee'} on {format(new Date(item.date), 'PP')}</span>
-                                    <span>+ ₱{item.fee.toFixed(2)}</span>
-                                </div>
-                            ))}
-                          </div>
-                        )}
-                       
-                        {bookingSummary.currentRebookingFee > 0 && (
-                             <div className="flex justify-between text-blue-600">
-                                <span>New Rebooking Fee (This Change):</span>
-                                <span>+ ₱{bookingSummary.currentRebookingFee.toFixed(2)}</span>
-                            </div>
-                        )}
-                        {bookingSummary.noShowFee > 0 && (
-                            <div className="flex justify-between text-red-600">
-                                <span>No-Show Fee:</span>
-                                <span>+ ₱{bookingSummary.noShowFee.toFixed(2)}</span>
-                            </div>
-                        )}
-                    </div>
-                    <Separator />
-                     <div className="flex justify-between items-center text-xl font-bold">
-                        <span>New Grand Total</span>
-                        <span>₱{bookingSummary.totalPrice.toFixed(2)}</span>
-                    </div>
-                  </div>
-
-              <Button
-                type="submit"
-                size="lg"
-                className="w-full"
-                disabled={isSubmitting || !form.formState.isValid || watchPassengers.length === 0}
-              >
-                 {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : 'Save Changes'}
+              <Button type="submit" size="lg" className="w-full" disabled={isSubmitting || !form.formState.isValid}>
+                 {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Save Changes'}
               </Button>
             </form>
           </Form>
