@@ -4,7 +4,7 @@ import { LineChart, Route as RouteIcon, Anchor, BarChart, Warehouse, Ticket, Boo
 export const APP_VERSION = 'v1.3.0-CORE';
 
 export const navLinks = [
-  { href: '/dashboard', label: 'Overview', icon: LineChart },
+  { href: '/dashboard', label: 'Dashboard', icon: LineChart },
   { href: '/dashboard/bookings', label: 'Bookings', icon: BookCopy, roles: ['Super Admin', 'Operations Manager', 'Station Manager', 'Desk Booking Agent', 'Finance/Accounting'] },
   { href: '/dashboard/desk-booking', label: 'Desk Booking', icon: Laptop, roles: ['Super Admin', 'Station Manager', 'Desk Booking Agent'] },
   { href: '/dashboard/boarding', label: 'Trip Management', icon: CalendarClock, roles: ['Super Admin', 'Operations Manager', 'Station Manager', 'Crew'] },

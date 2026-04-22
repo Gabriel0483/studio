@@ -142,7 +142,7 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Fleet Overview</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Fleet Dashboard</h1>
           <p className="text-muted-foreground">Real-time status of shipping operations.</p>
         </div>
         <Input
@@ -161,7 +161,7 @@ export default function DashboardPage() {
       {isLoading ? (
         <div className="flex h-[256px] items-center justify-center rounded-lg border border-dashed">
             <Loader2 className="mr-2 h-6 w-6 animate-spin" />
-            <span>Loading overview data...</span>
+            <span>Loading dashboard data...</span>
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

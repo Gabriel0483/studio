@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
@@ -39,7 +40,7 @@ import {
   getDocs,
   orderBy,
 } from 'firebase/firestore';
-import { BookCopy, Pencil, Search, Trash2, CreditCard, Loader2, FilterX, Filter, MapPin, ShieldAlert, Zap, Eye, User, Calendar, Ship, Ticket, Users, Ghost } from 'lucide-react';
+import { BookCopy, Pencil, Search, Trash2, CreditCard, Loader2, FilterX, Filter, MapPin, ShieldAlert, Zap, Eye, User, Calendar, Ship, Ticket, Users, Ghost, Clock } from 'lucide-react';
 import { format, isValid, isBefore, subHours } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -203,7 +204,6 @@ export default function BookingsPage() {
           let currentSeats = (scheduleDoc.data().availableSeats || 0) + booking.numberOfSeats;
           let currentWaitlistCount = scheduleDoc.data().waitlistCount || 0;
 
-          // Only attempt promotion if the index exists and returned a snapshot
           if (waitlistSnap) {
             for (const wDoc of waitlistSnap.docs) {
               const wData = wDoc.data();
@@ -220,7 +220,6 @@ export default function BookingsPage() {
             waitlistCount: currentWaitlistCount
           });
           
-          // Delete ghost records to save space and clear list
           transaction.delete(bookingRef);
         });
         successCount++;
