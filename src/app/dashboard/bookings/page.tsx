@@ -37,7 +37,7 @@ import {
   query,
   where,
 } from 'firebase/firestore';
-import { BookCopy, Pencil, Search, Trash2, XCircle, CreditCard, Loader2, FilterX, Filter, MapPin, ShieldClock, Zap, Eye, User, Calendar, Ship, Ticket, Users, Ghost } from 'lucide-react';
+import { BookCopy, Pencil, Search, Trash2, CreditCard, Loader2, FilterX, Filter, MapPin, ShieldAlert, Zap, Eye, User, Calendar, Ship, Ticket, Users, Ghost } from 'lucide-react';
 import { format, isValid, isBefore, subHours } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -365,7 +365,7 @@ export default function BookingsPage() {
 
         {expiredBookings.length > 0 && (
           <Alert variant="destructive" className="bg-destructive/10 border-destructive/40 shadow-lg animate-in fade-in slide-in-from-top-4 duration-500">
-            <ShieldClock className="h-5 w-5" />
+            <ShieldAlert className="h-5 w-5" />
             <AlertTitle className="font-black text-lg">Administrative Action Required</AlertTitle>
             <AlertDescription className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mt-3">
               <div className="space-y-1">
