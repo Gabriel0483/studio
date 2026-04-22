@@ -1,3 +1,4 @@
+
 'use client'; 
 
 import { PublicHeader } from '@/components/public-header';
@@ -74,16 +75,23 @@ export default function PrivacyPolicyPage() {
               </div>
 
               <div className="space-y-2">
-                <h2 className="text-xl font-semibold text-foreground">Security of Data</h2>
+                <h2 className="text-xl font-semibold text-foreground">Data Retention</h2>
                 <p>
-                  The security of your data is important to us, but remember that no method of transmission over the Internet, or method of electronic storage is 100% secure. While we strive to use commercially acceptable means to protect your Personal Data, we cannot guarantee its absolute security.
+                  We retain your Personal Data only for as long as is necessary for the purposes set out in this Privacy Policy. Booking records and associated PII are generally stored for a period of 90 days after the travel date for operational and accounting reconciliation, after which they are purged from our systems.
                 </p>
               </div>
 
               <div className="space-y-2">
-                <h2 className="text-xl font-semibold text-foreground">Changes to This Privacy Policy</h2>
+                <h2 className="text-xl font-semibold text-foreground">Your Rights</h2>
                 <p>
-                  We may update our Privacy Policy from time to time. We will notify you of any changes by posting the new Privacy Policy on this page. You are advised to review this Privacy Policy periodically for any changes. Changes to this Privacy Policy are effective when they are posted on this page.
+                  You have the right to access, update, or delete the information we have on you. Whenever made possible, you can access, update or request deletion of your Personal Data directly within your account settings section. If you are unable to perform these actions yourself, please contact us to assist you.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <h2 className="text-xl font-semibold text-foreground">Security of Data</h2>
+                <p>
+                  The security of your data is important to us, but remember that no method of transmission over the Internet, or method of electronic storage is 100% secure. While we strive to use commercially acceptable means to protect your Personal Data, we cannot guarantee its absolute security.
                 </p>
               </div>
 
