@@ -1,4 +1,3 @@
-npm i next@latest
 # Isla Konek: Maritime Command & Booking System
 
 Isla Konek is a dedicated maritime management platform designed to digitalize shipping and ferry operations.
@@ -10,38 +9,26 @@ If you see "Site Not Found" or a "Detection Failed" error during deployment:
     - Go to the **Firebase Console -> App Hosting**.
     - Select your backend (e.g., `islakonek`).
     - The live **URL** (ending in **`.hosted.app`**) is listed on the **Dashboard** under the **Domains** section.
-    - Note: The old `.web.app` URL from standard Firebase Hosting will not work for this Next.js project.
 
 2.  **Root Directory Fix**: 
     - In the Firebase Console, go to **App Hosting -> Settings**. 
     - Ensure **Root Directory** is set to **`/`** (a single forward slash). 
 
-3.  **Lock File Required**: 
-    - The build system **MUST** see a `package-lock.json` file in your GitHub repository. 
-    - Run `npm install` on your computer and push the resulting `package-lock.json` file to GitHub.
-
 ## 🔐 Authentication & Domain Security
-To avoid "Application Error" or "Unauthorized Domain" errors during Sign Up/Login:
-
 1.  **Authorize Your Domain**:
     - Go to **Firebase Console > Authentication > Settings > Authorized Domains**.
-    - Add your production domain: `islakonek--studio-8432386314-93bd2.asia-east1.hosted.app` (remove `https://` and `/welcome`).
-2.  **SSL & Encryption**:
-    - Firebase App Hosting automatically provides SSL certificates. Ensure you are accessing the site via `https://`.
-    - If you see "Not Secure," check that you haven't manually typed `http://` in the address bar. The system is configured to send security headers to encourage encrypted connections.
+    - Add your production domain: `islakonek--studio-8432386314-93bd2.asia-east1.hosted.app`.
 
-## 📂 Project Structure
-- `/src`: Application source code (Next.js App Router).
-- `/dataconnect`: PostgreSQL schema and GraphQL operations.
-- `apphosting.yaml`: Production environment configuration.
-- `firebase.json`: Firebase CLI configuration.
-
-## 🛡️ Security & Secrets
-- **Firebase API Keys**: These are public identifiers and are safe to be in GitHub.
+## 🛡️ Security & Encryption
 - **Data Protection**: Access is secured via `firestore.rules`.
-- **Private Secrets**: Manage keys like `GEMINI_API_KEY` in the Firebase Console under **App Hosting > Settings > Environment Variables**.
+- **SSL/TLS**: All connections are encrypted via HTTPS. Modern security headers (HSTS, X-Frame-Options) are enforced via `next.config.ts`.
+- **Ghost Protection**: System automatically identifies and purges stale unpaid reservations 1 hour before departure.
+
+## 📂 Documentation
+- [Comprehensive Feature Outline](/docs/features-outline.md)
+- [Backend Data IR](/docs/backend.json)
 
 ## Key Features
-- **Traveler Experience**: Self-service booking, profile management, and live trip status.
-- **Command Center**: Fleet/Route management, smart scheduling, and boarding manifests.
-- **Reporting**: Financial reconciliation and passenger volume analytics.
+- **Traveler Experience**: Self-service 7-day window booking, profile management, and live trip status.
+- **Command Center**: Fleet/Route management, atomic waitlist promotion, and real-time boarding manifests.
+- **Reporting**: Financial reconciliation and passenger volume analytics with CSV exports.
