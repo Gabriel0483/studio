@@ -79,7 +79,7 @@ export function PublicHeader() {
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                       <Avatar className="h-8 w-8">
-                        <AvatarImage src={user?.photoURL || `https://picsum.photos/seed/${user?.uid}/40/40`} alt="User" />
+                        <AvatarImage src={user?.photoURL || undefined} alt="User" />
                         <AvatarFallback>{getInitials(user?.email)}</AvatarFallback>
                       </Avatar>
                     </Button>
@@ -152,7 +152,7 @@ export function PublicHeader() {
                       <div className="space-y-4">
                         <div className="flex items-center gap-3 px-2">
                            <Avatar className="h-10 w-10">
-                              <AvatarImage src={user?.photoURL} />
+                              <AvatarImage src={user?.photoURL || undefined} />
                               <AvatarFallback>{getInitials(user?.email)}</AvatarFallback>
                            </Avatar>
                            <div>
