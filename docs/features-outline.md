@@ -7,7 +7,7 @@ Designed for a seamless traveler experience from planning to boarding.
 *   **Dynamic Restricted Window**: Online bookings are strictly enforced to a 7-day window before departure to ensure operational accuracy.
 *   **Real-Time Availability**: Live seat counters show exactly how many spots remain. Automatically switches to "Waitlist" when full.
 *   **Multi-Passenger Support**: Add multiple travelers in a single transaction with individual fare type selection (Adult, Senior, Student, etc.).
-*   **Profile Integration**: Logged-in users can instantly add themselves or saved family members to a booking.
+*   **Profile Integration**: Logged-in users can instantly add themselves or saved family members to a booking via profile shortcuts.
 
 ### 2. Secure Authentication & Identity
 *   **Public Signup**: Self-service account creation for all travelers.
@@ -31,7 +31,7 @@ Designed for a seamless traveler experience from planning to boarding.
 
 ### 6. Privacy & Data Transparency
 *   **Formal Privacy Policy**: Clear disclosure of data collection, usage, and user rights.
-*   **Automated Data Retention**: System automatically purges sensitive passenger data (PII) 90 days after travel for maximum privacy compliance.
+*   **Automated Data Retention**: System provides tools to purge sensitive passenger data (PII) 90 days after travel for maximum privacy compliance.
 
 ---
 

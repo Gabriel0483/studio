@@ -3,40 +3,40 @@
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Cpu, ShieldCheck, Database, Zap, LayoutGrid, Globe, Lock, Shield } from 'lucide-react';
+import { Cpu, ShieldCheck, Database, Zap, LayoutGrid, Globe, Lock, Shield, Ghost, Trash2, Users } from 'lucide-react';
 import { APP_VERSION } from '@/lib/data';
 
 export default function SystemFeaturesPage() {
   const features = [
     {
-      title: "Multi-Tenant Architecture",
-      icon: <Globe className="h-5 w-5 text-blue-500" />,
-      description: "Path-based routing and context-driven isolation allowing thousands of operators to share a single codebase while keeping data strictly siloed.",
-      tech: ["Next.js Dynamic Routes", "React Context", "TenantProvider"]
-    },
-    {
-      title: "Atomic Reservation System",
+      title: "Atomic Reservation Engine",
       icon: <Lock className="h-5 w-5 text-orange-500" />,
       description: "Uses distributed locking and transactions to ensure seat availability is never compromised, even during concurrent booking attempts.",
-      tech: ["Firestore Transactions", "Atomic Counters"]
+      tech: ["Firestore Transactions", "Atomic Counters", "FCFS Waitlist"]
+    },
+    {
+      title: "Ghost Protection System",
+      icon: <Ghost className="h-5 w-5 text-purple-500" />,
+      description: "Automatically detects and purges unpaid reservations 1 hour before departure, releasing capacity back to the fleet.",
+      tech: ["Temporal Logic", "Batch Deletion", "Capacity Recovery"]
+    },
+    {
+      title: "Port-Based Multi-Tenancy",
+      icon: <Globe className="h-5 w-5 text-blue-500" />,
+      description: "Contextual isolation allowing Station Managers and Desk Agents to only access data and manifests for their assigned port terminals.",
+      tech: ["Role-Based Filters", "Security Rules", "Context API"]
     },
     {
       title: "Real-Time Sync Engine",
       icon: <Zap className="h-5 w-5 text-yellow-500" />,
       description: "Ubiquitous use of reactive listeners ensuring manifests and statuses update across all terminals instantly without page refreshes.",
-      tech: ["Firestore onSnapshot", "WebSockets"]
+      tech: ["Firestore onSnapshot", "Digital Manifests"]
     },
     {
-      title: "Granular RBAC",
-      icon: <ShieldCheck className="h-5 w-5 text-green-500" />,
-      description: "Enterprise-grade Role-Based Access Control enforced at both the UI and database levels via server-side security rules.",
-      tech: ["Custom Staff Roles", "Firestore Security Rules"]
-    },
-    {
-      title: "Encrypted Data In Transit",
-      icon: <Shield className="h-5 w-5 text-cyan-500" />,
-      description: "Mandatory SSL/TLS encryption for all client-server communication, preventing data interception and ensuring passenger privacy.",
-      tech: ["SSL/TLS", "HSTS Headers", "Firebase Hosting"]
+      title: "Compliance & Data Purge",
+      icon: <Trash2 className="h-5 w-5 text-red-500" />,
+      description: "Automated 90-day PII scrubbing tool to ensure global privacy compliance while maintaining essential financial records.",
+      tech: ["Data Retention Policy", "Bulk Purge Engine"]
     },
     {
       title: "Financial Reconciliation",
@@ -50,7 +50,7 @@ export default function SystemFeaturesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Software Features & Architecture</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Software Architecture & Features</h1>
           <p className="text-muted-foreground">Internal technical specifications for Isla Konek {APP_VERSION}.</p>
         </div>
         <Badge variant="outline" className="px-4 py-1 text-sm font-mono">
@@ -60,7 +60,7 @@ export default function SystemFeaturesPage() {
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {features.map((feature, index) => (
-          <Card key={index} className="flex flex-col">
+          <Card key={index} className="flex flex-col border-none shadow-md ring-1 ring-border">
             <CardHeader className="flex flex-row items-center gap-4 space-y-0">
               <div className="p-2 bg-secondary rounded-lg">
                 {feature.icon}
@@ -85,13 +85,13 @@ export default function SystemFeaturesPage() {
         ))}
       </div>
 
-      <Card className="bg-primary/5 border-primary/20">
+      <Card className="bg-primary/5 border-primary/20 shadow-none">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Cpu className="h-5 w-5" />
-            Infrastructure Overview
+            Infrastructure Stack
           </CardTitle>
-          <CardDescription>The core stack powering the platform.</CardDescription>
+          <CardDescription>The modern technology powering the command center.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
@@ -103,7 +103,7 @@ export default function SystemFeaturesPage() {
             <div>
               <p className="text-xs font-bold text-muted-foreground uppercase mb-1">Styling</p>
               <p className="text-sm font-medium">Tailwind CSS</p>
-              <p className="text-xs text-muted-foreground">ShadCN UI Components</p>
+              <p className="text-xs text-muted-foreground">ShadCN UI (Radix)</p>
             </div>
             <div>
               <p className="text-xs font-bold text-muted-foreground uppercase mb-1">Database</p>
@@ -111,9 +111,9 @@ export default function SystemFeaturesPage() {
               <p className="text-xs text-muted-foreground">Real-time NoSQL</p>
             </div>
             <div>
-              <p className="text-xs font-bold text-muted-foreground uppercase mb-1">Auth</p>
+              <p className="text-xs font-bold text-muted-foreground uppercase mb-1">Identity</p>
               <p className="text-sm font-medium">Firebase Auth</p>
-              <p className="text-xs text-muted-foreground">Identity Management</p>
+              <p className="text-xs text-muted-foreground">JWT Security Tokens</p>
             </div>
           </div>
         </CardContent>
