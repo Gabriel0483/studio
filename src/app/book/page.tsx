@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useFieldArray, useForm } from "react-hook-form"
 import * as z from "zod"
-import { PlusCircle, Trash2, ArrowLeft, RefreshCw, UserPlus, Loader2, Users, MapPin, CheckCircle2, Clock, Info, Calendar } from "lucide-react"
+import { PlusCircle, Trash2, ArrowLeft, RefreshCw, UserPlus, Loader2, Users, MapPin, CheckCircle2, Clock, Info, Calendar, Ship } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -567,14 +567,21 @@ function BookingContent() {
                                             const isWaitlistFull = schedule.waitlistCount >= (schedule.waitlistLimit ?? 50);
                                             return (
                                               <SelectItem key={schedule.id} value={schedule.id} disabled={schedule.availableSeats <= 0 && isWaitlistFull}>
-                                                  <div className="flex items-center justify-between w-full gap-4">
-                                                    <span className="font-medium">{schedule.departureTime}</span>
-                                                    {schedule.availableSeats > 0 ? (
-                                                      <Badge variant="secondary" className="text-[10px] bg-green-50 text-green-700 border-green-200">{schedule.availableSeats} seats left</Badge>
-                                                    ) : isWaitlistFull ? (
-                                                      <Badge variant="destructive" className="text-[10px]">Trip Full</Badge>
-                                                    ) : (
-                                                      <Badge variant="outline" className="text-[10px] flex items-center gap-1 border-orange-200 text-orange-600 bg-orange-50"><Clock className="h-3 w-3" /> Waitlist Open</Badge>
+                                                  <div className="flex flex-col w-full text-left">
+                                                    <div className="flex items-center justify-between w-full gap-4">
+                                                      <span className="font-bold">{schedule.departureTime}</span>
+                                                      {schedule.availableSeats > 0 ? (
+                                                        <Badge variant="secondary" className="text-[10px] bg-green-50 text-green-700 border-green-200">{schedule.availableSeats} seats left</Badge>
+                                                      ) : isWaitlistFull ? (
+                                                        <Badge variant="destructive" className="text-[10px]">Trip Full</Badge>
+                                                      ) : (
+                                                        <Badge variant="outline" className="text-[10px] flex items-center gap-1 border-orange-200 text-orange-600 bg-orange-50"><Clock className="h-3 w-3" /> Waitlist Open</Badge>
+                                                      )}
+                                                    </div>
+                                                    {schedule.shipName && (
+                                                      <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground mt-1">
+                                                        <Ship className="h-3 w-3" /> {schedule.shipName}
+                                                      </div>
                                                     )}
                                                   </div>
                                               </SelectItem>

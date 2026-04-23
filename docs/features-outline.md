@@ -45,7 +45,7 @@ Granular control for Super Admins, Operations Managers, and Station Managers.
 *   **Ghost Reservation Purge**: Administrative alert and cleanup tool to delete unpaid "Ghost" reservations 1 hour before departure to release capacity.
 *   **Atomic Waitlist Promotion**: Automated First-Come, First-Served engine that promotes waitlisted passengers when seats open via transaction logic.
 *   **Payment Correction**: "Undo Payment" action for accidental entries, reverting status from Confirmed back to Reserved.
-*   **Desk Booking**: Fast-entry interface for terminal walk-ins with integrated passenger profile search (Email/Phone).
+*   **Desk Booking**: Fast-entry interface for terminal walk-ins with integrated passenger profile search (Email/Phone). Allows an extended 60-day booking window.
 
 ### 3. Fleet & Trip Management (Digital Manifests)
 *   **Trip Lifecycle Control**: Manage trip phases: Set status (On Time/Delayed), Start Boarding, Close Boarding, Depart, and Arrived.
