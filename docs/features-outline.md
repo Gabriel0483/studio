@@ -24,11 +24,11 @@ Designed for a seamless traveler experience from planning to boarding.
 ### 4. Public Advisories & Alerts
 *   **Service Notifications**: Instant access to weather updates, route changes, or service disruptions posted by staff.
 *   **Categorized Information**: Alerts categorized by severity (Weather, Route, Fare, General) for quick scanning.
-*   **Digital Itinerary**: A secure, printable summary of travel details with a unique 6-character booking reference and terminal instructions.
 
 ### 5. Self-Service Suite
 *   **My Bookings**: History of all past and upcoming trips with current payment and reservation status.
 *   **Profile Management**: Manage personal PII and a directory of family members for faster future bookings.
+*   **Digital Itinerary**: A secure, printable summary of travel details with a unique 6-character booking reference and terminal instructions.
 
 ---
 
@@ -46,6 +46,7 @@ Granular control for Super Admins, Operations Managers, and Station Managers.
 *   **Atomic Waitlist Promotion**: Automated First-Come, First-Served engine that promotes waitlisted passengers when seats open via transaction logic.
 *   **Payment Correction**: "Undo Payment" action for accidental entries, reverting status from Confirmed back to Reserved.
 *   **Desk Booking**: Fast-entry interface for terminal walk-ins with integrated passenger profile search (Email/Phone). Allows an extended 60-day booking window.
+*   **Multi-Criteria Filtering**: Search and filter global bookings by date, route, status, or passenger identity.
 
 ### 3. Fleet & Trip Management (Digital Manifests)
 *   **Trip Lifecycle Control**: Manage trip phases: Set status (On Time/Delayed), Start Boarding, Close Boarding, Depart, and Arrived.
