@@ -40,7 +40,7 @@ import {
   getDocs,
   orderBy,
 } from 'firebase/firestore';
-import { BookCopy, Pencil, Search, Trash2, CreditCard, Loader2, FilterX, Filter, MapPin, ShieldAlert, Zap, Eye, User, Calendar, Ship, Ticket, Users, Ghost, Clock } from 'lucide-react';
+import { BookCopy, Pencil, Search, Trash2, CreditCard, Loader2, FilterX, Filter, MapPin, ShieldAlert, Zap, Eye, User, Calendar, Ship, Ticket, Users, Ghost, Clock, RotateCcw } from 'lucide-react';
 import { format, isValid, isBefore, subHours } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -101,6 +101,7 @@ export default function BookingsPage() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [isPaidDialogOpen, setIsPaidDialogOpen] = useState(false);
+  const [isUnpaidDialogOpen, setIsUnpaidDialogOpen] = useState(false);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [bookingToProcess, setBookingToProcess] = useState<Booking | null>(null);
 
@@ -444,6 +445,22 @@ export default function BookingsPage() {
       toast({ variant: 'destructive', title: 'Update Failed', description: e.message });
     } finally {
       setIsPaidDialogOpen(false);
+    }
+  };
+
+  const handleMarkAsUnpaid = async () => {
+    if (!firestore || !bookingToProcess) return;
+    const bookingRef = doc(firestore, 'bookings', bookingToProcess.firestoreId);
+    try {
+      await updateDoc(bookingRef, { paymentStatus: 'Unpaid', status: 'Reserved' });
+      toast({ title: 'Payment Reverted', description: `Booking #${bookingToProcess.id} is now Unpaid.` });
+      if (isViewDialogOpen) {
+        setBookingToProcess(prev => prev ? { ...prev, paymentStatus: 'Unpaid', status: 'Reserved' } : null);
+      }
+    } catch (e: any) {
+      toast({ variant: 'destructive', title: 'Update Failed', description: e.message });
+    } finally {
+      setIsUnpaidDialogOpen(false);
     }
   };
 
@@ -829,6 +846,11 @@ export default function BookingsPage() {
                 <CreditCard className="mr-2 h-4 w-4" /> Process Payment
               </Button>
             )}
+            {bookingToProcess?.paymentStatus === 'Paid' && bookingToProcess?.status !== 'Completed' && (
+              <Button variant="secondary" className="flex-1" onClick={() => setIsUnpaidDialogOpen(true)}>
+                <RotateCcw className="mr-2 h-4 w-4" /> Undo Payment
+              </Button>
+            )}
             <Button variant="secondary" className="sm:w-auto" onClick={() => setIsViewDialogOpen(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
@@ -881,6 +903,23 @@ export default function BookingsPage() {
             <AlertDialogCancel>Back</AlertDialogCancel>
             <AlertDialogAction onClick={handleMarkAsPaid}>
               Mark as Paid & Confirmed
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={isUnpaidDialogOpen} onOpenChange={setIsUnpaidDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Revert Payment Status?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will mark the booking as "Unpaid" and return the status to "Reserved". Use this only to correct entry errors.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleMarkAsUnpaid}>
+              Yes, Revert to Unpaid
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
