@@ -29,6 +29,6 @@ If you see "Site Not Found" or a "Detection Failed" error during deployment:
 - [Backend Data IR](/docs/backend.json)
 
 ## Key Features
-- **Traveler Experience**: Self-service 7-day window booking, profile management, and live trip status.
+- **Traveler Experience**: Self-service 7-day window booking, profile management, live trip status, and public advisories.
 - **Command Center**: Fleet/Route management, atomic waitlist promotion, and real-time boarding manifests.
 - **Reporting**: Financial reconciliation and passenger volume analytics with CSV exports.

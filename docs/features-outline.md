@@ -9,19 +9,28 @@ Designed for a seamless traveler experience from planning to boarding.
 *   **Multi-Passenger Support**: Add multiple travelers in a single transaction with individual fare type selection (Adult, Senior, Student, etc.).
 *   **Profile Integration**: Logged-in users can instantly add themselves or saved family members to a booking.
 
-### 2. Live Trip Monitoring
-*   **Status Dashboard**: Real-time departure/arrival updates for all voyages today.
-*   **Public Advisories**: Instant access to weather updates, route changes, or service disruptions posted by staff.
+### 2. Live Trip Monitoring (Live Status)
+*   **Real-Time Status Dashboard**: Publicly accessible departures/arrivals board showing "On Time", "Delayed", or "Arrived" statuses for all of today's voyages.
+*   **Vessel Information**: Transparent tracking of which ship is assigned to each route.
+*   **Route Filtering**: Easy-to-use filters to find specific schedules between island ports.
+
+### 3. Public Advisories & Alerts
+*   **Service Notifications**: Instant access to weather updates, route changes, or service disruptions posted by staff.
+*   **Categorized Information**: Alerts categorized by severity (Weather, Route, Fare, General) for quick scanning.
 *   **Digital Itinerary**: A secure, printable summary of travel details with a unique 6-character booking reference.
 
-### 3. Self-Service Suite
+### 4. Self-Service Suite
 *   **My Bookings**: History of all past and upcoming trips with current payment and reservation status.
 *   **Profile Management**: Manage personal PII and a directory of family members for faster future bookings.
+
+### 5. Privacy & Data Transparency
+*   **Formal Privacy Policy**: Clear disclosure of data collection, usage, and user rights.
+*   **Automated Data Retention**: System automatically purges sensitive passenger data (PII) 90 days after travel for maximum privacy compliance.
 
 ---
 
 ## 🏗️ Administrative Command Center (RBAC)
-Granular control for Super Admins, Operations Managers, and Station Agents.
+Granular control for Super Admins, Operations Managers, and Station Managers.
 
 ### 1. Operational Dashboard
 *   **Fleet Readiness**: Visual monitor of "In Service" vs "Under Maintenance" vessels.
@@ -45,7 +54,3 @@ Granular control for Super Admins, Operations Managers, and Station Agents.
 *   **Fee Tracking**: Monitoring of rebooking fees, no-show penalties, and cancellation fees.
 *   **CSV Exports**: One-click data generation for accounting and regulatory compliance.
 *   **Data Retention**: Automated 90-day PII purge tool to ensure privacy compliance.
-
-### 5. Staff Management
-*   **Role-Based Access**: Specialized views for Desk Agents (restricted to their port) vs Super Admins (fleet-wide access).
-*   **Service Protocols**: Integrated Standard Operating Procedures (SOPs) for emergency response.
