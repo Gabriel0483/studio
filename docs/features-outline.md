@@ -9,21 +9,27 @@ Designed for a seamless traveler experience from planning to boarding.
 *   **Multi-Passenger Support**: Add multiple travelers in a single transaction with individual fare type selection (Adult, Senior, Student, etc.).
 *   **Profile Integration**: Logged-in users can instantly add themselves or saved family members to a booking.
 
-### 2. Live Trip Monitoring (Live Status)
+### 2. Secure Authentication & Identity
+*   **Public Signup**: Self-service account creation for all travelers.
+*   **Email Verification**: Automated verification workflow to ensure valid passenger identities and communication channels.
+*   **Secure Password Reset**: Integrated recovery system for forgotten credentials via email tokens.
+*   **Persistent Sessions**: Secure session management allowing users to stay logged in across visits.
+
+### 3. Live Trip Monitoring (Live Status)
 *   **Real-Time Status Dashboard**: Publicly accessible departures/arrivals board showing "On Time", "Delayed", or "Arrived" statuses for all of today's voyages.
 *   **Vessel Information**: Transparent tracking of which ship is assigned to each route.
 *   **Route Filtering**: Easy-to-use filters to find specific schedules between island ports.
 
-### 3. Public Advisories & Alerts
+### 4. Public Advisories & Alerts
 *   **Service Notifications**: Instant access to weather updates, route changes, or service disruptions posted by staff.
 *   **Categorized Information**: Alerts categorized by severity (Weather, Route, Fare, General) for quick scanning.
 *   **Digital Itinerary**: A secure, printable summary of travel details with a unique 6-character booking reference.
 
-### 4. Self-Service Suite
+### 5. Self-Service Suite
 *   **My Bookings**: History of all past and upcoming trips with current payment and reservation status.
 *   **Profile Management**: Manage personal PII and a directory of family members for faster future bookings.
 
-### 5. Privacy & Data Transparency
+### 6. Privacy & Data Transparency
 *   **Formal Privacy Policy**: Clear disclosure of data collection, usage, and user rights.
 *   **Automated Data Retention**: System automatically purges sensitive passenger data (PII) 90 days after travel for maximum privacy compliance.
 

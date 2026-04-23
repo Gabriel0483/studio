@@ -19,8 +19,12 @@ If you see "Site Not Found" or a "Detection Failed" error during deployment:
     - Go to **Firebase Console > Authentication > Settings > Authorized Domains**.
     - Add your production domain: `islakonek--studio-8432386314-93bd2.asia-east1.hosted.app`.
 
+2.  **Public Auth Features**:
+    - Integrated **Email Verification** for all new passenger signups.
+    - Token-based **Password Reset** for secure account recovery.
+
 ## 🛡️ Security & Encryption
-- **Data Protection**: Access is secured via `firestore.rules`.
+- **Data Protection**: Access is secured via `firestore.rules` with strict Role-Based Access Control (RBAC).
 - **SSL/TLS**: All connections are encrypted via HTTPS. Modern security headers (HSTS, X-Frame-Options) are enforced via `next.config.ts`.
 - **Ghost Protection**: System automatically identifies and purges stale unpaid reservations 1 hour before departure.
 
@@ -29,6 +33,6 @@ If you see "Site Not Found" or a "Detection Failed" error during deployment:
 - [Backend Data IR](/docs/backend.json)
 
 ## Key Features
-- **Traveler Experience**: Self-service 7-day window booking, profile management, live trip status, and public advisories.
+- **Traveler Experience**: 7-day window booking, profile management, verified signups, live trip status, and public advisories.
 - **Command Center**: Fleet/Route management, atomic waitlist promotion, and real-time boarding manifests.
 - **Reporting**: Financial reconciliation and passenger volume analytics with CSV exports.
