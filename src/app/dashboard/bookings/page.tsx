@@ -105,6 +105,7 @@ export default function BookingsPage() {
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [bookingToProcess, setBookingToProcess] = useState<Booking | null>(null);
 
+  const [isWorking, setIsWorking] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
@@ -149,15 +150,24 @@ export default function BookingsPage() {
   const isGhost = (booking: Booking) => {
     if (booking.status !== 'Reserved' || booking.paymentStatus !== 'Unpaid') return false;
     const schedule = schedules?.find(s => s.id === booking.scheduleId);
-    if (!schedule) return false;
+    if (!schedule || !schedule.departureTime) return false;
 
-    const travelDate = booking.travelDate instanceof Timestamp ? booking.travelDate.toDate() : new Date(booking.travelDate);
-    const [hours, minutes] = schedule.departureTime.split(':').map(Number);
-    const departureTime = new Date(travelDate);
-    departureTime.setHours(hours, minutes, 0, 0);
+    try {
+        const travelDate = booking.travelDate instanceof Timestamp ? booking.travelDate.toDate() : new Date(booking.travelDate);
+        if (!isValid(travelDate)) return false;
 
-    const expiryThreshold = subHours(departureTime, 1);
-    return isBefore(expiryThreshold, currentTime);
+        const timeParts = schedule.departureTime.split(':');
+        if (timeParts.length < 2) return false;
+        
+        const [hours, minutes] = timeParts.map(Number);
+        const departureTime = new Date(travelDate);
+        departureTime.setHours(hours, minutes, 0, 0);
+
+        const expiryThreshold = subHours(departureTime, 1);
+        return isBefore(expiryThreshold, currentTime);
+    } catch (e) {
+        return false;
+    }
   };
 
   const expiredBookings = useMemo(() => {
@@ -311,7 +321,8 @@ export default function BookingsPage() {
   };
 
   const handleDelete = async () => {
-    if (!firestore || !bookingToProcess) return;
+    if (!firestore || !bookingToProcess || isWorking) return;
+    setIsWorking(true);
     const bookingRef = doc(firestore, 'bookings', bookingToProcess.firestoreId);
     const scheduleRef = doc(firestore, 'schedules', bookingToProcess.scheduleId);
 
@@ -337,7 +348,7 @@ export default function BookingsPage() {
           return;
         }
 
-        let currentSeats = scheduleDoc.data().availableSeats || 0;
+        let currentSeats = (scheduleDoc.data().availableSeats || 0);
         let currentWaitlistCount = scheduleDoc.data().waitlistCount || 0;
 
         if (bookingToProcess.status === 'Reserved' || bookingToProcess.status === 'Confirmed') {
@@ -363,16 +374,19 @@ export default function BookingsPage() {
         transaction.delete(bookingRef);
       });
       toast({ title: 'Booking Deleted', description: 'Booking removed successfully.' });
+      setIsViewDialogOpen(false);
     } catch (e: any) {
       toast({ variant: 'destructive', title: 'Error Deleting Booking', description: e.message });
     } finally {
         setIsDeleteDialogOpen(false);
         setBookingToProcess(null);
+        setIsWorking(false);
     }
   };
 
   const handleCancel = async () => {
-    if (!firestore || !bookingToProcess) return;
+    if (!firestore || !bookingToProcess || isWorking) return;
+    setIsWorking(true);
     const bookingRef = doc(firestore, 'bookings', bookingToProcess.firestoreId);
     const scheduleRef = doc(firestore, 'schedules', bookingToProcess.scheduleId);
 
@@ -398,7 +412,7 @@ export default function BookingsPage() {
                 return;
             }
 
-            let currentSeats = scheduleDoc.data().availableSeats || 0;
+            let currentSeats = (scheduleDoc.data().availableSeats || 0);
             let currentWaitlistCount = scheduleDoc.data().waitlistCount || 0;
 
             if (bookingToProcess.status === 'Reserved' || bookingToProcess.status === 'Confirmed') {
@@ -429,38 +443,47 @@ export default function BookingsPage() {
     } finally {
         setIsCancelDialogOpen(false);
         setBookingToProcess(null);
+        setIsWorking(false);
     }
   };
 
   const handleMarkAsPaid = async () => {
-    if (!firestore || !bookingToProcess) return;
+    if (!firestore || !bookingToProcess || isWorking) return;
+    setIsWorking(true);
     const bookingRef = doc(firestore, 'bookings', bookingToProcess.firestoreId);
     try {
       await updateDoc(bookingRef, { paymentStatus: 'Paid', status: 'Confirmed' });
       toast({ title: 'Booking Paid & Confirmed', description: `Booking #${bookingToProcess.id} is now Paid.` });
-      if (isViewDialogOpen) {
-        setBookingToProcess(prev => prev ? { ...prev, paymentStatus: 'Paid', status: 'Confirmed' } : null);
-      }
+      // Update local state for immediate feedback in the detail dialog
+      setBookingToProcess(prev => prev ? { ...prev, paymentStatus: 'Paid', status: 'Confirmed' } : null);
     } catch (e: any) {
       toast({ variant: 'destructive', title: 'Update Failed', description: e.message });
     } finally {
       setIsPaidDialogOpen(false);
+      setIsWorking(false);
     }
   };
 
   const handleMarkAsUnpaid = async () => {
-    if (!firestore || !bookingToProcess) return;
+    if (!firestore || !bookingToProcess || isWorking) return;
+    setIsWorking(true);
     const bookingRef = doc(firestore, 'bookings', bookingToProcess.firestoreId);
     try {
+      // 1. Close confirm dialog first to prevent backdrop overlap issues during re-render
+      setIsUnpaidDialogOpen(false);
+      
+      // 2. Perform the update
       await updateDoc(bookingRef, { paymentStatus: 'Unpaid', status: 'Reserved' });
+      
       toast({ title: 'Payment Reverted', description: `Booking #${bookingToProcess.id} is now Unpaid.` });
-      if (isViewDialogOpen) {
-        setBookingToProcess(prev => prev ? { ...prev, paymentStatus: 'Unpaid', status: 'Reserved' } : null);
-      }
+      
+      // 3. Update local state for immediate feedback in the detail dialog
+      setBookingToProcess(prev => prev ? { ...prev, paymentStatus: 'Unpaid', status: 'Reserved' } : null);
     } catch (e: any) {
       toast({ variant: 'destructive', title: 'Update Failed', description: e.message });
+      // If it failed, we can let the confirms reopen or just close
     } finally {
-      setIsUnpaidDialogOpen(false);
+      setIsWorking(false);
     }
   };
 
@@ -518,7 +541,7 @@ export default function BookingsPage() {
                 size="sm" 
                 variant="destructive" 
                 onClick={handleCleanupExpired} 
-                disabled={isCleaningUp}
+                disabled={isCleaningUp || isWorking}
                 className="font-bold shadow-sm"
               >
                 {isCleaningUp ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4" />}
@@ -686,7 +709,7 @@ export default function BookingsPage() {
                                             variant="ghost"
                                             size="icon"
                                             onClick={() => { setBookingToProcess(booking); setIsPaidDialogOpen(true); }}
-                                            disabled={booking.paymentStatus === 'Paid' || booking.status === 'Cancelled'}
+                                            disabled={booking.paymentStatus === 'Paid' || booking.status === 'Cancelled' || isWorking}
                                         >
                                             <CreditCard className="h-4 w-4" />
                                         </Button>
@@ -699,7 +722,7 @@ export default function BookingsPage() {
                                             variant="ghost"
                                             size="icon"
                                             onClick={() => handleEdit(booking.id)}
-                                            disabled={booking.status === 'Cancelled'}
+                                            disabled={booking.status === 'Cancelled' || isWorking}
                                         >
                                             <Pencil className="h-4 w-4" />
                                         </Button>
@@ -713,6 +736,7 @@ export default function BookingsPage() {
                                             size="icon"
                                             className="text-destructive"
                                             onClick={() => { setBookingToProcess(booking); setIsDeleteDialogOpen(true); }}
+                                            disabled={isWorking}
                                         >
                                             <Trash2 className="h-4 w-4" />
                                         </Button>
@@ -740,7 +764,7 @@ export default function BookingsPage() {
         </Card>
       </div>
 
-      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+      <Dialog open={isViewDialogOpen} onOpenChange={(open) => !isWorking && setIsViewDialogOpen(open)}>
         <DialogContent className="max-w-2xl flex flex-col h-[90vh]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-2xl">
@@ -838,25 +862,25 @@ export default function BookingsPage() {
           </ScrollArea>
 
           <DialogFooter className="flex flex-col sm:flex-row gap-3 pt-4 border-t bg-background">
-            <Button variant="outline" className="flex-1" onClick={() => { setIsViewDialogOpen(false); handleEdit(bookingToProcess!.id); }}>
+            <Button variant="outline" className="flex-1" onClick={() => { setIsViewDialogOpen(false); handleEdit(bookingToProcess!.id); }} disabled={isWorking}>
               <Pencil className="mr-2 h-4 w-4" /> Edit Details
             </Button>
             {bookingToProcess?.paymentStatus === 'Unpaid' && bookingToProcess?.status !== 'Cancelled' && (
-              <Button className="flex-1" onClick={handleMarkAsPaid}>
+              <Button className="flex-1" onClick={() => setIsPaidDialogOpen(true)} disabled={isWorking}>
                 <CreditCard className="mr-2 h-4 w-4" /> Process Payment
               </Button>
             )}
             {bookingToProcess?.paymentStatus === 'Paid' && bookingToProcess?.status !== 'Completed' && (
-              <Button variant="secondary" className="flex-1" onClick={() => setIsUnpaidDialogOpen(true)}>
+              <Button variant="secondary" className="flex-1" onClick={() => setIsUnpaidDialogOpen(true)} disabled={isWorking}>
                 <RotateCcw className="mr-2 h-4 w-4" /> Undo Payment
               </Button>
             )}
-            <Button variant="secondary" className="sm:w-auto" onClick={() => setIsViewDialogOpen(false)}>Close</Button>
+            <Button variant="secondary" className="sm:w-auto" onClick={() => setIsViewDialogOpen(false)} disabled={isWorking}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+       <AlertDialog open={isDeleteDialogOpen} onOpenChange={(open) => !isWorking && setIsDeleteDialogOpen(open)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
@@ -866,15 +890,16 @@ export default function BookingsPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">
+            <AlertDialogCancel disabled={isWorking}>Cancel</AlertDialogCancel>
+            <Button variant="destructive" onClick={handleDelete} disabled={isWorking}>
+              {isWorking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
               Delete
-            </AlertDialogAction>
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>
+      <AlertDialog open={isCancelDialogOpen} onOpenChange={(open) => !isWorking && setIsCancelDialogOpen(open)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Confirm Booking Cancellation</AlertDialogTitle>
@@ -883,15 +908,16 @@ export default function BookingsPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Back</AlertDialogCancel>
-            <AlertDialogAction onClick={handleCancel}>
-              Confirm Cancellation
-            </AlertDialogAction>
+            <AlertDialogCancel disabled={isWorking}>Back</AlertDialogCancel>
+            <Button onClick={handleCancel} disabled={isWorking}>
+               {isWorking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+               Confirm Cancellation
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
       
-      <AlertDialog open={isPaidDialogOpen} onOpenChange={setIsPaidDialogOpen}>
+      <AlertDialog open={isPaidDialogOpen} onOpenChange={(open) => !isWorking && setIsPaidDialogOpen(open)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Confirm Payment</AlertDialogTitle>
@@ -900,15 +926,16 @@ export default function BookingsPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Back</AlertDialogCancel>
-            <AlertDialogAction onClick={handleMarkAsPaid}>
+            <AlertDialogCancel disabled={isWorking}>Back</AlertDialogCancel>
+            <Button onClick={handleMarkAsPaid} disabled={isWorking}>
+              {isWorking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Mark as Paid & Confirmed
-            </AlertDialogAction>
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={isUnpaidDialogOpen} onOpenChange={setIsUnpaidDialogOpen}>
+      <AlertDialog open={isUnpaidDialogOpen} onOpenChange={(open) => !isWorking && setIsUnpaidDialogOpen(open)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Revert Payment Status?</AlertDialogTitle>
@@ -917,10 +944,11 @@ export default function BookingsPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleMarkAsUnpaid}>
+            <AlertDialogCancel disabled={isWorking}>Cancel</AlertDialogCancel>
+            <Button variant="secondary" onClick={handleMarkAsUnpaid} disabled={isWorking}>
+              {isWorking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-2 h-4 w-4" />}
               Yes, Revert to Unpaid
-            </AlertDialogAction>
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
