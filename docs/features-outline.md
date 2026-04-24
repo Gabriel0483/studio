@@ -43,6 +43,7 @@ Granular control for Super Admins, Operations Managers, and Station Managers.
 *   **Financial Momentum Analytics**: Monthly revenue trends and top-performing route volume charts.
 *   **Trip Punctuality**: Real-time count of delayed or cancelled voyages for the selected date.
 *   **Waitlist Burden Indicator**: High-level visibility into total waitlisted passengers across the entire operation.
+*   **Temporal Context Switching**: Date-picker to review snapshots of operational performance for any day.
 
 ### 2. Booking & Revenue Management
 *   **Ghost Reservation Purge**: Administrative tool to identify and bulk-delete unpaid "Ghost" bookings 1 hour before departure to recover seat capacity.
@@ -64,14 +65,22 @@ Granular control for Super Admins, Operations Managers, and Station Managers.
 *   **State-Locked Safety Compliance**: Programmatic locks on "Start Boarding" and "Depart" buttons until mandatory digital safety checklists (Pre-Boarding & Pre-Departure) are signed.
 *   **Real-Time Interactive Manifest**: Crew interface to "Board" or "Deboard" individuals with instant head-count synchronization to the dashboard.
 *   **Compliance Printing**: Generate and print official passenger manifests formatted for port authority and coast guard regulations.
+*   **Dynamic Instance Spawning**: Converts daily templates into manageable "Special" trip instances automatically upon agent interaction.
 
 ### 5. Network Configuration
-*   **Port Management**: Master terminal location registry. Defines the physical nodes of the network and serves as the anchor for port-based RBAC.
+*   **Port Management**: Master terminal location registry. Defines the physical nodes of the network and serves as the anchor for port-based RBAC and manifest isolation.
 *   **Route Mapping**: Configure nautical travel paths between ports. Includes nautical distance tracking and the definition of allowed passenger segments (Adult, Senior, etc.).
 *   **Fare Tables**: Route-specific pricing matrices. Prices are bound to the passenger segments defined in the Route module and sync instantly across all booking channels.
 *   **Advisory Broadcast Hub**: Centralized station for posting public announcements categorized by severity (Weather, Route, Fare, Service Disruption).
 
-### 6. Reporting & Compliance
+### 6. Financial Services (Refunds & Rebooking)
+*   **Rapid Search Engine**: Look up travel records instantly by Booking Reference or Passenger Name.
+*   **Integrated Refund Calculator**: Apply customizable cancellation fees and calculate final refund amounts automatically.
+*   **Audit Logging**: Mandatory "Reason" input for all cancellations and fee history tracking.
+*   **Capacity Recovery**: Refunding a booking instantly releases seats and triggers the Atomic Waitlist Promotion logic.
+*   **Rebooking Hub**: Direct link to edit booking details for route or date changes without new transaction entry.
+
+### 7. Reporting & Compliance
 *   **Financial Reconciliation**: Detailed period-based breakdown of Gross, Net, and Earned revenue.
 *   **Fee & Refund Tracking**: Dedicated monitoring of rebooking fees, no-show penalties, and cancellation fee retention.
 *   **CSV Data Streaming**: One-click generation of transaction data for accounting and regulatory compliance audits.
