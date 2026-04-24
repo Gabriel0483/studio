@@ -67,8 +67,8 @@ Granular control for Super Admins, Operations Managers, and Station Managers.
 
 ### 5. Network Configuration
 *   **Port Management**: Master registry of terminal locations. Defines the physical nodes of the network and serves as the anchor for staff role assignments.
-*   **Route Mapping**: Configure travel paths between ports including distance tracking and allowed passenger types.
-*   **Fare Tables**: Route-specific pricing matrices for different passenger types (Adult, Senior, Student, etc.).
+*   **Route Mapping**: Configure travel paths between ports including nautical distance tracking. Define allowed passenger segments (e.g., Adult, Senior, Student) per path.
+*   **Fare Tables**: Route-specific pricing matrices. Prices are bound to the passenger segments defined in the Route Mapping module.
 *   **Advisory Management**: Centralized hub for posting public announcements categorized by severity (Weather, Route, Fare, Service Disruption).
 
 ### 6. Reporting & Compliance
