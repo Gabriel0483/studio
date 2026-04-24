@@ -153,7 +153,9 @@
         "logoUrl": { "type": "string" },
         "heroTitle": { "type": "string" },
         "heroDescription": { "type": "string" },
-        "heroImageUrl": { "type": "string" }
+        "heroImageUrl": { "type": "string" },
+        "defaultRebookingFee": { "type": "number" },
+        "defaultCancellationFee": { "type": "number" }
       }
     }
   },

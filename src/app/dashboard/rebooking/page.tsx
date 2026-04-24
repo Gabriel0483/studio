@@ -1,3 +1,4 @@
+
 'use client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,7 +7,7 @@ import { Loader2, Search, AlertCircle, FileQuestion } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase";
 import { collection, doc, query, where, getDocs, updateDoc, Timestamp, runTransaction, orderBy } from "firebase/firestore";
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { Separator } from "@/components/ui/separator";
@@ -33,9 +34,19 @@ export default function RebookingPage() {
   const staffDocRef = useMemoFirebase(() => (firestore && user ? doc(firestore, 'staff', user.uid) : null), [firestore, user]);
   const { data: staffData } = useDoc(staffDocRef);
 
+  const configRef = useMemoFirebase(() => (firestore ? doc(firestore, 'config', 'settings') : null), [firestore]);
+  const { data: configData } = useDoc(configRef);
+
+  // Set default cancellation fee when dialog opens
+  useEffect(() => {
+    if (isRefundDialogOpen && configData?.defaultCancellationFee) {
+        setCancellationFee(configData.defaultCancellationFee);
+    }
+  }, [isRefundDialogOpen, configData]);
+
   const finalRefundAmount = useMemo(() => {
     if (!searchedBooking) return 0;
-    return searchedBooking.totalPrice - cancellationFee;
+    return Math.max(0, searchedBooking.totalPrice - cancellationFee);
   }, [searchedBooking, cancellationFee]);
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -89,7 +100,6 @@ export default function RebookingPage() {
     if (!firestore || !searchedBooking) return;
     setIsLoading(true);
 
-    // Prepare waitlist pass
     const waitlistQuery = query(
         collection(firestore, 'bookings'),
         where('scheduleId', '==', searchedBooking.scheduleId),
@@ -118,10 +128,8 @@ export default function RebookingPage() {
                 cancellationReason: cancellationReason,
             };
 
-            if (searchedBooking.status === 'Reserved' || searchedBooking.status === 'Confirmed') {
+            if (searchedBooking.status === 'Reserved' || searchedBooking.status === 'Confirmed' || searchedBooking.status === 'Completed') {
                 currentSeats += searchedBooking.numberOfSeats;
-
-                // AUTOMATIC PROMOTION PASS
                 for (const wDoc of waitlistSnap.docs) {
                     const wData = wDoc.data();
                     if (wData.numberOfSeats <= currentSeats) {
@@ -160,7 +168,7 @@ export default function RebookingPage() {
         setIsLoading(false);
         setIsRefundDialogOpen(false);
         setCancellationFee(0);
-        cancellationReason && setCancellationReason('');
+        setCancellationReason('');
     }
   };
 
@@ -201,7 +209,7 @@ export default function RebookingPage() {
             </Button>
           </form>
         </CardContent>
-        {isLoading && (
+        {isLoading && !searchedBooking && (
           <CardFooter>
             <div className="flex w-full justify-center items-center py-8">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -220,7 +228,7 @@ export default function RebookingPage() {
             </CardFooter>
         )}
 
-        {!isLoading && searchedBooking && (
+        {searchedBooking && (
           <>
             <CardContent className="pt-6">
                 <h3 className="text-xl font-bold tracking-tight">Booking Details</h3>
@@ -270,7 +278,7 @@ export default function RebookingPage() {
                     {searchedBooking.refundAmount > 0 && (
                         <div>
                             <p className="font-semibold text-muted-foreground">Amount Refunded</p>
-                            <p className="font-bold">₱{searchedBooking.refundAmount.toFixed(2)}</p>
+                            <p className="font-bold text-green-600">₱{searchedBooking.refundAmount.toFixed(2)}</p>
                         </div>
                     )}
                     {searchedBooking.cancellationReason && (
@@ -286,7 +294,7 @@ export default function RebookingPage() {
                     Process Refund
                 </Button>
                 <Button onClick={handleRebook} disabled={!isRebookable || isLoading}>
-                    Rebook
+                    Rebook / Edit
                 </Button>
             </CardFooter>
           </>
@@ -299,7 +307,7 @@ export default function RebookingPage() {
             <DialogHeader>
                 <DialogTitle>Process Refund for Booking #{searchedBooking?.id}</DialogTitle>
                 <DialogDescription>
-                    Enter a cancellation fee and reason if applicable. The final refund amount will be calculated.
+                    The default cancellation fee has been applied based on system settings. You can adjust it below.
                 </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
@@ -313,12 +321,12 @@ export default function RebookingPage() {
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="cancellation-reason">Reason for Cancellation</Label>
-                    <Textarea id="cancellation-reason" value={cancellationReason} onChange={(e) => setCancellationReason(e.target.value)} />
+                    <Textarea id="cancellation-reason" value={cancellationReason} onChange={(e) => setCancellationReason(e.target.value)} placeholder="e.g., Customer request, bad weather..." />
                 </div>
                  <Separator />
                 <div className="flex justify-between items-center text-lg font-bold">
                     <span>Final Refund Amount:</span>
-                    <span>₱{finalRefundAmount.toFixed(2)}</span>
+                    <span className="text-primary font-black">₱{finalRefundAmount.toFixed(2)}</span>
                 </div>
             </div>
             <DialogFooter>

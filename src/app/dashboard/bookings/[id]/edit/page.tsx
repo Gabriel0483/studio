@@ -1,9 +1,10 @@
+
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useFieldArray, useForm } from 'react-hook-form';
 import * as z from 'zod';
-import { PlusCircle, Trash2, ArrowLeft, Loader2 } from 'lucide-react';
+import { PlusCircle, Trash2, ArrowLeft, Loader2, Receipt } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -35,6 +36,7 @@ import {
   useFirestore,
   useCollection,
   useMemoFirebase,
+  useDoc,
 } from '@/firebase';
 import { collection, doc, runTransaction, Timestamp, query, where, getDocs, serverTimestamp, getDoc, orderBy } from 'firebase/firestore';
 import React, { useMemo, useState, useEffect } from 'react';
@@ -92,6 +94,15 @@ export default function EditBookingPage() {
   const { data: allSchedules, isLoading: isLoadingSchedules } = useCollection(useMemoFirebase(() => (firestore ? collection(firestore, 'schedules') : null), [firestore]));
   const { data: routes, isLoading: isLoadingRoutes } = useCollection(useMemoFirebase(() => (firestore ? collection(firestore, 'routes') : null), [firestore]));
   const { data: allFares, isLoading: isLoadingFares } = useCollection(useMemoFirebase(() => (firestore ? collection(firestore, 'fares') : null), [firestore]));
+  
+  const configRef = useMemoFirebase(() => (firestore ? doc(firestore, 'config', 'settings') : null), [firestore]);
+  const { data: configData } = useDoc(configRef);
+
+  useEffect(() => {
+    if (configData?.defaultRebookingFee && rebookingFee === 0) {
+        setRebookingFee(configData.defaultRebookingFee);
+    }
+  }, [configData, rebookingFee]);
 
   const [availableFares, setAvailableFares] = useState<any[]>([]);
   const form = useForm<BookingFormData>({
@@ -255,7 +266,7 @@ export default function EditBookingPage() {
             if (!newScheduleDoc.exists()) throw new Error("The selected trip template no longer exists.");
 
             if (oldScheduleDoc.exists() && (booking.status === 'Reserved' || booking.status === 'Confirmed')) {
-                let oldSeats = oldScheduleDoc.data().availableSeats + booking.numberOfSeats;
+                let oldSeats = (oldScheduleDoc.data().availableSeats || 0) + booking.numberOfSeats;
                 let oldWaitCount = oldScheduleDoc.data().waitlistCount || 0;
 
                 for (const wDoc of oldWaitlistSnap.docs) {
@@ -460,16 +471,20 @@ export default function EditBookingPage() {
                 )} />
               </div>
 
-              <div className="space-y-4 rounded-lg border p-4 bg-secondary/20">
-                <h4 className="font-medium">Adjustment Fees</h4>
+              <div className="space-y-4 rounded-lg border p-4 bg-secondary/10">
+                <h4 className="font-bold flex items-center gap-2">
+                    <Receipt className="h-4 w-4 text-primary" />
+                    Adjustment Fees
+                </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                        <Label>Add Rebooking Fee (₱)</Label>
+                        <Label className="text-xs font-bold uppercase text-muted-foreground">Add Rebooking Fee (₱)</Label>
                         <Input type="number" value={rebookingFee} onChange={e => setRebookingFee(parseFloat(e.target.value) || 0)} />
+                        <p className="text-[10px] text-muted-foreground">Default loaded from system settings.</p>
                     </div>
                     <div className="space-y-2">
-                        <Label>Reason</Label>
-                        <Textarea placeholder="Reason for fee" value={rebookingReason} onChange={e => setRebookingReason(e.target.value)} />
+                        <Label className="text-xs font-bold uppercase text-muted-foreground">Adjustment Reason</Label>
+                        <Textarea placeholder="e.g., Change of travel date" value={rebookingReason} onChange={e => setRebookingReason(e.target.value)} rows={2} />
                     </div>
                 </div>
               </div>
@@ -490,8 +505,8 @@ export default function EditBookingPage() {
                 )}
               />
 
-              <Button type="submit" size="lg" className="w-full" disabled={isSubmitting || !form.formState.isValid}>
-                 {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Save Changes'}
+              <Button type="submit" size="lg" className="w-full h-14 font-black" disabled={isSubmitting || !form.formState.isValid}>
+                 {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Save Booking Changes'}
               </Button>
             </form>
           </Form>
