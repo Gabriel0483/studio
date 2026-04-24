@@ -16,7 +16,7 @@ service cloud.firestore {
     // --- Platform Admin check (Hardcoded for bootstrap) ---
     function isPlatformAdmin() {
       return isSignedIn() && 
-        request.auth.token.keys().contains('email') && (
+        'email' in request.auth.token && (
           request.auth.token.email.lower() == 'rielmagpantay@gmail.com' || 
           request.auth.token.email.lower() == 'mariel.dumaoal@gmail.com'
         );
@@ -110,8 +110,8 @@ service cloud.firestore {
       );
       
       allow list: if isSignedIn() && (
-        (resource.data.passengerId == request.auth.uid) || 
-        isStaff()
+        isStaff() || 
+        (resource != null && resource.data.passengerId == request.auth.uid)
       );
       
       allow create: if isSignedIn();
@@ -129,6 +129,10 @@ service cloud.firestore {
     }
     
     match /boarding/{id} {
+      allow read, write: if isStaff();
+    }
+    
+    match /safetyChecks/{id} {
       allow read, write: if isStaff();
     }
   }
