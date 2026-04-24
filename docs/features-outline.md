@@ -38,42 +38,42 @@ Designed for a seamless traveler experience from planning to boarding.
 Granular control for Super Admins, Operations Managers, and Station Managers.
 
 ### 1. Operational Dashboard
-*   **Fleet Readiness**: Visual monitor of "In Service" vs "Under Maintenance" vessels with health alerts.
-*   **Boarding Efficiency**: Progress bars tracking the ratio of boarded vs. paid passengers for the day.
-*   **Financial Momentum**: Real-time revenue charts (Monthly Trends & Route Volume).
-*   **Trip Punctuality**: High-level count of delayed or cancelled voyages for the current date.
-*   **Waitlist Burden**: Visibility into total waitlisted passengers across the operation.
+*   **Fleet Readiness Monitor**: Real-time KPI tracking the percentage of the fleet currently "In Service." Alerts when readiness drops below 80%.
+*   **Boarding Efficiency Tracker**: Visual progress bars comparing boarded passengers vs. paid reservations for the day.
+*   **Financial Momentum Analytics**: Monthly revenue trends and top-performing route volume charts.
+*   **Trip Punctuality**: Real-time count of delayed or cancelled voyages for the selected date.
+*   **Waitlist Burden Indicator**: High-level visibility into total waitlisted passengers across the entire operation.
 
 ### 2. Booking & Revenue Management
-*   **Ghost Reservation Purge**: Administrative alert and cleanup tool to delete unpaid "Ghost" reservations 1 hour before departure to release capacity.
-*   **Atomic Waitlist Promotion**: Automated First-Come, First-Served engine that promotes waitlisted passengers when seats open via transaction logic.
-*   **Payment Correction**: "Undo Payment" action for accidental entries, reverting status from Confirmed back to Reserved.
-*   **Desk Booking**: Fast-entry interface for terminal walk-ins with integrated passenger profile search (Email/Phone). Allows an extended 60-day booking window.
-*   **Multi-Criteria Filtering**: Search and filter global bookings by date, route, status, or passenger identity.
+*   **Ghost Reservation Purge**: Administrative tool to identify and bulk-delete unpaid "Ghost" bookings 1 hour before departure to recover seat capacity.
+*   **Atomic Waitlist Promotion**: Automated First-Come, First-Served engine that promotes waitlisted passengers when seats are released via cancellation or deletion.
+*   **Payment Correction Tools**: "Undo Payment" actions for correcting entry errors, reverting status from Confirmed back to Reserved.
+*   **Desk Booking Interface**: Optimized fast-entry for walk-ins with a 60-day booking window and integrated passenger profile search (Email/Phone).
+*   **Deep-Dive Manifest Filtering**: Search and filter global bookings by date, specific trip, route, status, or passenger identity.
 
 ### 3. Operations & Fleet Management
-*   **Fleet Readiness Registry**: Centralized database of all vessels including name, vessel type, and passenger capacity.
-*   **Recurring Schedule Templates**: Engine for creating "Daily" recurring trip patterns that serve as the blueprint for all future voyages.
-*   **Maintenance Control Center**: Advanced tool for scheduling dry-dock or repairs with detailed descriptions.
-*   **Auto-Lock Status Sync**: Intelligent logic that automatically marks vessels as "Under Maintenance" during scheduled repairs, preventing accidental deployment in trip management.
-*   **Assigned Crew Visibility**: Real-time lookup of staff members currently assigned to specific ships during schedule planning.
+*   **Fleet Readiness Registry**: Centralized database tracking vessel types, names, and passenger capacities.
+*   **Recurring Schedule Templates**: Engine for defining "Daily" recurring trip blueprints that automatically spawn trip instances.
+*   **Intelligent Maintenance Scheduler**: Tool for planning repairs that automatically marks vessels as "Under Maintenance," locking them from active trip assignment.
+*   **Auto-Status Sync**: Ships automatically revert to "In Service" once scheduled maintenance windows expire.
+*   **Assigned Crew Visibility**: Real-time lookup of staff members associated with specific ships during scheduling.
 
 ### 4. Trip Management (Digital Manifests)
-*   **Trip Lifecycle Control**: Manage trip phases: Set status (On Time/Delayed/Cancelled), Start Boarding, Close Boarding, Depart, and Arrived.
-*   **Vessel Assignment**: Assign specific ships to trips right before boarding starts.
-*   **Safety Compliance Gate**: Programmatic locks on boarding and departure buttons until mandatory Pre-Boarding and Pre-Departure checklists (including Vessel Stability & Weight) are signed.
-*   **Real-Time Boarding Manifest**: Interactive crew interface to "Board" or "Deboard" individual passengers with instant synchronization.
-*   **Compliance Manifests**: Generate and print official passenger manifests for port authority and regulatory compliance.
+*   **Trip Lifecycle Control**: Active management of trip phases: Set status (On Time/Delayed/Cancelled), Start/Close Boarding, Depart, and Arrived.
+*   **Vessel Assignment**: Assign specific ships to trips right before boarding, restricted to "In Service" vessels only.
+*   **State-Locked Safety Compliance**: Programmatic locks on "Start Boarding" and "Depart" buttons until mandatory digital safety checklists (Pre-Boarding & Pre-Departure) are signed.
+*   **Real-Time Interactive Manifest**: Crew interface to "Board" or "Deboard" individuals with instant head-count synchronization to the dashboard.
+*   **Compliance Printing**: Generate and print official passenger manifests formatted for port authority and coast guard regulations.
 
 ### 5. Network Configuration
-*   **Port Management**: Master registry of terminal locations. Defines the physical nodes of the network and serves as the anchor for staff role assignments.
-*   **Route Mapping**: Configure travel paths between ports including nautical distance tracking. Define allowed passenger segments (e.g., Adult, Senior, Student) per path.
-*   **Fare Tables**: Route-specific pricing matrices. Prices are bound to the passenger segments defined in the Route Mapping module.
-*   **Advisory Management**: Centralized hub for posting public announcements categorized by severity (Weather, Route, Fare, Service Disruption).
+*   **Port Management**: Master terminal location registry. Defines the physical nodes of the network and serves as the anchor for port-based RBAC.
+*   **Route Mapping**: Configure nautical travel paths between ports. Includes nautical distance tracking and the definition of allowed passenger segments (Adult, Senior, etc.).
+*   **Fare Tables**: Route-specific pricing matrices. Prices are bound to the passenger segments defined in the Route module and sync instantly across all booking channels.
+*   **Advisory Broadcast Hub**: Centralized station for posting public announcements categorized by severity (Weather, Route, Fare, Service Disruption).
 
 ### 6. Reporting & Compliance
-*   **Financial Reconciliation**: Detailed breakdown of Gross, Net, and Earned revenue.
-*   **Fee Tracking**: Monitoring of rebooking fees, no-show penalties, and cancellation fees.
-*   **CSV Exports**: One-click data generation for accounting and regulatory compliance.
-*   **Data Retention**: Automated 90-day PII purge tool to ensure global privacy compliance.
-*   **SOP Repository**: Digital access to Service Interruption Protocols (including Vessel Stability & Loading) for staff training and emergency response.
+*   **Financial Reconciliation**: Detailed period-based breakdown of Gross, Net, and Earned revenue.
+*   **Fee & Refund Tracking**: Dedicated monitoring of rebooking fees, no-show penalties, and cancellation fee retention.
+*   **CSV Data Streaming**: One-click generation of transaction data for accounting and regulatory compliance audits.
+*   **Data Retention Policy**: Automated 90-day PII purge tool to ensure global privacy compliance.
+*   **SOP Repository**: Digital access to Standard Operating Procedures for staff training and emergency incident response.
