@@ -29,6 +29,7 @@ Designed for a seamless traveler experience from planning to boarding.
 *   **My Bookings**: History of all past and upcoming trips with current payment and reservation status.
 *   **Profile Management**: Manage personal PII and a directory of family members for faster future bookings.
 *   **Digital Itinerary**: A secure, printable summary of travel details with a unique 6-character booking reference and terminal instructions.
+*   **Privacy Guard**: Transparent disclosure of the 90-day data retention policy.
 
 ---
 
@@ -40,6 +41,7 @@ Granular control for Super Admins, Operations Managers, and Station Managers.
 *   **Boarding Efficiency**: Progress bars tracking the ratio of boarded vs. paid passengers for the day.
 *   **Financial Momentum**: Real-time revenue charts (Monthly Trends & Route Volume).
 *   **Trip Punctuality**: High-level count of delayed or cancelled voyages for the current date.
+*   **Waitlist Burden**: Visibility into total waitlisted passengers across the operation.
 
 ### 2. Booking & Revenue Management
 *   **Ghost Reservation Purge**: Administrative alert and cleanup tool to delete unpaid "Ghost" reservations 1 hour before departure to release capacity.
@@ -49,10 +51,11 @@ Granular control for Super Admins, Operations Managers, and Station Managers.
 *   **Multi-Criteria Filtering**: Search and filter global bookings by date, route, status, or passenger identity.
 
 ### 3. Fleet & Trip Management (Digital Manifests)
-*   **Trip Lifecycle Control**: Manage trip phases: Set status (On Time/Delayed), Start Boarding, Close Boarding, Depart, and Arrived.
-*   **Vessel Assignment**: Assign specific ships to trips based on current fleet availability.
-*   **Waitlist Overrides**: Adjust maximum waitlist limits per specific trip to handle peak demand.
-*   **Compliance Manifests**: Generate and print official passenger manifests including age and booking references.
+*   **Trip Lifecycle Control**: Manage trip phases: Set status (On Time/Delayed/Cancelled), Start Boarding, Close Boarding, Depart, and Arrived.
+*   **Vessel Assignment**: Assign specific ships to trips based on current fleet availability before boarding starts.
+*   **Waitlist Overrides**: Adjust maximum waitlist limits per specific trip instance to handle peak demand.
+*   **Real-Time Boarding Manifest**: Interactive crew interface to "Board" or "Deboard" individual passengers with instant synchronization.
+*   **Compliance Manifests**: Generate and print official passenger manifests for port authority and regulatory compliance.
 *   **Maintenance Scheduler**: Schedule dry-dock or repairs which automatically updates ship status system-wide.
 
 ### 4. Network Configuration
