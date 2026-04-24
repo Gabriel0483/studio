@@ -1,3 +1,4 @@
+
 # Isla Konek: Granular Feature Specifications
 
 ## 🚢 Public Passenger Portal
@@ -62,6 +63,7 @@ Granular control for Super Admins, Operations Managers, and Station Managers.
 *   **Vessel Assignment**: Assign specific ships to trips right before boarding starts.
 *   **Real-Time Boarding Manifest**: Interactive crew interface to "Board" or "Deboard" individual passengers with instant synchronization.
 *   **Compliance Manifests**: Generate and print official passenger manifests for port authority and regulatory compliance.
+*   **Weight & Stability Compliance**: Integrated SOPs for monitoring Deadweight Tonnage and Load Lines before departure.
 
 ### 5. Network Configuration
 *   **Port Management**: Manage terminal locations within the shipping network.
@@ -74,4 +76,4 @@ Granular control for Super Admins, Operations Managers, and Station Managers.
 *   **Fee Tracking**: Monitoring of rebooking fees, no-show penalties, and cancellation fees.
 *   **CSV Exports**: One-click data generation for accounting and regulatory compliance.
 *   **Data Retention**: Automated 90-day PII purge tool to ensure global privacy compliance.
-*   **SOP Repository**: Digital access to Service Interruption Protocols for staff training and emergency response.
+*   **SOP Repository**: Digital access to Service Interruption Protocols (including Vessel Stability & Loading) for staff training and emergency response.

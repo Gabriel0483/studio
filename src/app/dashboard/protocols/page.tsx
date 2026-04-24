@@ -10,9 +10,33 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertTriangle, WifiOff, Wrench, Annoyed } from 'lucide-react';
+import { AlertTriangle, WifiOff, Wrench, Annoyed, Anchor, Scale } from 'lucide-react';
 
 const protocols = [
+  {
+    id: 'stability-loading',
+    title: 'Vessel Stability & Loading (Weight & Balance)',
+    icon: <Scale className="h-4 w-4" />,
+    category: 'Compliance',
+    checklist: [
+      {
+        step: "1. Monitor Deadweight Tonnage (DWT)",
+        details: "Ensure the combined weight of passengers, cargo, fuel, and water does not exceed the vessel's certified maximum capacity."
+      },
+      {
+        step: "2. Verify Trim & List",
+        details: "Distribute cargo and passenger seating to ensure the vessel remains upright (no list) and maintain the proper draft difference between bow and stern (trim)."
+      },
+      {
+        step: "3. Inspect Load Lines (Plimsoll Line)",
+        details: "Visually confirm that the vessel is not sitting lower in the water than the allowed mark for current weather and water conditions."
+      },
+      {
+        step: "4. Passenger Manifest Reconciliation",
+        details: "Finalize the boarding count. If the vessel reaches 95% passenger capacity, the Captain must perform a final stability check before closing the gate."
+      },
+    ]
+  },
   {
     id: 'trip-cancellation',
     title: 'Trip Cancellation (e.g., Weather)',
