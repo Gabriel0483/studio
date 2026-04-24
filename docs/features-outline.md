@@ -61,13 +61,12 @@ Granular control for Super Admins, Operations Managers, and Station Managers.
 ### 4. Trip Management (Digital Manifests)
 *   **Trip Lifecycle Control**: Manage trip phases: Set status (On Time/Delayed/Cancelled), Start Boarding, Close Boarding, Depart, and Arrived.
 *   **Vessel Assignment**: Assign specific ships to trips right before boarding starts.
-*   **Safety Compliance Gate**: Programmatic locks on boarding and departure buttons until mandatory Pre-Boarding and Pre-Departure checklists are signed.
+*   **Safety Compliance Gate**: Programmatic locks on boarding and departure buttons until mandatory Pre-Boarding and Pre-Departure checklists (including Vessel Stability & Weight) are signed.
 *   **Real-Time Boarding Manifest**: Interactive crew interface to "Board" or "Deboard" individual passengers with instant synchronization.
 *   **Compliance Manifests**: Generate and print official passenger manifests for port authority and regulatory compliance.
-*   **Weight & Stability Compliance**: Integrated digital sign-off for monitoring Deadweight Tonnage and Load Lines before departure.
 
 ### 5. Network Configuration
-*   **Port Management**: Manage terminal locations within the shipping network.
+*   **Port Management**: Master registry of terminal locations. Defines the physical nodes of the network and serves as the anchor for staff role assignments.
 *   **Route Mapping**: Configure travel paths between ports including distance tracking and allowed passenger types.
 *   **Fare Tables**: Route-specific pricing matrices for different passenger types (Adult, Senior, Student, etc.).
 *   **Advisory Management**: Centralized hub for posting public announcements categorized by severity (Weather, Route, Fare, Service Disruption).
