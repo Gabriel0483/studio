@@ -38,7 +38,7 @@ Designed for a seamless traveler experience from planning to boarding.
 Granular control for Super Admins, Operations Managers, and Station Managers.
 
 ### 1. Operational Dashboard
-*   **Fleet Readiness**: Visual monitor of "In Service" vs "Under Maintenance" vessels.
+*   **Fleet Readiness**: Visual monitor of "In Service" vs "Under Maintenance" vessels with health alerts.
 *   **Boarding Efficiency**: Progress bars tracking the ratio of boarded vs. paid passengers for the day.
 *   **Financial Momentum**: Real-time revenue charts (Monthly Trends & Route Volume).
 *   **Trip Punctuality**: High-level count of delayed or cancelled voyages for the current date.
@@ -61,9 +61,10 @@ Granular control for Super Admins, Operations Managers, and Station Managers.
 ### 4. Trip Management (Digital Manifests)
 *   **Trip Lifecycle Control**: Manage trip phases: Set status (On Time/Delayed/Cancelled), Start Boarding, Close Boarding, Depart, and Arrived.
 *   **Vessel Assignment**: Assign specific ships to trips right before boarding starts.
+*   **Safety Compliance Gate**: Programmatic locks on boarding and departure buttons until mandatory Pre-Boarding and Pre-Departure checklists are signed.
 *   **Real-Time Boarding Manifest**: Interactive crew interface to "Board" or "Deboard" individual passengers with instant synchronization.
 *   **Compliance Manifests**: Generate and print official passenger manifests for port authority and regulatory compliance.
-*   **Weight & Stability Compliance**: Integrated SOPs for monitoring Deadweight Tonnage and Load Lines before departure.
+*   **Weight & Stability Compliance**: Integrated digital sign-off for monitoring Deadweight Tonnage and Load Lines before departure.
 
 ### 5. Network Configuration
 *   **Port Management**: Manage terminal locations within the shipping network.
