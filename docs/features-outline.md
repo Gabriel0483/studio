@@ -76,6 +76,7 @@ Granular control for Super Admins, Operations Managers, and Station Managers.
 ### 6. Financial Services (Refunds & Rebooking)
 *   **Rapid Search Engine**: Look up travel records instantly by Booking Reference or Passenger Name.
 *   **Integrated Refund Calculator**: Apply customizable cancellation fees and calculate final refund amounts automatically.
+*   **Penalty Management**: Standardized defaults for **Rebooking Fees**, **Cancellation Fees**, and **No-show Fees** configurable in global settings.
 *   **Audit Logging**: Mandatory "Reason" input for all cancellations and fee history tracking.
 *   **Capacity Recovery**: Refunding a booking instantly releases seats and triggers the Atomic Waitlist Promotion logic.
 *   **Rebooking Hub**: Direct link to edit booking details for route or date changes without new transaction entry.

@@ -123,7 +123,8 @@
         "travelDate": { "type": "string", "format": "date" },
         "totalPrice": { "type": "number" },
         "status": { "type": "string" },
-        "departurePortName": { "type": "string" }
+        "departurePortName": { "type": "string" },
+        "noShowFee": { "type": "number" }
       },
       "required": ["id", "passengerId", "scheduleId", "travelDate", "totalPrice", "status"]
     },
@@ -155,7 +156,8 @@
         "heroDescription": { "type": "string" },
         "heroImageUrl": { "type": "string" },
         "defaultRebookingFee": { "type": "number" },
-        "defaultCancellationFee": { "type": "number" }
+        "defaultCancellationFee": { "type": "number" },
+        "defaultNoShowFee": { "type": "number" }
       }
     }
   },

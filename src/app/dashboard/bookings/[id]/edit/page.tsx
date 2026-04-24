@@ -476,12 +476,40 @@ export default function EditBookingPage() {
                     <Receipt className="h-4 w-4 text-primary" />
                     Adjustment Fees
                 </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                     <div className="space-y-2">
                         <Label className="text-xs font-bold uppercase text-muted-foreground">Add Rebooking Fee (₱)</Label>
                         <Input type="number" value={rebookingFee} onChange={e => setRebookingFee(parseFloat(e.target.value) || 0)} />
-                        <p className="text-[10px] text-muted-foreground">Default loaded from system settings.</p>
                     </div>
+                     <FormField
+                        control={form.control}
+                        name="noShowFee"
+                        render={({ field }) => (
+                        <FormItem>
+                            <FormLabel className="text-xs font-bold uppercase text-muted-foreground">Apply No-show Fee (₱)</FormLabel>
+                            <FormControl>
+                                <div className="flex gap-2">
+                                    <Input 
+                                        type="number" 
+                                        {...field} 
+                                        onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)} 
+                                    />
+                                    {configData?.defaultNoShowFee && field.value === 0 && (
+                                        <Button 
+                                            type="button" 
+                                            variant="outline" 
+                                            size="sm"
+                                            onClick={() => field.onChange(configData.defaultNoShowFee)}
+                                        >
+                                            Default
+                                        </Button>
+                                    )}
+                                </div>
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                        )}
+                    />
                     <div className="space-y-2">
                         <Label className="text-xs font-bold uppercase text-muted-foreground">Adjustment Reason</Label>
                         <Textarea placeholder="e.g., Change of travel date" value={rebookingReason} onChange={e => setRebookingReason(e.target.value)} rows={2} />

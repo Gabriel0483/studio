@@ -26,6 +26,7 @@ export default function SystemSettingsPage() {
     heroImageUrl: '',
     defaultRebookingFee: 0,
     defaultCancellationFee: 0,
+    defaultNoShowFee: 0,
   });
 
   const configRef = useMemoFirebase(() => (firestore ? doc(firestore, 'config', 'settings') : null), [firestore]);
@@ -41,6 +42,7 @@ export default function SystemSettingsPage() {
         heroImageUrl: configData.heroImageUrl || '',
         defaultRebookingFee: configData.defaultRebookingFee || 0,
         defaultCancellationFee: configData.defaultCancellationFee || 0,
+        defaultNoShowFee: configData.defaultNoShowFee || 0,
       });
     }
   }, [configData]);
@@ -109,9 +111,9 @@ export default function SystemSettingsPage() {
               <Receipt className="h-5 w-5 text-primary" />
               Operational Fees & Penalties
             </CardTitle>
-            <CardDescription>Set standard amounts for automated rebooking and refund processing.</CardDescription>
+            <CardDescription>Set standard amounts for automated rebooking, refund processing, and no-shows.</CardDescription>
           </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="space-y-2">
               <Label htmlFor="rebookFee">Default Rebooking Fee (₱)</Label>
               <Input 
@@ -128,6 +130,15 @@ export default function SystemSettingsPage() {
                 type="number"
                 value={formData.defaultCancellationFee} 
                 onChange={(e) => setFormData({...formData, defaultCancellationFee: parseFloat(e.target.value) || 0})} 
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="noShowFee">Default No-show Fee (₱)</Label>
+              <Input 
+                id="noShowFee" 
+                type="number"
+                value={formData.defaultNoShowFee} 
+                onChange={(e) => setFormData({...formData, defaultNoShowFee: parseFloat(e.target.value) || 0})} 
               />
             </div>
           </CardContent>
