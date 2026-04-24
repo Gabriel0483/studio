@@ -1,9 +1,8 @@
-
 'use client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Search, AlertCircle, FileQuestion } from "lucide-react";
+import { Loader2, Search, AlertCircle, FileQuestion, Receipt, Settings2, Save } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase";
 import { collection, doc, query, where, getDocs, updateDoc, Timestamp, runTransaction, orderBy } from "firebase/firestore";
@@ -15,6 +14,7 @@ import { format } from "date-fns";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 
 export default function RebookingPage() {
   const firestore = useFirestore();
@@ -31,11 +31,29 @@ export default function RebookingPage() {
   const [cancellationFee, setCancellationFee] = useState(0);
   const [cancellationReason, setCancellationReason] = useState('');
 
+  // States for penalty configuration
+  const [isConfiguringFees, setIsConfiguringFees] = useState(false);
+  const [feeForm, setFeeForm] = useState({
+    defaultRebookingFee: 0,
+    defaultCancellationFee: 0,
+    defaultNoShowFee: 0,
+  });
+
   const staffDocRef = useMemoFirebase(() => (firestore && user ? doc(firestore, 'staff', user.uid) : null), [firestore, user]);
   const { data: staffData } = useDoc(staffDocRef);
 
   const configRef = useMemoFirebase(() => (firestore ? doc(firestore, 'config', 'settings') : null), [firestore]);
   const { data: configData } = useDoc(configRef);
+
+  useEffect(() => {
+    if (configData) {
+      setFeeForm({
+        defaultRebookingFee: configData.defaultRebookingFee || 0,
+        defaultCancellationFee: configData.defaultCancellationFee || 0,
+        defaultNoShowFee: configData.defaultNoShowFee || 0,
+      });
+    }
+  }, [configData]);
 
   // Set default cancellation fee when dialog opens
   useEffect(() => {
@@ -94,6 +112,16 @@ export default function RebookingPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleSaveFees = async () => {
+    if (!firestore) return;
+    setIsLoading(true);
+    const configDocRef = doc(firestore, 'config', 'settings');
+    updateDocumentNonBlocking(configDocRef, feeForm);
+    toast({ title: 'Penalty Rates Updated', description: 'Default operational fees have been saved.' });
+    setIsLoading(false);
+    setIsConfiguringFees(false);
   };
 
   const handleProcessRefund = async () => {
@@ -189,10 +217,65 @@ export default function RebookingPage() {
   return (
     <>
     <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Refunds & Rebooking</h1>
+          <p className="text-muted-foreground">Manage travel disruptions and financial reconciliation.</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => setIsConfiguringFees(!isConfiguringFees)}>
+          <Settings2 className="mr-2 h-4 w-4" />
+          {isConfiguringFees ? "Close Rates" : "Penalty Rates"}
+        </Button>
+      </div>
+
+      {isConfiguringFees && (
+        <Card className="bg-primary/5 border-primary/20 animate-in fade-in slide-in-from-top-2 duration-300">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-sm font-bold flex items-center gap-2">
+              <Receipt className="h-4 w-4 text-primary" />
+              Standard Operational Penalty Rates (₱)
+            </CardTitle>
+            <CardDescription>Define the default fees applied for cancellations, changes, and no-shows.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="space-y-2">
+              <Label className="text-xs font-bold uppercase text-muted-foreground">Rebooking Fee</Label>
+              <Input 
+                type="number" 
+                value={feeForm.defaultRebookingFee} 
+                onChange={e => setFeeForm({...feeForm, defaultRebookingFee: parseFloat(e.target.value) || 0})}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs font-bold uppercase text-muted-foreground">Cancellation Fee</Label>
+              <Input 
+                type="number" 
+                value={feeForm.defaultCancellationFee} 
+                onChange={e => setFeeForm({...feeForm, defaultCancellationFee: parseFloat(e.target.value) || 0})}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs font-bold uppercase text-muted-foreground">No-show Fee</Label>
+              <Input 
+                type="number" 
+                value={feeForm.defaultNoShowFee} 
+                onChange={e => setFeeForm({...feeForm, defaultNoShowFee: parseFloat(e.target.value) || 0})}
+              />
+            </div>
+          </CardContent>
+          <CardFooter className="flex justify-end pt-0">
+            <Button size="sm" onClick={handleSaveFees} disabled={isLoading}>
+              {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+              Save Rates
+            </Button>
+          </CardFooter>
+        </Card>
+      )}
+
       <Card className="mx-auto max-w-3xl">
         <CardHeader>
-          <CardTitle className="text-2xl font-bold tracking-tight">Rebooking & Refunds</CardTitle>
-          <CardDescription>Find a booking to manage refunds or rebooking requests.</CardDescription>
+          <CardTitle className="text-xl font-bold tracking-tight">Find Transaction</CardTitle>
+          <CardDescription>Retrieve a booking to process a refund or adjust its travel details.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSearch} className="flex w-full items-center space-x-2">
@@ -213,7 +296,7 @@ export default function RebookingPage() {
           <CardFooter>
             <div className="flex w-full justify-center items-center py-8">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              <p className="ml-2">Searching for booking...</p>
+              <p className="ml-2">Searching database...</p>
             </div>
           </CardFooter>
         )}
