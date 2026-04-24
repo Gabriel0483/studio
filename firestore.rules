@@ -15,10 +15,11 @@ service cloud.firestore {
 
     // --- Platform Admin check (Hardcoded for bootstrap) ---
     function isPlatformAdmin() {
-      return isSignedIn() && (
-        request.auth.token.email == 'rielmagpantay@gmail.com' || 
-        request.auth.token.email == 'mariel.dumaoal@gmail.com'
-      );
+      return isSignedIn() && 
+        request.auth.token.keys().contains('email') && (
+          request.auth.token.email.lower() == 'rielmagpantay@gmail.com' || 
+          request.auth.token.email.lower() == 'mariel.dumaoal@gmail.com'
+        );
     }
 
     // --- Staff Verification (Defensive Lookups) ---

@@ -1,9 +1,10 @@
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
 import { useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
-import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -45,7 +46,8 @@ export default function SystemSettingsPage() {
     setIsLoading(true);
 
     const configDocRef = doc(firestore, 'config', 'settings');
-    updateDocumentNonBlocking(configDocRef, formData);
+    // Using set with merge ensure document is created if it doesn't exist
+    setDocumentNonBlocking(configDocRef, formData, { merge: true });
 
     toast({
       title: 'Settings Saved',

@@ -1,3 +1,4 @@
+
 'use client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,7 @@ import { format } from "date-fns";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 
 export default function RebookingPage() {
   const firestore = useFirestore();
@@ -79,7 +80,7 @@ export default function RebookingPage() {
     setSearchPerformed(true);
 
     try {
-      const isPlatformAdmin = ['rielmagpantay@gmail.com', 'mariel.dumaoal@gmail.com'].includes(user.email || '');
+      const isPlatformAdmin = ['rielmagpantay@gmail.com', 'mariel.dumaoal@gmail.com'].includes(user.email?.toLowerCase() || '');
       const roles = staffData?.roles || [];
       const isFullAccess = roles.some(r => ['Super Admin', 'Operations Manager', 'Finance/Accounting'].includes(r)) || isPlatformAdmin;
 
@@ -118,7 +119,8 @@ export default function RebookingPage() {
     if (!firestore) return;
     setIsLoading(true);
     const configDocRef = doc(firestore, 'config', 'settings');
-    updateDocumentNonBlocking(configDocRef, feeForm);
+    // Using set with merge to ensure doc creation if it doesn't exist
+    setDocumentNonBlocking(configDocRef, feeForm, { merge: true });
     toast({ title: 'Penalty Rates Updated', description: 'Default operational fees have been saved.' });
     setIsLoading(false);
     setIsConfiguringFees(false);
