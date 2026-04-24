@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -123,58 +124,67 @@ export function PublicHeader() {
               )
             )}
           </div>
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="outline" size="icon" className="md:hidden">
-                <Menu className="h-5 w-5" />
-                <span className="sr-only">Toggle navigation menu</span>
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left">
-                <SheetHeader className="sr-only">
-                    <SheetTitle>Mobile Menu</SheetTitle>
-                    <SheetDescription>Navigation links for mobile users.</SheetDescription>
-                </SheetHeader>
-              <div className="flex flex-col gap-6 pt-12">
-                <Logo />
-                {navLinks.map((link) => (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    className="text-lg font-medium text-foreground hover:text-primary"
-                  >
-                    {link.label}
-                  </Link>
-                ))}
-                 <div className="border-t pt-6 flex flex-col gap-4">
-                  {mounted && !isUserLoading && (
-                    user ? (
-                      <div className="space-y-4">
-                        <div className="flex items-center gap-3 px-2">
-                           <Avatar className="h-10 w-10">
-                              <AvatarImage src={user?.photoURL || undefined} />
-                              <AvatarFallback>{getInitials(user?.email)}</AvatarFallback>
-                           </Avatar>
-                           <div>
-                              <p className="font-semibold">{getDisplayName()}</p>
-                              <p className="text-xs text-muted-foreground">{user?.email}</p>
-                           </div>
+
+          {/* Hydration Guard for the Mobile Menu Sheet */}
+          {mounted ? (
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="outline" size="icon" className="md:hidden">
+                  <Menu className="h-5 w-5" />
+                  <span className="sr-only">Toggle navigation menu</span>
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left">
+                  <SheetHeader className="sr-only">
+                      <SheetTitle>Mobile Menu</SheetTitle>
+                      <SheetDescription>Navigation links for mobile users.</SheetDescription>
+                  </SheetHeader>
+                <div className="flex flex-col gap-6 pt-12">
+                  <Logo />
+                  {navLinks.map((link) => (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      className="text-lg font-medium text-foreground hover:text-primary"
+                    >
+                      {link.label}
+                    </Link>
+                  ))}
+                   <div className="border-t pt-6 flex flex-col gap-4">
+                    {!isUserLoading && (
+                      user ? (
+                        <div className="space-y-4">
+                          <div className="flex items-center gap-3 px-2">
+                             <Avatar className="h-10 w-10">
+                                <AvatarImage src={user?.photoURL || undefined} />
+                                <AvatarFallback>{getInitials(user?.email)}</AvatarFallback>
+                             </Avatar>
+                             <div>
+                                <p className="font-semibold">{getDisplayName()}</p>
+                                <p className="text-xs text-muted-foreground">{user?.email}</p>
+                             </div>
+                          </div>
+                          <Button variant="outline" className="w-full justify-start" asChild><Link href="/my-profile"><User className="mr-2 h-4 w-4" /> My Profile</Link></Button>
+                          <Button variant="outline" className="w-full justify-start" asChild><Link href="/my-bookings"><BookCopy className="mr-2 h-4 w-4" /> My Bookings</Link></Button>
+                          <Button variant="ghost" className="w-full justify-start text-destructive" onClick={onSignOut}><LogOut className="mr-2 h-4 w-4" /> Log Out</Button>
                         </div>
-                        <Button variant="outline" className="w-full justify-start" asChild><Link href="/my-profile"><User className="mr-2 h-4 w-4" /> My Profile</Link></Button>
-                        <Button variant="outline" className="w-full justify-start" asChild><Link href="/my-bookings"><BookCopy className="mr-2 h-4 w-4" /> My Bookings</Link></Button>
-                        <Button variant="ghost" className="w-full justify-start text-destructive" onClick={onSignOut}><LogOut className="mr-2 h-4 w-4" /> Log Out</Button>
-                      </div>
-                    ) : (
-                      <>
-                        <Button variant="outline" asChild><Link href="/login">Login</Link></Button>
-                        <Button asChild><Link href="/signup">Sign Up</Link></Button>
-                      </>
-                    )
-                  )}
+                      ) : (
+                        <>
+                          <Button variant="outline" asChild><Link href="/login">Login</Link></Button>
+                          <Button asChild><Link href="/signup">Sign Up</Link></Button>
+                        </>
+                      )
+                    )}
+                  </div>
                 </div>
-              </div>
-            </SheetContent>
-          </Sheet>
+              </SheetContent>
+            </Sheet>
+          ) : (
+            <Button variant="outline" size="icon" className="md:hidden">
+              <Menu className="h-5 w-5" />
+              <span className="sr-only">Toggle navigation menu</span>
+            </Button>
+          )}
         </div>
       </div>
     </header>
