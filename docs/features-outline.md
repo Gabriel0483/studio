@@ -7,7 +7,7 @@ Designed for a seamless traveler experience from planning to boarding.
 *   **Dynamic Restricted Window**: Online bookings are strictly enforced to a 7-day window before departure to ensure operational accuracy.
 *   **Real-Time Availability**: Live seat counters show exactly how many spots remain. Automatically switches to "Waitlist" when full.
 *   **Multi-Passenger Support**: Add multiple travelers in a single transaction with individual fare type selection (Adult, Senior, Student, etc.).
-*   **Profile Integration**: Logged-in users can instantly add themselves or saved family members to a booking via profile shortcuts.
+*   **Profile Integration**: Logged-in users can instantly add themselves ("Me") or saved family members to a booking via profile shortcuts.
 *   **Progress Tracking**: A 3-step guided workflow (Details → Summary → Confirmed) with visual status indicators.
 
 ### 2. Secure Authentication & Identity
@@ -50,20 +50,25 @@ Granular control for Super Admins, Operations Managers, and Station Managers.
 *   **Desk Booking**: Fast-entry interface for terminal walk-ins with integrated passenger profile search (Email/Phone). Allows an extended 60-day booking window.
 *   **Multi-Criteria Filtering**: Search and filter global bookings by date, route, status, or passenger identity.
 
-### 3. Fleet & Trip Management (Digital Manifests)
+### 3. Operations & Fleet Management
+*   **Fleet Readiness Registry**: Centralized database of all vessels including name, vessel type, and passenger capacity.
+*   **Recurring Schedule Templates**: Engine for creating "Daily" recurring trip patterns that serve as the blueprint for all future voyages.
+*   **Maintenance Control Center**: Advanced tool for scheduling dry-dock or repairs with detailed descriptions.
+*   **Auto-Lock Status Sync**: Intelligent logic that automatically marks vessels as "Under Maintenance" during scheduled repairs, preventing accidental deployment in trip management.
+*   **Assigned Crew Visibility**: Real-time lookup of staff members currently assigned to specific ships during schedule planning.
+
+### 4. Trip Management (Digital Manifests)
 *   **Trip Lifecycle Control**: Manage trip phases: Set status (On Time/Delayed/Cancelled), Start Boarding, Close Boarding, Depart, and Arrived.
-*   **Vessel Assignment**: Assign specific ships to trips based on current fleet availability before boarding starts.
-*   **Waitlist Overrides**: Adjust maximum waitlist limits per specific trip instance to handle peak demand.
+*   **Vessel Assignment**: Assign specific ships to trips right before boarding starts.
 *   **Real-Time Boarding Manifest**: Interactive crew interface to "Board" or "Deboard" individual passengers with instant synchronization.
 *   **Compliance Manifests**: Generate and print official passenger manifests for port authority and regulatory compliance.
-*   **Maintenance Scheduler**: Schedule dry-dock or repairs which automatically updates ship status system-wide.
 
-### 4. Network Configuration
+### 5. Network Configuration
 *   **Port Management**: Manage terminal locations within the shipping network.
-*   **Route Mapping**: Configure travel paths between ports including distance tracking.
-*   **Fare Tables**: Route-specific pricing matrices for different passenger types (Senior, Student, etc.).
+*   **Route Mapping**: Configure travel paths between ports including distance tracking and allowed passenger types.
+*   **Fare Tables**: Route-specific pricing matrices for different passenger types (Adult, Senior, Student, etc.).
 
-### 5. Reporting & Compliance
+### 6. Reporting & Compliance
 *   **Financial Reconciliation**: Detailed breakdown of Gross, Net, and Earned revenue.
 *   **Fee Tracking**: Monitoring of rebooking fees, no-show penalties, and cancellation fees.
 *   **CSV Exports**: One-click data generation for accounting and regulatory compliance.
