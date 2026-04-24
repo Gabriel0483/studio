@@ -67,6 +67,7 @@ Granular control for Super Admins, Operations Managers, and Station Managers.
 *   **Port Management**: Manage terminal locations within the shipping network.
 *   **Route Mapping**: Configure travel paths between ports including distance tracking and allowed passenger types.
 *   **Fare Tables**: Route-specific pricing matrices for different passenger types (Adult, Senior, Student, etc.).
+*   **Advisory Management**: Centralized hub for posting public announcements categorized by severity (Weather, Route, Fare, Service Disruption).
 
 ### 6. Reporting & Compliance
 *   **Financial Reconciliation**: Detailed breakdown of Gross, Net, and Earned revenue.
