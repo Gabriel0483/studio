@@ -127,6 +127,22 @@
       },
       "required": ["id", "passengerId", "scheduleId", "travelDate", "totalPrice", "status"]
     },
+    "SafetyCheck": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "SafetyCheck",
+      "type": "object",
+      "description": "Seaworthiness compliance record.",
+      "properties": {
+        "id": { "type": "string" },
+        "scheduleId": { "type": "string" },
+        "type": { "type": "string", "enum": ["Pre-Boarding", "Pre-Departure", "Post-Arrival"] },
+        "completedBy": { "type": "string" },
+        "completedByName": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "responses": { "type": "object" }
+      },
+      "required": ["id", "scheduleId", "type", "completedBy", "createdAt"]
+    },
     "SystemConfig": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "SystemConfig",
@@ -155,7 +171,8 @@
       { "path": "/routes/{id}", "definition": { "entityName": "Route", "schema": { "$ref": "#/backend/entities/Route" } } },
       { "path": "/fares/{id}", "definition": { "entityName": "Fare", "schema": { "$ref": "#/backend/entities/Fare" } } },
       { "path": "/schedules/{id}", "definition": { "entityName": "Schedule", "schema": { "$ref": "#/backend/entities/Schedule" } } },
-      { "path": "/bookings/{id}", "definition": { "entityName": "Booking", "schema": { "$ref": "#/backend/entities/Booking" } } }
+      { "path": "/bookings/{id}", "definition": { "entityName": "Booking", "schema": { "$ref": "#/backend/entities/Booking" } } },
+      { "path": "/safetyChecks/{id}", "definition": { "entityName": "SafetyCheck", "schema": { "$ref": "#/backend/entities/SafetyCheck" } } }
     ]
   }
 }

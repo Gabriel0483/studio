@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useMemo, useCallback, useState, useEffect, Suspense } from 'react';
@@ -8,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, ArrowLeft, UserCheck, UserX, LogIn, LogOut, Users, Ticket, UserMinus, Play, Square, Ship, Printer, CheckCircle, Settings2, Info, Clock } from 'lucide-react';
+import { Loader2, ArrowLeft, UserCheck, UserX, LogIn, LogOut, Users, Ticket, UserMinus, Play, Square, Ship, Printer, CheckCircle, Settings2, Info, Clock, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { format, differenceInYears, parseISO } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
@@ -17,6 +18,7 @@ import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { SafetyChecklist } from '@/components/safety-checklist';
 
 const TripStatusControl = ({ baseSchedule, effectiveSchedule, tripDateStr }: { baseSchedule: any, effectiveSchedule: any, tripDateStr: string }) => {
     const firestore = useFirestore();
@@ -235,6 +237,17 @@ function ManifestPageContent() {
   const { data: realtimeEffectiveSchedule } = useDoc(effectiveScheduleRef);
   const displaySchedule = realtimeEffectiveSchedule || effectiveSchedule;
 
+  const safetyChecksQuery = useMemoFirebase(() => {
+    if (!firestore || !displaySchedule?.id) return null;
+    return query(collection(firestore, 'safetyChecks'), where('scheduleId', '==', displaySchedule.id));
+  }, [firestore, displaySchedule]);
+
+  const { data: safetyChecks } = useCollection(safetyChecksQuery);
+
+  const isChecklistCompleted = (type: string) => {
+    return safetyChecks?.some(c => c.type === type);
+  };
+
   const bookingsQuery = useMemoFirebase(() => {
     if (!firestore || !displaySchedule?.id) return null;
     return query(collection(firestore, 'bookings'), where('scheduleId', '==', displaySchedule.id));
@@ -369,7 +382,7 @@ function ManifestPageContent() {
     )
   }
 
-  const BoardingWorkflowButtons = ({ baseSchedule, displaySchedule, allShips, passengers, tripDateStr }: { baseSchedule: any, displaySchedule: any, allShips: any[], passengers: any[], tripDateStr: string }) => {
+  const BoardingWorkflowButtons = ({ baseSchedule, displaySchedule, allShips, passengers, tripDateStr, safetyCleared }: { baseSchedule: any, displaySchedule: any, allShips: any[], passengers: any[], tripDateStr: string, safetyCleared: boolean }) => {
     const [selectedShipId, setSelectedShipId] = useState(displaySchedule?.shipId || '');
     const availableShips = useMemo(() => allShips?.filter(s => s.status === 'In Service') || [], [allShips]);
     
@@ -463,7 +476,16 @@ function ManifestPageContent() {
     }
     
     if (displaySchedule.boardingStatus === 'Departed') {
-        return <Button onClick={() => handleStatusChange('Arrived')} className="w-full sm:w-auto"><CheckCircle className="mr-2 h-4 w-4" /> Arrived</Button>;
+        return (
+            <div className="flex flex-col sm:flex-row items-end gap-2 w-full sm:w-auto">
+                 {!isChecklistCompleted('Post-Arrival') && (
+                    <p className="text-[10px] font-bold text-orange-600 animate-pulse uppercase">Arrival Check Required</p>
+                 )}
+                 <Button onClick={() => handleStatusChange('Arrived')} className="w-full sm:w-auto" disabled={!isChecklistCompleted('Post-Arrival')}>
+                    <CheckCircle className="mr-2 h-4 w-4" /> Arrived
+                 </Button>
+            </div>
+        );
     }
 
     switch (displaySchedule.boardingStatus) {
@@ -471,9 +493,16 @@ function ManifestPageContent() {
         return <Button onClick={() => handleStatusChange('Boarding Closed')} className="w-full sm:w-auto"><Square className="mr-2 h-4 w-4" /> Close Boarding</Button>;
       case 'Boarding Closed':
         return (
-            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                <Button variant="outline" onClick={() => handleStatusChange('Boarding')} className="w-full sm:w-auto"><Play className="mr-2 h-4 w-4" /> Reopen</Button>
-                <Button onClick={() => handleStatusChange('Departed')} className="w-full sm:w-auto"><Ship className="mr-2 h-4 w-4" /> Depart</Button>
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto items-end">
+                {!isChecklistCompleted('Pre-Departure') && (
+                    <p className="text-[10px] font-bold text-orange-600 animate-pulse uppercase">Pre-Departure Check Required</p>
+                )}
+                <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => handleStatusChange('Boarding')} className="w-full sm:w-auto"><Play className="mr-2 h-4 w-4" /> Reopen</Button>
+                    <Button onClick={() => handleStatusChange('Departed')} className="w-full sm:w-auto" disabled={!isChecklistCompleted('Pre-Departure')}>
+                        <Ship className="mr-2 h-4 w-4" /> Depart
+                    </Button>
+                </div>
             </div>
         );
       default: // 'Awaiting'
@@ -494,9 +523,14 @@ function ManifestPageContent() {
                         </Select>
                     </div>
                 )}
-                <Button onClick={() => handleStatusChange('Boarding')} disabled={!selectedShipId || displaySchedule.status === 'Cancelled'} className="w-full sm:w-auto">
-                    <Play className="mr-2 h-4 w-4" /> Start Boarding
-                </Button>
+                <div className="flex flex-col items-end gap-1">
+                    {!isChecklistCompleted('Pre-Boarding') && (
+                        <p className="text-[10px] font-bold text-orange-600 animate-pulse uppercase">Boarding Check Required</p>
+                    )}
+                    <Button onClick={() => handleStatusChange('Boarding')} disabled={!selectedShipId || displaySchedule.status === 'Cancelled' || !isChecklistCompleted('Pre-Boarding')} className="w-full sm:w-auto">
+                        <Play className="mr-2 h-4 w-4" /> Start Boarding
+                    </Button>
+                </div>
             </div>
         );
     }
@@ -525,6 +559,7 @@ function ManifestPageContent() {
                 allShips={allShips || []}
                 passengers={passengers}
                 tripDateStr={tripDateStr}
+                safetyCleared={isChecklistCompleted('Pre-Boarding')}
             />
             {(displaySchedule.boardingStatus === 'Boarding Closed' || displaySchedule.boardingStatus === 'Departed' || displaySchedule.boardingStatus === 'Arrived') && (
               <Button variant="outline" onClick={() => setIsPrintViewOpen(true)} className="w-full sm:w-auto">
@@ -535,103 +570,172 @@ function ManifestPageContent() {
       </div>
       <Separator/>
 
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Confirmed</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{boardingStats.total}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Boarded</CardTitle>
-              <UserCheck className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{boardingStats.boarded}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Awaiting</CardTitle>
-              <UserMinus className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{boardingStats.awaiting}</div>
-            </CardContent>
-          </Card>
-          <Card className="bg-primary/5">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-xs font-bold uppercase text-primary/70">Waitlist</CardTitle>
-              <Clock className="h-4 w-4 text-primary/70" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-primary">{displaySchedule.waitlistCount || 0} / {displaySchedule.waitlistLimit ?? baseSchedule?.waitlistLimit ?? 50}</div>
-            </CardContent>
-          </Card>
-        </div>
+        <div className="grid gap-6 grid-cols-1 lg:grid-cols-4">
+            <div className="lg:col-span-3 space-y-6">
+                <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Confirmed</CardTitle>
+                    <Users className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                    <div className="text-2xl font-bold">{boardingStats.total}</div>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Boarded</CardTitle>
+                    <UserCheck className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                    <div className="text-2xl font-bold">{boardingStats.boarded}</div>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Awaiting</CardTitle>
+                    <UserMinus className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                    <div className="text-2xl font-bold">{boardingStats.awaiting}</div>
+                    </CardContent>
+                </Card>
+                <Card className="bg-primary/5">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-xs font-bold uppercase text-primary/70">Waitlist</CardTitle>
+                    <Clock className="h-4 w-4 text-primary/70" />
+                    </CardHeader>
+                    <CardContent>
+                    <div className="text-2xl font-bold text-primary">{displaySchedule.waitlistCount || 0} / {displaySchedule.waitlistLimit ?? baseSchedule?.waitlistLimit ?? 50}</div>
+                    </CardContent>
+                </Card>
+                </div>
 
-      <Card>
-        <CardHeader className="px-4 py-4 sm:px-6">
-          <CardTitle className="text-lg">Passenger List</CardTitle>
-          <CardDescription className="text-xs">
-            {isOperationAllowed ? "Tap 'Board' or 'Deboard' to update status." : `Trip is currently ${displaySchedule.boardingStatus || 'Awaiting'}.`}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="p-0 sm:p-6">
-          <div className="overflow-x-auto">
-            <Table>
-                <TableHeader>
-                <TableRow>
-                    <TableHead className="w-[200px]">Name</TableHead>
-                    <TableHead>Ref</TableHead>
-                    <TableHead className="hidden sm:table-cell">Age</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Action</TableHead>
-                </TableRow>
-                </TableHeader>
-                <TableBody>
-                {passengers.length > 0 ? (
-                    passengers.map((passenger) => (
-                    <TableRow key={passenger.id}>
-                        <TableCell className="font-medium text-xs sm:text-sm">{passenger.fullName}</TableCell>
-                        <TableCell className="font-mono text-[10px] sm:text-xs">{passenger.bookingId}</TableCell>
-                        <TableCell className="hidden sm:table-cell text-xs">{calculateAge(passenger.birthDate)}</TableCell>
-                        <TableCell>
-                        <Badge variant={getStatusVariant(passenger.boardingStatus)} className="text-[10px] px-1.5 py-0">
-                            {passenger.boardingStatus}
-                        </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                        <div className="flex justify-end">
-                            {passenger.boardingStatus !== 'Boarded' ? (
-                                <Button variant="outline" size="sm" onClick={() => handleBoarding(passenger)} disabled={!isOperationAllowed} className="h-7 px-2 text-[10px]">
-                                    <LogIn className="mr-1 h-3 w-3" /> Board
-                                </Button>
+                <Card>
+                    <CardHeader className="px-4 py-4 sm:px-6">
+                    <CardTitle className="text-lg">Passenger List</CardTitle>
+                    <CardDescription className="text-xs">
+                        {isOperationAllowed ? "Tap 'Board' or 'Deboard' to update status." : `Trip is currently ${displaySchedule.boardingStatus || 'Awaiting'}.`}
+                    </CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-0 sm:p-6">
+                    <div className="overflow-x-auto">
+                        <Table>
+                            <TableHeader>
+                            <TableRow>
+                                <TableHead className="w-[200px]">Name</TableHead>
+                                <TableHead>Ref</TableHead>
+                                <TableHead className="hidden sm:table-cell">Age</TableHead>
+                                <TableHead>Status</TableHead>
+                                <TableHead className="text-right">Action</TableHead>
+                            </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                            {passengers.length > 0 ? (
+                                passengers.map((passenger) => (
+                                <TableRow key={passenger.id}>
+                                    <TableCell className="font-medium text-xs sm:text-sm">{passenger.fullName}</TableCell>
+                                    <TableCell className="font-mono text-[10px] sm:text-xs">{passenger.bookingId}</TableCell>
+                                    <TableCell className="hidden sm:table-cell text-xs">{calculateAge(passenger.birthDate)}</TableCell>
+                                    <TableCell>
+                                    <Badge variant={getStatusVariant(passenger.boardingStatus)} className="text-[10px] px-1.5 py-0">
+                                        {passenger.boardingStatus}
+                                    </Badge>
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                    <div className="flex justify-end">
+                                        {passenger.boardingStatus !== 'Boarded' ? (
+                                            <Button variant="outline" size="sm" onClick={() => handleBoarding(passenger)} disabled={!isOperationAllowed} className="h-7 px-2 text-[10px]">
+                                                <LogIn className="mr-1 h-3 w-3" /> Board
+                                            </Button>
+                                        ) : (
+                                            <Button variant="secondary" size="sm" onClick={() => handleDeboarding(passenger)} disabled={!isOperationAllowed} className="h-7 px-2 text-[10px]">
+                                                <LogOut className="mr-1 h-3 w-3" /> Deboard
+                                            </Button>
+                                        )}
+                                    </div>
+                                    </TableCell>
+                                </TableRow>
+                                ))
                             ) : (
-                                <Button variant="secondary" size="sm" onClick={() => handleDeboarding(passenger)} disabled={!isOperationAllowed} className="h-7 px-2 text-[10px]">
-                                    <LogOut className="mr-1 h-3 w-3" /> Deboard
-                                </Button>
+                                <TableRow>
+                                <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                                    No confirmed passengers for this trip.
+                                </TableCell>
+                                </TableRow>
                             )}
-                        </div>
-                        </TableCell>
-                    </TableRow>
-                    ))
-                ) : (
-                    <TableRow>
-                    <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
-                        No confirmed passengers for this trip.
-                    </TableCell>
-                    </TableRow>
+                            </TableBody>
+                        </Table>
+                    </div>
+                    </CardContent>
+                </Card>
+            </div>
+
+            <div className="space-y-6">
+                {displaySchedule.boardingStatus === 'Awaiting' && !isChecklistCompleted('Pre-Boarding') && (
+                    <SafetyChecklist 
+                        scheduleId={displaySchedule.id}
+                        type="Pre-Boarding"
+                        items={[
+                            { id: 'sanitation', label: 'Vessel sanitation & cabin prep complete.' },
+                            { id: 'safety-gear', label: 'Life jackets accessible & accounted for.' },
+                            { id: 'exits', label: 'All emergency exits clear of obstructions.' },
+                            { id: 'crew-on-deck', label: 'Assigned crew present & fit for duty.' }
+                        ]}
+                        onComplete={() => {}}
+                    />
                 )}
-                </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+
+                {displaySchedule.boardingStatus === 'Boarding Closed' && !isChecklistCompleted('Pre-Departure') && (
+                    <SafetyChecklist 
+                        scheduleId={displaySchedule.id}
+                        type="Pre-Departure"
+                        items={[
+                            { id: 'manifest-match', label: 'Manifest reconciled with physical headcount.' },
+                            { id: 'stability', label: 'Vessel balance verified (Weight & Trim).' },
+                            { id: 'weather', label: 'Final weather clearance confirmed with Coast Guard.' },
+                            { id: 'engine', label: 'Main propulsion & steering gear tested.' }
+                        ]}
+                        onComplete={() => {}}
+                    />
+                )}
+
+                {displaySchedule.status === 'Departed' && !isChecklistCompleted('Post-Arrival') && (
+                    <SafetyChecklist 
+                        scheduleId={displaySchedule.id}
+                        type="Post-Arrival"
+                        items={[
+                            { id: 'zero-pax', label: 'Zero passengers remaining on board confirmed.' },
+                            { id: 'vessel-check', label: 'Vessel structural inspection complete.' },
+                            { id: 'logbook', label: 'Voyage logbook finalized & signed.' }
+                        ]}
+                        onComplete={() => {}}
+                    />
+                )}
+
+                {(isChecklistCompleted('Pre-Boarding') || isChecklistCompleted('Pre-Departure') || isChecklistCompleted('Post-Arrival')) && (
+                    <Card>
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Compliance Status</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-2">
+                            <div className="flex items-center justify-between text-xs">
+                                <span className="flex items-center gap-1"><ShieldCheck className={cn("h-3 w-3", isChecklistCompleted('Pre-Boarding') ? "text-green-500" : "text-muted-foreground")} /> Pre-Boarding</span>
+                                {isChecklistCompleted('Pre-Boarding') ? <Badge variant="default" className="text-[10px] h-4">Signed</Badge> : <Badge variant="outline" className="text-[10px] h-4">Pending</Badge>}
+                            </div>
+                            <div className="flex items-center justify-between text-xs">
+                                <span className="flex items-center gap-1"><ShieldCheck className={cn("h-3 w-3", isChecklistCompleted('Pre-Departure') ? "text-green-500" : "text-muted-foreground")} /> Pre-Departure</span>
+                                {isChecklistCompleted('Pre-Departure') ? <Badge variant="default" className="text-[10px] h-4">Signed</Badge> : <Badge variant="outline" className="text-[10px] h-4">Pending</Badge>}
+                            </div>
+                            <div className="flex items-center justify-between text-xs">
+                                <span className="flex items-center gap-1"><ShieldCheck className={cn("h-3 w-3", isChecklistCompleted('Post-Arrival') ? "text-green-500" : "text-muted-foreground")} /> Post-Arrival</span>
+                                {isChecklistCompleted('Post-Arrival') ? <Badge variant="default" className="text-[10px] h-4">Signed</Badge> : <Badge variant="outline" className="text-[10px] h-4">Pending</Badge>}
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
+            </div>
+        </div>
     </div>
     <Dialog open={isPrintViewOpen} onOpenChange={setIsPrintViewOpen}>
       <DialogContent className="max-w-4xl p-0 h-[90vh] sm:h-auto overflow-y-auto">
