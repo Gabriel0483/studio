@@ -1,4 +1,3 @@
-
 rules_version = '2';
 
 service cloud.firestore {
@@ -13,7 +12,7 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // --- Platform Admin check (Hardcoded for bootstrap) ---
+    // --- Platform Admin check ---
     function isPlatformAdmin() {
       return isSignedIn() && 
         'email' in request.auth.token && (
@@ -22,7 +21,7 @@ service cloud.firestore {
         );
     }
 
-    // --- Staff Verification (Defensive Lookups) ---
+    // --- Staff Verification ---
     function isStaff() {
       return isPlatformAdmin() || (isSignedIn() && exists(/databases/$(database)/documents/staff/$(request.auth.uid)));
     }
