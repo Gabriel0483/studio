@@ -26,12 +26,6 @@ Designed for a seamless traveler experience from planning to boarding.
 *   **Service Notifications**: Instant access to weather updates, route changes, or service disruptions posted by staff.
 *   **Categorized Information**: Alerts categorized by severity (Weather, Route, Fare, General) for quick scanning.
 
-### 5. Self-Service Suite
-*   **My Bookings**: History of all past and upcoming trips with current payment and reservation status.
-*   **Profile Management**: Manage personal PII and a directory of family members for faster future bookings.
-*   **Digital Itinerary**: A secure, printable summary of travel details with a unique 6-character booking reference and terminal instructions.
-*   **Privacy Guard**: Transparent disclosure of the 90-day data retention policy.
-
 ---
 
 ## 🏗️ Administrative Command Center (RBAC)
@@ -43,52 +37,35 @@ Granular control for Super Admins, Operations Managers, and Station Managers.
 *   **Financial Momentum Analytics**: Monthly revenue trends and top-performing route volume charts.
 *   **Trip Punctuality**: Real-time count of delayed or cancelled voyages for the selected date.
 *   **Waitlist Burden Indicator**: High-level visibility into total waitlisted passengers across the entire operation.
-*   **Temporal Context Switching**: Date-picker to review snapshots of operational performance for any day.
 
 ### 2. Waitlist Lifecycle Management (The Atomic Engine)
 Isla Konek uses a First-Come, First-Served (FCFS) priority queue.
 *   **Automated Entry**: Triggered when `availableSeats` is less than the requested group size.
-*   **Capacity Throttle**: Admins can set `waitlistLimit` per trip template or override it for specific trip instances to manage terminal congestion.
-*   **No-Payment Barrier**: Waitlisted passengers are not required to pay until promoted, reducing refund overhead.
-*   **Seat Release Triggers**: Promotion logic is automatically triggered by:
-    *   **Manual Deletion**: If an admin deletes a booking.
-    *   **Refund/Cancellation**: When a seat is released via the financial module.
-    *   **Ghost Purge**: When the 1-hour expiry guard removes unpaid reservations.
-    *   **Rebooking Out**: When a passenger is moved to a different trip.
-*   **Atomic Promotion**: A transaction-safe loop that identifies the next eligible passenger group in the queue whose size fits the newly available capacity.
+*   **Capacity Throttle**: Admins can set `waitlistLimit` per trip template to manage terminal congestion.
+*   **Atomic Promotion**: A transaction-safe loop that identifies the next eligible passenger group in the queue whose size fits the newly available capacity. Triggers include deletions, refunds, and ghost purges.
 
 ### 3. Booking & Revenue Management
+*   **Reserved Status Management**: Handles seat allocation for unpaid bookings. "Reserved" records lock capacity but are subject to strict expiry rules.
 *   **Ghost Reservation Purge**: Administrative tool to identify and bulk-delete unpaid "Ghost" bookings 1 hour before departure to recover seat capacity.
 *   **Payment Correction Tools**: "Undo Payment" actions for correcting entry errors, reverting status from Confirmed back to Reserved.
 *   **Desk Booking Interface**: Optimized fast-entry for walk-ins with a 60-day booking window and integrated passenger profile search (Email/Phone).
-*   **Deep-Dive Manifest Filtering**: Search and filter global bookings by date, specific trip, route, status, or passenger identity.
 
 ### 4. Operations & Fleet Management
 *   **Fleet Readiness Registry**: Centralized database tracking vessel types, names, and passenger capacities.
 *   **Recurring Schedule Templates**: Engine for defining "Daily" recurring trip blueprints that automatically spawn trip instances.
 *   **Intelligent Maintenance Scheduler**: Tool for planning repairs that automatically marks vessels as "Under Maintenance," locking them from active trip assignment.
-*   **Auto-Status Sync**: Ships automatically revert to "In Service" once scheduled maintenance windows expire.
 
 ### 5. Trip Management (Digital Manifests)
 *   **Trip Lifecycle Control**: Active management of trip phases: Set status (On Time/Delayed/Cancelled), Start/Close Boarding, Depart, and Arrived.
 *   **Vessel Assignment**: Assign specific ships to trips right before boarding, restricted to "In Service" vessels only.
-*   **State-Locked Safety Compliance**: Programmatic locks on "Start Boarding" and "Depart" buttons until mandatory digital safety checklists (Pre-Boarding & Pre-Departure) are signed.
-*   **Real-Time Interactive Manifest**: Crew interface to "Board" or "Deboard" individuals with instant head-count synchronization to the dashboard.
-*   **Compliance Printing**: Generate and print official passenger manifests formatted for port authority and coast guard regulations.
+*   **State-Locked Safety Compliance**: Programmatic locks on "Start Boarding" and "Depart" buttons until mandatory digital safety checklists are signed.
 
-### 6. Network Configuration
-*   **Port Management**: Master terminal location registry. Defines the physical nodes of the network and serves as the anchor for port-based RBAC and manifest isolation.
-*   **Route Mapping**: Configure nautical travel paths between ports. Includes nautical distance tracking and the definition of allowed passenger segments (Adult, Senior, etc.).
-*   **Fare Tables**: Route-specific pricing matrices. Prices are bound to the passenger segments defined in the Route module and sync instantly across all booking channels.
-
-### 7. Financial Services (Refunds & Rebooking)
-*   **Rapid Search Engine**: Look up travel records instantly by Booking Reference or Passenger Name.
+### 6. Financial Services (Refunds & Rebooking)
 *   **Integrated Refund Calculator**: Apply customizable cancellation fees and calculate final refund amounts automatically.
 *   **Penalty Management**: Centralized configuration for **Rebooking Fees**, **Cancellation Fees**, and **No-show Fees** within the module for operational ease.
 *   **Audit Logging**: Mandatory "Reason" input for all cancellations and fee history tracking.
 
-### 8. Reporting & Compliance
+### 7. Reporting & Compliance
 *   **Financial Reconciliation**: Detailed period-based breakdown of Gross, Net, and Earned revenue.
 *   **Fee & Refund Tracking**: Dedicated monitoring of rebooking fees, no-show penalties, and cancellation fee retention.
-*   **CSV Data Streaming**: One-click generation of transaction data for accounting and regulatory compliance audits.
 *   **Data Retention Policy**: Automated 90-day PII purge tool to ensure global privacy compliance.
