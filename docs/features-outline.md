@@ -49,6 +49,7 @@ Granular control for Super Admins, Operations Managers, and Station Managers.
 Isla Konek uses a First-Come, First-Served (FCFS) priority queue.
 *   **Automated Entry**: Triggered when `availableSeats` is less than the requested group size.
 *   **Capacity Throttle**: Admins can set `waitlistLimit` per trip template or override it for specific trip instances to manage terminal congestion.
+*   **No-Payment Barrier**: Waitlisted passengers are not required to pay until promoted, reducing refund overhead.
 *   **Seat Release Triggers**: Promotion logic is automatically triggered by:
     *   **Manual Deletion**: If an admin deletes a booking.
     *   **Refund/Cancellation**: When a seat is released via the financial module.

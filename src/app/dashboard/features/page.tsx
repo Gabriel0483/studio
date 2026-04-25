@@ -4,7 +4,7 @@
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Cpu, ShieldCheck, Database, Zap, LayoutGrid, Globe, Lock, Shield, Ghost, Trash2, Users, ListOrdered, ArrowUpCircle } from 'lucide-react';
+import { Cpu, Database, Zap, Globe, Lock, Ghost, ArrowUpCircle, RefreshCw } from 'lucide-react';
 import { APP_VERSION } from '@/lib/data';
 
 export default function SystemFeaturesPage() {
@@ -18,8 +18,8 @@ export default function SystemFeaturesPage() {
     {
         title: "FCFS Waitlist Promotion",
         icon: <ArrowUpCircle className="h-5 w-5 text-green-500" />,
-        description: "An automated priority queue that promotes waitlisted passengers in order of booking timestamp whenever seats are released.",
-        tech: ["Priority Queuing", "Auto-Promotion", "Seat Recovery"]
+        description: "An automated priority queue that promotes waitlisted passengers in order of booking timestamp whenever seats are released via cancellations.",
+        tech: ["Priority Queuing", "Auto-Promotion", "Seat Recovery Engine"]
     },
     {
       title: "Ghost Protection System",
@@ -40,10 +40,10 @@ export default function SystemFeaturesPage() {
       tech: ["Firestore onSnapshot", "Digital Manifests"]
     },
     {
-      title: "Financial Reconciliation",
-      icon: <Database className="h-5 w-5 text-pink-500" />,
-      description: "Advanced reporting suite tracking gross, net, and earned revenue with integrated refund and penalty fee management.",
-      tech: ["Recharts", "CSV Stream Generation"]
+      title: "Trigger-Based Recovery",
+      icon: <RefreshCw className="h-5 w-5 text-pink-500" />,
+      description: "Waitlist promotion is automatically triggered by manual deletions, financial refunds, ghost purges, and passenger rebookings.",
+      tech: ["Event-Driven Logic", "Financial Integration"]
     }
   ];
 
