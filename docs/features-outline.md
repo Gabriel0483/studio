@@ -33,7 +33,7 @@ Granular control for Super Admins, Operations Managers, and Station Managers.
 
 ### 1. Operational Dashboard
 *   **Fleet Readiness Monitor**: Real-time KPI tracking the percentage of the fleet currently "In Service." Alerts when readiness drops below 80%.
-*   **Boarding Efficiency Tracker**: Visual progress bars comparing boarded passengers vs. paid reservations for the day.
+*   **Boarding Efficiency Tracker**: Visual progress bars comparing boarded passengers vs. boarded passengers for the day.
 *   **Financial Momentum Analytics**: Monthly revenue trends and top-performing route volume charts.
 *   **Trip Punctuality**: Real-time count of delayed or cancelled voyages for the selected date.
 *   **Waitlist Burden Indicator**: High-level visibility into total waitlisted passengers across the entire operation.
@@ -62,6 +62,7 @@ Isla Konek uses a First-Come, First-Served (FCFS) priority queue.
 
 ### 6. Financial Services (Refunds & Rebooking)
 *   **Integrated Refund Calculator**: Apply customizable cancellation fees and calculate final refund amounts automatically.
+*   **Force Majeure Integrity Policy**: Specialized toggle to waive all Rebooking, Cancellation, and No-show fees in cases of severe weather, technical disruptions, or other force majeure events.
 *   **Penalty Management**: Centralized configuration for **Rebooking Fees**, **Cancellation Fees**, and **No-show Fees** within the module for operational ease.
 *   **Audit Logging**: Mandatory "Reason" input for all cancellations and fee history tracking.
 

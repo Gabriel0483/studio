@@ -1,10 +1,9 @@
-
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useFieldArray, useForm } from 'react-hook-form';
 import * as z from 'zod';
-import { PlusCircle, Trash2, ArrowLeft, Loader2, Receipt } from 'lucide-react';
+import { PlusCircle, Trash2, ArrowLeft, Loader2, Receipt, CloudOff } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -83,6 +82,7 @@ export default function EditBookingPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [rebookingFee, setRebookingFee] = useState(0);
   const [rebookingReason, setRebookingReason] = useState('');
+  const [isForceMajeure, setIsForceMajeure] = useState(false);
   const [minDate, setMinDate] = useState('');
   const [mounted, setMounted] = useState(false);
 
@@ -99,15 +99,26 @@ export default function EditBookingPage() {
   const { data: configData } = useDoc(configRef);
 
   useEffect(() => {
-    if (configData?.defaultRebookingFee && rebookingFee === 0) {
+    if (configData?.defaultRebookingFee && rebookingFee === 0 && !isForceMajeure) {
         setRebookingFee(configData.defaultRebookingFee);
     }
-  }, [configData, rebookingFee]);
+  }, [configData, rebookingFee, isForceMajeure]);
 
   const [availableFares, setAvailableFares] = useState<any[]>([]);
   const form = useForm<BookingFormData>({
     resolver: zodResolver(bookingFormSchema),
   });
+
+  const handleForceMajeureToggle = (checked: boolean) => {
+    setIsForceMajeure(checked);
+    if (checked) {
+      setRebookingFee(0);
+      form.setValue('noShowFee', 0);
+      if (!rebookingReason) setRebookingReason("Force Majeure / Weather Rebooking");
+    } else {
+      setRebookingFee(configData?.defaultRebookingFee || 0);
+    }
+  };
 
   useEffect(() => {
     async function fetchBooking() {
@@ -294,6 +305,7 @@ export default function EditBookingPage() {
                 newWaitCount += newSeats;
             }
             
+            const getRouteName = (id: string) => routes?.find(r => r.id === id)?.name || 'Unknown';
             const route = routes?.find(r => r.id === newScheduleDoc.data().routeId);
 
             transaction.update(newScheduleRef, { availableSeats: newAvailable, waitlistCount: newWaitCount });
@@ -309,8 +321,9 @@ export default function EditBookingPage() {
                 departurePortName: newScheduleDoc.data().departurePortName || route?.departure || '',
                 status: newStatus,
                 paymentStatus: data.paymentStatus,
-                rebookingHistory: [...(booking.rebookingHistory || []), ...(rebookingFee > 0 ? [{ fee: rebookingFee, date: Timestamp.now(), reason: rebookingReason || 'Rebooking' }] : [])],
+                rebookingHistory: [...(booking.rebookingHistory || []), ...(rebookingFee > 0 || isForceMajeure ? [{ fee: rebookingFee, date: Timestamp.now(), reason: rebookingReason || (isForceMajeure ? 'Force Majeure Rebooking' : 'Rebooking') }] : [])],
                 noShowFee: data.noShowFee || null,
+                forceMajeure: isForceMajeure,
                 lastUpdated: serverTimestamp()
             });
         });
@@ -471,15 +484,31 @@ export default function EditBookingPage() {
                 )} />
               </div>
 
-              <div className="space-y-4 rounded-lg border p-4 bg-secondary/10">
+              <div className="space-y-4 rounded-lg border p-6 bg-secondary/10 relative overflow-hidden">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                    <div className="flex items-center gap-3">
+                        <CloudOff className="h-6 w-6 text-blue-600" />
+                        <div>
+                            <p className="font-black text-blue-800 text-sm uppercase tracking-tighter">Force Majeure Protocol</p>
+                            <p className="text-[10px] text-blue-600 font-medium">Waive rebooking and no-show fees for weather/disruptions.</p>
+                        </div>
+                    </div>
+                    <Switch checked={isForceMajeure} onCheckedChange={handleForceMajeureToggle} />
+                </div>
+
                 <h4 className="font-bold flex items-center gap-2">
                     <Receipt className="h-4 w-4 text-primary" />
                     Adjustment Fees
                 </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                     <div className="space-y-2">
-                        <Label className="text-xs font-bold uppercase text-muted-foreground">Add Rebooking Fee (₱)</Label>
-                        <Input type="number" value={rebookingFee} onChange={e => setRebookingFee(parseFloat(e.target.value) || 0)} />
+                        <Label className="text-xs font-bold uppercase text-muted-foreground">Rebooking Fee (₱)</Label>
+                        <Input 
+                          type="number" 
+                          value={rebookingFee} 
+                          onChange={e => setRebookingFee(parseFloat(e.target.value) || 0)} 
+                          disabled={isForceMajeure}
+                        />
                     </div>
                      <FormField
                         control={form.control}
@@ -493,6 +522,7 @@ export default function EditBookingPage() {
                                         type="number" 
                                         {...field} 
                                         onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)} 
+                                        disabled={isForceMajeure}
                                     />
                                     {configData?.defaultNoShowFee && field.value === 0 && (
                                         <Button 
@@ -500,6 +530,7 @@ export default function EditBookingPage() {
                                             variant="outline" 
                                             size="sm"
                                             onClick={() => field.onChange(configData.defaultNoShowFee)}
+                                            disabled={isForceMajeure}
                                         >
                                             Default
                                         </Button>

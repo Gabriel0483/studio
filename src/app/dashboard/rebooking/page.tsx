@@ -1,9 +1,8 @@
-
 'use client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Search, AlertCircle, FileQuestion, Receipt, Settings2, Save } from "lucide-react";
+import { Loader2, Search, AlertCircle, FileQuestion, Receipt, Settings2, Save, ShieldAlert, CloudOff } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase";
 import { collection, doc, query, where, getDocs, updateDoc, Timestamp, runTransaction, orderBy } from "firebase/firestore";
@@ -16,6 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { Switch } from "@/components/ui/switch";
 
 export default function RebookingPage() {
   const firestore = useFirestore();
@@ -31,6 +31,7 @@ export default function RebookingPage() {
   const [isRefundDialogOpen, setIsRefundDialogOpen] = useState(false);
   const [cancellationFee, setCancellationFee] = useState(0);
   const [cancellationReason, setCancellationReason] = useState('');
+  const [isForceMajeure, setIsForceMajeure] = useState(false);
 
   // States for penalty configuration
   const [isConfiguringFees, setIsConfiguringFees] = useState(false);
@@ -58,15 +59,25 @@ export default function RebookingPage() {
 
   // Set default cancellation fee when dialog opens
   useEffect(() => {
-    if (isRefundDialogOpen && configData?.defaultCancellationFee) {
+    if (isRefundDialogOpen && !isForceMajeure && configData?.defaultCancellationFee) {
         setCancellationFee(configData.defaultCancellationFee);
     }
-  }, [isRefundDialogOpen, configData]);
+  }, [isRefundDialogOpen, isForceMajeure, configData]);
 
   const finalRefundAmount = useMemo(() => {
     if (!searchedBooking) return 0;
     return Math.max(0, searchedBooking.totalPrice - cancellationFee);
   }, [searchedBooking, cancellationFee]);
+
+  const handleForceMajeureToggle = (checked: boolean) => {
+    setIsForceMajeure(checked);
+    if (checked) {
+      setCancellationFee(0);
+      if (!cancellationReason) setCancellationReason("Force Majeure / Weather Cancellation");
+    } else {
+      setCancellationFee(configData?.defaultCancellationFee || 0);
+    }
+  };
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -119,7 +130,6 @@ export default function RebookingPage() {
     if (!firestore) return;
     setIsLoading(true);
     const configDocRef = doc(firestore, 'config', 'settings');
-    // Using set with merge to ensure doc creation if it doesn't exist
     setDocumentNonBlocking(configDocRef, feeForm, { merge: true });
     toast({ title: 'Penalty Rates Updated', description: 'Default operational fees have been saved.' });
     setIsLoading(false);
@@ -156,6 +166,7 @@ export default function RebookingPage() {
                 refundAmount: finalRefundAmount,
                 cancellationFee: cancellationFee,
                 cancellationReason: cancellationReason,
+                forceMajeure: isForceMajeure,
             };
 
             if (searchedBooking.status === 'Reserved' || searchedBooking.status === 'Confirmed' || searchedBooking.status === 'Completed') {
@@ -187,6 +198,7 @@ export default function RebookingPage() {
             refundAmount: finalRefundAmount,
             cancellationFee: cancellationFee,
             cancellationReason: cancellationReason,
+            forceMajeure: isForceMajeure,
         }));
 
         toast({ title: "Refund Processed", description: `Refund processed and waitlist promoted.` });
@@ -199,6 +211,7 @@ export default function RebookingPage() {
         setIsRefundDialogOpen(false);
         setCancellationFee(0);
         setCancellationReason('');
+        setIsForceMajeure(false);
     }
   };
 
@@ -396,13 +409,34 @@ export default function RebookingPage() {
                 </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
+                <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-100 rounded-lg">
+                    <div className="flex items-center gap-3">
+                        <CloudOff className="h-5 w-5 text-blue-600" />
+                        <div className="space-y-0.5">
+                            <Label htmlFor="force-majeure-refund" className="text-sm font-bold text-blue-800">Waive Fees (Force Majeure)</Label>
+                            <p className="text-[10px] text-blue-600">Set fee to ₱0.00 for weather/cancellations.</p>
+                        </div>
+                    </div>
+                    <Switch 
+                        id="force-majeure-refund" 
+                        checked={isForceMajeure} 
+                        onCheckedChange={handleForceMajeureToggle}
+                    />
+                </div>
+
                 <div className="flex justify-between items-center text-sm">
                     <span className="text-muted-foreground">Total Price Paid:</span>
                     <span className="font-medium">₱{searchedBooking?.totalPrice.toFixed(2)}</span>
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="cancellation-fee">Cancellation Fee (₱)</Label>
-                    <Input id="cancellation-fee" type="number" value={cancellationFee} onChange={(e) => setCancellationFee(parseFloat(e.target.value) || 0)} />
+                    <Input 
+                      id="cancellation-fee" 
+                      type="number" 
+                      value={cancellationFee} 
+                      onChange={(e) => setCancellationFee(parseFloat(e.target.value) || 0)} 
+                      disabled={isForceMajeure}
+                    />
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="cancellation-reason">Reason for Cancellation</Label>
