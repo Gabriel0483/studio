@@ -1,9 +1,10 @@
+
 'use client';
 
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Cpu, ShieldCheck, Database, Zap, LayoutGrid, Globe, Lock, Shield, Ghost, Trash2, Users } from 'lucide-react';
+import { Cpu, ShieldCheck, Database, Zap, LayoutGrid, Globe, Lock, Shield, Ghost, Trash2, Users, ListOrdered, ArrowUpCircle } from 'lucide-react';
 import { APP_VERSION } from '@/lib/data';
 
 export default function SystemFeaturesPage() {
@@ -12,7 +13,13 @@ export default function SystemFeaturesPage() {
       title: "Atomic Reservation Engine",
       icon: <Lock className="h-5 w-5 text-orange-500" />,
       description: "Uses distributed locking and transactions to ensure seat availability is never compromised, even during concurrent booking attempts.",
-      tech: ["Firestore Transactions", "Atomic Counters", "FCFS Waitlist"]
+      tech: ["Firestore Transactions", "Atomic Counters", "Optimistic Concurrency"]
+    },
+    {
+        title: "FCFS Waitlist Promotion",
+        icon: <ArrowUpCircle className="h-5 w-5 text-green-500" />,
+        description: "An automated priority queue that promotes waitlisted passengers in order of booking timestamp whenever seats are released.",
+        tech: ["Priority Queuing", "Auto-Promotion", "Seat Recovery"]
     },
     {
       title: "Ghost Protection System",
@@ -33,15 +40,9 @@ export default function SystemFeaturesPage() {
       tech: ["Firestore onSnapshot", "Digital Manifests"]
     },
     {
-      title: "Compliance & Data Purge",
-      icon: <Trash2 className="h-5 w-5 text-red-500" />,
-      description: "Automated 90-day PII scrubbing tool to ensure global privacy compliance while maintaining essential financial records.",
-      tech: ["Data Retention Policy", "Bulk Purge Engine"]
-    },
-    {
       title: "Financial Reconciliation",
       icon: <Database className="h-5 w-5 text-pink-500" />,
-      description: "Advanced reporting suite tracking gross, net, and earned revenue with integrated refund and rebooking fee management.",
+      description: "Advanced reporting suite tracking gross, net, and earned revenue with integrated refund and penalty fee management.",
       tech: ["Recharts", "CSV Stream Generation"]
     }
   ];
@@ -111,9 +112,9 @@ export default function SystemFeaturesPage() {
               <p className="text-xs text-muted-foreground">Real-time NoSQL</p>
             </div>
             <div>
-              <p className="text-xs font-bold text-muted-foreground uppercase mb-1">Identity</p>
-              <p className="text-sm font-medium">Firebase Auth</p>
-              <p className="text-xs text-muted-foreground">JWT Security Tokens</p>
+              <p className="text-xs font-bold text-muted-foreground uppercase mb-1">Waitlist Logic</p>
+              <p className="text-sm font-medium">Atomic Promotion</p>
+              <p className="text-xs text-muted-foreground">FCFS Queue Processor</p>
             </div>
           </div>
         </CardContent>

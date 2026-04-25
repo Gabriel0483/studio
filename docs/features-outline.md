@@ -45,45 +45,49 @@ Granular control for Super Admins, Operations Managers, and Station Managers.
 *   **Waitlist Burden Indicator**: High-level visibility into total waitlisted passengers across the entire operation.
 *   **Temporal Context Switching**: Date-picker to review snapshots of operational performance for any day.
 
-### 2. Booking & Revenue Management
+### 2. Waitlist Lifecycle Management (The Atomic Engine)
+Isla Konek uses a First-Come, First-Served (FCFS) priority queue.
+*   **Automated Entry**: Triggered when `availableSeats` is less than the requested group size.
+*   **Capacity Throttle**: Admins can set `waitlistLimit` per trip template or override it for specific trip instances to manage terminal congestion.
+*   **Seat Release Triggers**: Promotion logic is automatically triggered by:
+    *   **Manual Deletion**: If an admin deletes a booking.
+    *   **Refund/Cancellation**: When a seat is released via the financial module.
+    *   **Ghost Purge**: When the 1-hour expiry guard removes unpaid reservations.
+    *   **Rebooking Out**: When a passenger is moved to a different trip.
+*   **Atomic Promotion**: A transaction-safe loop that identifies the next eligible passenger group in the queue whose size fits the newly available capacity.
+
+### 3. Booking & Revenue Management
 *   **Ghost Reservation Purge**: Administrative tool to identify and bulk-delete unpaid "Ghost" bookings 1 hour before departure to recover seat capacity.
-*   **Atomic Waitlist Promotion**: Automated First-Come, First-Served engine that promotes waitlisted passengers when seats are released via cancellation or deletion.
 *   **Payment Correction Tools**: "Undo Payment" actions for correcting entry errors, reverting status from Confirmed back to Reserved.
 *   **Desk Booking Interface**: Optimized fast-entry for walk-ins with a 60-day booking window and integrated passenger profile search (Email/Phone).
 *   **Deep-Dive Manifest Filtering**: Search and filter global bookings by date, specific trip, route, status, or passenger identity.
 
-### 3. Operations & Fleet Management
+### 4. Operations & Fleet Management
 *   **Fleet Readiness Registry**: Centralized database tracking vessel types, names, and passenger capacities.
 *   **Recurring Schedule Templates**: Engine for defining "Daily" recurring trip blueprints that automatically spawn trip instances.
 *   **Intelligent Maintenance Scheduler**: Tool for planning repairs that automatically marks vessels as "Under Maintenance," locking them from active trip assignment.
 *   **Auto-Status Sync**: Ships automatically revert to "In Service" once scheduled maintenance windows expire.
-*   **Assigned Crew Visibility**: Real-time lookup of staff members associated with specific ships during scheduling.
 
-### 4. Trip Management (Digital Manifests)
+### 5. Trip Management (Digital Manifests)
 *   **Trip Lifecycle Control**: Active management of trip phases: Set status (On Time/Delayed/Cancelled), Start/Close Boarding, Depart, and Arrived.
 *   **Vessel Assignment**: Assign specific ships to trips right before boarding, restricted to "In Service" vessels only.
 *   **State-Locked Safety Compliance**: Programmatic locks on "Start Boarding" and "Depart" buttons until mandatory digital safety checklists (Pre-Boarding & Pre-Departure) are signed.
 *   **Real-Time Interactive Manifest**: Crew interface to "Board" or "Deboard" individuals with instant head-count synchronization to the dashboard.
 *   **Compliance Printing**: Generate and print official passenger manifests formatted for port authority and coast guard regulations.
-*   **Dynamic Instance Spawning**: Converts daily templates into manageable "Special" trip instances automatically upon agent interaction.
 
-### 5. Network Configuration
+### 6. Network Configuration
 *   **Port Management**: Master terminal location registry. Defines the physical nodes of the network and serves as the anchor for port-based RBAC and manifest isolation.
 *   **Route Mapping**: Configure nautical travel paths between ports. Includes nautical distance tracking and the definition of allowed passenger segments (Adult, Senior, etc.).
 *   **Fare Tables**: Route-specific pricing matrices. Prices are bound to the passenger segments defined in the Route module and sync instantly across all booking channels.
-*   **Advisory Broadcast Hub**: Centralized station for posting public announcements categorized by severity (Weather, Route, Fare, Service Disruption).
 
-### 6. Financial Services (Refunds & Rebooking)
+### 7. Financial Services (Refunds & Rebooking)
 *   **Rapid Search Engine**: Look up travel records instantly by Booking Reference or Passenger Name.
 *   **Integrated Refund Calculator**: Apply customizable cancellation fees and calculate final refund amounts automatically.
-*   **Penalty Management**: Standardized defaults for **Rebooking Fees**, **Cancellation Fees**, and **No-show Fees** configurable directly within the module for operational ease.
+*   **Penalty Management**: Centralized configuration for **Rebooking Fees**, **Cancellation Fees**, and **No-show Fees** within the module for operational ease.
 *   **Audit Logging**: Mandatory "Reason" input for all cancellations and fee history tracking.
-*   **Capacity Recovery**: Refunding a booking instantly releases seats and triggers the Atomic Waitlist Promotion logic.
-*   **Rebooking Hub**: Direct link to edit booking details for route or date changes without new transaction entry.
 
-### 7. Reporting & Compliance
+### 8. Reporting & Compliance
 *   **Financial Reconciliation**: Detailed period-based breakdown of Gross, Net, and Earned revenue.
 *   **Fee & Refund Tracking**: Dedicated monitoring of rebooking fees, no-show penalties, and cancellation fee retention.
 *   **CSV Data Streaming**: One-click generation of transaction data for accounting and regulatory compliance audits.
 *   **Data Retention Policy**: Automated 90-day PII purge tool to ensure global privacy compliance.
-*   **SOP Repository**: Digital access to Standard Operating Procedures for staff training and emergency incident response.
