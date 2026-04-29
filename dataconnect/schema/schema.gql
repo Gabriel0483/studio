@@ -51,4 +51,5 @@ type Booking @table {
   totalPrice: Float!
   status: String!
   paymentStatus: String @default(value: "Unpaid")
+  boardingSequence: Int
 }

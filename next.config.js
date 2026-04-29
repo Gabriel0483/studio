@@ -1,6 +1,5 @@
-import type {NextConfig} from 'next';
-
-const nextConfig: NextConfig = {
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   output: 'standalone',
   async redirects() {
     return [
@@ -65,13 +64,6 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  experimental: {
-    allowedDevOrigins: [
-      '*.cloudworkstations.dev',
-      '*.hosted.app',
-      'localhost:9002'
-    ],
-  },
 };
 
-export default nextConfig;
+module.exports = nextConfig;
